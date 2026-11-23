@@ -23,6 +23,9 @@ targets:
       - path: www
         type: folder
         buildPhase: resources
+      - path: Support/Assets.xcassets
+      - path: Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
     scheme: {}
     info:
       path: Support/Info.plist
@@ -30,6 +33,8 @@ targets:
         CFBundleDisplayName: AllMyPrinters
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # nur Standard-Verschlüsselung des Systems (TLS, CommonCrypto) → keine Exportdokumente
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UIRequiresFullScreen: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -50,3 +55,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.allmyprinters.app
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

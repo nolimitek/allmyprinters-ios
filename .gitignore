@@ -4,3 +4,4 @@ ci-out/
 DerivedData/
 Support/Info.plist
 .DS_Store
+__pycache__/

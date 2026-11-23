@@ -1,0 +1,120 @@
+# TestFlight: signiert über den App-Store-Connect-API-Schlüssel (ohne Mac) und lädt hoch.
+# Start: Tag tf-<n> pushen oder „Run workflow“. Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei).
+# Ergebnis (ohne Geheimnisse) landet im Zweig ci-tf.
+name: testflight
+on:
+  push:
+    tags: ['tf-*']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+jobs:
+  upload:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Schlüssel vorhanden?
+        env:
+          K: ${{ secrets.ASC_KEY_P8 }}
+          I: ${{ secrets.ASC_KEY_ID }}
+          S: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          mkdir -p ci-out
+          [ -n "$K" ] && [ -n "$I" ] && [ -n "$S" ] || { echo "Secrets ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8 fehlen" | tee ci-out/tf.txt; exit 1; }
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s\n' "$K" > ~/.appstoreconnect/private_keys/AuthKey_$I.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_$I.p8
+          # Passwort für die zwischengespeicherte .p12 (nur mit dem Schlüssel herleitbar)
+          echo "SIGN_PASS=$(printf '%s' "$K" | shasum -a 256 | cut -c1-48)" >> "$GITHUB_ENV"
+          echo "::add-mask::$(printf '%s' "$K" | shasum -a 256 | cut -c1-48)"
+      - name: Signatur-Zwischenspeicher holen
+        uses: actions/cache/restore@v4
+        with:
+          path: .amp-sign
+          key: amp-sign-${{ github.run_id }}
+          restore-keys: amp-sign-
+      - name: App Store Connect (Bundle-ID, App, Zertifikat, Profil)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 SIGN_STATE="$GITHUB_WORKSPACE/.amp-sign"
+          python3 ci/asc.py prepare "$RUNNER_TEMP/sign" 2>&1 | tee -a ci-out/tf.txt; exit ${PIPESTATUS[0]}
+      # gleich sichern (auch wenn später Bau/Upload scheitern), sonst entsteht beim nächsten Lauf wieder ein neues Zertifikat
+      - name: Signatur-Zwischenspeicher sichern
+        if: always() && hashFiles('.amp-sign/cert.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .amp-sign
+          key: amp-sign-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Schlüsselbund + Profil einrichten
+        run: |
+          set -e
+          . "$RUNNER_TEMP/sign/sign.env"
+          KC="$RUNNER_TEMP/amp.keychain-db"; KP=$(uuidgen)
+          security create-keychain -p "$KP" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KP" "$KC"
+          curl -fsSL -o "$RUNNER_TEMP/wwdr.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import "$RUNNER_TEMP/wwdr.cer" -k "$KC" -T /usr/bin/codesign || true
+          security import "$RUNNER_TEMP/sign/dist.p12" -k "$KC" -P "$SIGN_PASS" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KP" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KC" | tee -a ci-out/tf.txt
+          for d in ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles; do
+            mkdir -p "$d"; cp "$RUNNER_TEMP/sign/profile.mobileprovision" "$d/$PROFILE_UUID.mobileprovision"
+          done
+          echo "TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"; echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+      - name: Archiv bauen (Release, Gerät)
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project AllMyPrinters.xcodeproj -scheme AllMyPrinters -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/AllMyPrinters.xcarchive archive \
+            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="AMP CI AppStore" CURRENT_PROJECT_VERSION=${{ github.run_number }} > build-tf.log 2>&1 \
+            || { grep -E "error:" build-tf.log | sort -u | head -80 | tee -a ci-out/tf.txt; tail -40 build-tf.log | tee -a ci-out/tf.txt; exit 1; }
+          echo "Archiv ok, Build ${{ github.run_number }}" | tee -a ci-out/tf.txt
+      - name: IPA exportieren
+        run: |
+          xcodebuild -exportArchive -archivePath build/AllMyPrinters.xcarchive -exportOptionsPlist "$RUNNER_TEMP/sign/ExportOptions.plist" \
+            -exportPath build/export > export-tf.log 2>&1 || { tail -60 export-tf.log | tee -a ci-out/tf.txt; exit 1; }
+          ls -la build/export | tee -a ci-out/tf.txt
+      - name: Zu TestFlight hochladen
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          IPA=$(ls build/export/*.ipa | head -1)
+          V=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' build/AllMyPrinters.xcarchive/Info.plist)
+          if xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" > upload.log 2>&1; then :; else
+            cat upload.log >> ci-out/tf.txt
+            echo "--upload-app fehlgeschlagen → --upload-package" | tee -a ci-out/tf.txt
+            xcrun altool --upload-package "$IPA" -t ios --apple-id "$APP_ID" --bundle-id com.allmyprinters.app \
+              --bundle-version ${{ github.run_number }} --bundle-short-version-string "$V" \
+              --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" > upload.log 2>&1 || { cat upload.log | tee -a ci-out/tf.txt; exit 1; }
+          fi
+          tail -20 upload.log | tee -a ci-out/tf.txt
+          echo "HOCHGELADEN: $V (${{ github.run_number }})" | tee -a ci-out/tf.txt
+      - name: Aufräumen
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/amp.keychain-db" 2>/dev/null || true
+          rm -rf ~/.appstoreconnect "$RUNNER_TEMP/sign"
+      - name: Ergebnis → Zweig ci-tf
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: ${{ job.status }}
+        run: |
+          mkdir -p ci-out
+          [ -f build-tf.log ] && grep -E "error:|warning:" build-tf.log | sort -u | head -300 > ci-out/build-meldungen.txt || true
+          [ -f export-tf.log ] && tail -80 export-tf.log > ci-out/export-ende.txt || true
+          printf '%s\n' "commit ${GITHUB_SHA}" "lauf ${GITHUB_RUN_ID}" "build ${{ github.run_number }}" "status ${STATUS}" "zeit $(date -u +%FT%TZ)" > ci-out/LAUF.txt
+          cd ci-out && git init -q -b ci-tf && git add -A \
+            && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "tf ${GITHUB_RUN_ID} ${GITHUB_SHA}" \
+            && git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-tf

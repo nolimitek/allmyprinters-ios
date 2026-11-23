@@ -28,6 +28,17 @@ jobs:
           echo "Warnungen: $(grep -c 'warning:' build.log || true)"
       - name: Im Simulator starten
         run: mkdir -p ci-out && sh ci/smoke.sh 2>&1 | tee ci-out/smoke.txt
+      # wie für TestFlight (Release, echtes Gerät), nur ohne Signatur — findet Fehler vor dem ersten Upload
+      - name: Gerät (Release, ohne Signatur)
+        run: |
+          mkdir -p ci-out
+          xcodebuild -project AllMyPrinters.xcodeproj -scheme AllMyPrinters -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath build-dev CODE_SIGNING_ALLOWED=NO build > build-dev.log 2>&1 \
+            || { grep -E "error:" build-dev.log | sort -u | head -80 | tee ci-out/release-fehler.txt; tail -30 build-dev.log; exit 1; }
+          APP=$(ls -d build-dev/Build/Products/Release-iphoneos/*.app | head -1)
+          { echo "Release-Gerät ok: $(du -sh "$APP" | cut -f1)"; ls "$APP" | grep -E "Assets.car|PrivacyInfo|AppIcon" ;
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons' "$APP/Info.plist" 2>&1 | head -8;
+            /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$APP/Info.plist"; } | tee ci-out/release.txt
       - name: Ergebnisse → Zweig ci
         if: always()
         env:
