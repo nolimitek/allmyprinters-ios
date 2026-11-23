@@ -482,8 +482,8 @@ enum Live {
     static func wsFrame(_ p: Data, _ op: UInt8 = 1) -> Data {
         var out = Data([0x80 | op])
         if p.count < 126 { out.append(0x80 | UInt8(p.count)) }
-        else if p.count < 65536 { out.append(contentsOf: [0x80 | 126, UInt8(p.count >> 8), UInt8(p.count & 0xff)]) }
-        else { out.append(0x80 | 127); for i in stride(from: 7, through: 0, by: -1) { out.append(UInt8((UInt64(p.count) >> (8 * UInt64(i))) & 0xff)) } }
+        else if p.count < 65536 { out.append(contentsOf: [UInt8(0x80 | 126), UInt8(p.count >> 8), UInt8(p.count & 0xff)] as [UInt8]) }
+        else { out.append(UInt8(0x80 | 127)); for i in stride(from: 7, through: 0, by: -1) { out.append(UInt8((UInt64(p.count) >> (8 * UInt64(i))) & 0xff)) } }
         let mask = (0..<4).map { _ in UInt8.random(in: 0...255) }
         out.append(contentsOf: mask)
         var m = Data(count: p.count)
