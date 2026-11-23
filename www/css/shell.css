@@ -1,0 +1,84 @@
+/* 3DSEARCH Werkstatt — Kopfleiste. Gilt in der eigenen Oberfläche (index.php) UND im App-Rahmen um die
+   Druckerseiten der Hauptseite (shell_header.php). Deshalb alles mit fmx- und eigene Farbwerte an .fmx-top,
+   nichts an :root — theme.css der Hauptseite benutzt dieselben Variablennamen (--accent, --text …). */
+.fmx-top, .fmx-bn, .fmx-ms {
+  --fx-bg: #ffffff; --fx-line: #d5dce6; --fx-text: #121722; --fx-muted: #566374; --fx-hover: #eef1f6;
+  --fx-acc: #c44300; --fx-acc-sub: rgba(210,72,0,.09); --fx-ring: #ff7a1a; --fx-track: #e3e8f0;
+  font: 14px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--fx-text);
+}
+.fmx-top { position: sticky; top: 0; z-index: 120; background: var(--fx-bg); border-bottom: 1px solid var(--fx-line); }
+:root[data-theme="dark"] .fmx-top, :root[data-theme="dark"] .fmx-bn, :root[data-theme="dark"] .fmx-ms {
+  --fx-bg: #131923; --fx-line: #1e2632; --fx-text: #eaeff6; --fx-muted: #8c99ab; --fx-hover: #1f2733;
+  --fx-acc: #ff7a1a; --fx-acc-sub: rgba(255,122,26,.12); --fx-ring: #ff7a1a; --fx-track: #28313f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .fmx-top, :root:not([data-theme]) .fmx-bn, :root:not([data-theme]) .fmx-ms {
+    --fx-bg: #131923; --fx-line: #1e2632; --fx-text: #eaeff6; --fx-muted: #8c99ab; --fx-hover: #1f2733;
+    --fx-acc: #ff7a1a; --fx-acc-sub: rgba(255,122,26,.12); --fx-ring: #ff7a1a; --fx-track: #28313f;
+  }
+}
+.fmx-in { max-width: 1240px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 16px; height: 56px; }
+.fmx-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; color: var(--fx-text); white-space: nowrap; text-decoration: none; }
+.fmx-mark { width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(var(--fx-ring) 0 70%, var(--fx-track) 0); position: relative; flex: none; }
+.fmx-mark::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--fx-bg); }
+.fmx-brand small { font-weight: 500; color: var(--fx-muted); font-size: 13px; }
+.fmx-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--fx-acc-sub); color: var(--fx-acc); white-space: nowrap; }
+.fmx-tabs { display: flex; gap: 2px; margin-left: auto; }
+.fmx-tabs a { padding: 8px 11px; border-radius: 8px; color: var(--fx-muted); font-weight: 500; white-space: nowrap; text-decoration: none; }
+.fmx-tabs a:hover { background: var(--fx-hover); color: var(--fx-text); }
+.fmx-tabs a.on { background: var(--fx-acc-sub); color: var(--fx-acc); }
+.fmx-sep { width: 1px; height: 22px; background: var(--fx-line); margin: 0 4px; align-self: center; }
+.fmx-theme { width: 36px; height: 36px; flex: none; border-radius: 8px; border: 1px solid var(--fx-line); background: transparent; color: var(--fx-muted); cursor: pointer; display: grid; place-items: center; }
+.fmx-theme:hover { color: var(--fx-text); background: var(--fx-hover); }
+.fmx-theme .sun { display: none; }
+:root[data-theme="dark"] .fmx-theme .moon { display: none; }
+:root[data-theme="dark"] .fmx-theme .sun { display: block; }
+.fmx-back { color: var(--fx-muted); font-size: 13px; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; }
+.fmx-back svg { display: none; }
+.fmx-tabback { display: none; }
+.fmx-main { max-width: 1240px; margin: 0 auto; padding: 8px 0 96px; }
+
+/* Unter 1440 px: Rückweg als Haus-Symbol im Stil der übrigen Knöpfe */
+@media (max-width: 1440px) {
+  .fmx-back { width: 36px; height: 36px; flex: none; justify-content: center; border: 1px solid var(--fx-line); border-radius: 8px; }
+  .fmx-back:hover { color: var(--fx-text); background: var(--fx-hover); }
+  .fmx-back svg { display: block; }
+  .fmx-back span { display: none; }
+}
+@media (max-width: 1280px) and (min-width: 1001px) { .fmx-tabs a { padding: 8px 8px; } }
+/* Untere Leiste (bis 1000 px) — ersetzt das Burger-Menü, Aufbau wie .app-bottom-nav der Hauptseite.
+   Stapel: Mehr-Blatt 33/34 < Leiste 35 (bleibt sichtbar, „Mehr“ schließt wieder) < Spulenblatt 40/41 (app.css) */
+.fmx-bn, .fmx-ms, .fmx-ms-scrim { display: none; }
+@media (max-width: 1000px) {
+  .fmx-in { height: 52px; gap: 10px; }
+  .fmx-sep, .fmx-tabs { display: none; }
+  #fmScan { margin-left: auto; }
+  .fmx-bn { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--fx-bg); border-top: 1px solid var(--fx-line);
+    padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .fmx-bn-in { display: flex; height: 62px; max-width: 640px; margin: 0 auto; }
+  .fmx-bn a, .fmx-bn button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative;
+    color: var(--fx-muted); font-family: inherit; font-size: 10px; font-weight: 600; line-height: 1.15; letter-spacing: .02em; text-decoration: none; background: none; border: 0; cursor: pointer; padding: 0 2px; -webkit-tap-highlight-color: transparent; }
+  .fmx-bn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fmx-bn svg { transition: transform .15s cubic-bezier(.34,1.56,.64,1); }
+  .fmx-bn a:active svg, .fmx-bn button:active svg { transform: scale(.82); }
+  .fmx-bn .on, .fmx-bn [aria-expanded="true"] { color: var(--fx-acc); }
+  .fmx-bn .on svg { stroke-width: 2.2; }
+  .fmx-bn .on::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 22px; height: 2px; border-radius: 0 0 2px 2px; background: var(--fx-acc); }
+  .fmx-ms-scrim { display: block; position: fixed; inset: 0; z-index: 33; background: rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .fmx-ms-scrim.on { opacity: 1; pointer-events: auto; }
+  .fmx-ms { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 34; background: var(--fx-bg); border-top: 1px solid var(--fx-line); border-radius: 16px 16px 0 0;
+    padding: 8px 14px calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateY(100%); visibility: hidden;
+    transition: transform .28s cubic-bezier(.22,1,.36,1), visibility 0s .28s; box-shadow: 0 -8px 40px rgba(0,0,0,.35); }
+  .fmx-ms.on { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.22,1,.36,1); }
+  .fmx-ms-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--fx-line); margin: 4px auto 14px; }
+  .fmx-ms-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 520px; margin: 0 auto; }
+  .fmx-ms-grid a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 6px 12px; text-align: center;
+    border: 1px solid var(--fx-line); border-radius: 10px; background: var(--fx-hover); color: var(--fx-text); font-size: 12px; font-weight: 600; text-decoration: none; line-height: 1.25; }
+  .fmx-ms-grid a.on { border-color: var(--fx-acc); color: var(--fx-acc); background: var(--fx-acc-sub); }
+  .fmx-ms-grid a:active { transform: scale(.96); }
+}
+/* Handy: Untertitel weg, das Beta-Abzeichen bleibt (kleiner) — sonst sähe man auf dem Handy nirgends, dass es eine Beta ist */
+@media (max-width: 420px) { .fmx-brand small { display: none; } .fmx-badge { font-size: 10px; padding: 1px 6px; } }
+/* Sehr kleine Handys (320–380 px): Knöpfe und Abstände etwas enger, damit Abzeichen + 4 Knöpfe in eine Zeile passen */
+@media (max-width: 380px) { .fmx-in { gap: 6px; } .fmx-brand { gap: 6px; } .fmx-theme, .fmx-back { width: 32px; height: 32px; } }
+@media (max-width: 340px) { .fmx-in { gap: 4px; } .fmx-badge { padding: 1px 4px; } }

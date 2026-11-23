@@ -1,0 +1,47 @@
+# AllMyPrinters für iOS — Xcode-Projekt wird in GitHub Actions per XcodeGen erzeugt (kein .xcodeproj im Repo)
+name: AllMyPrinters
+options:
+  bundleIdPrefix: com.allmyprinters
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.19.5"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  AllMyPrinters:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: www
+        type: folder
+        buildPhase: resources
+    scheme: {}
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: AllMyPrinters
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIViewControllerBasedStatusBarAppearance: true
+        # Drucker im Heimnetz sprechen HTTP ohne TLS
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "AllMyPrinters spricht direkt mit deinen 3D-Druckern im Heimnetz."
+        NSBonjourServices: [_http._tcp, _octoprint._tcp, _moonraker._tcp]
+        NSCameraUsageDescription: "Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten)."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.allmyprinters.app
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic

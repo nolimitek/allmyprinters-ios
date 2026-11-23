@@ -1,0 +1,42 @@
+name: ios
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ios
+  cancel-in-progress: true
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+      - name: Projekt erzeugen (XcodeGen)
+        run: xcodegen generate
+      - name: Bauen (Simulator, ohne Signatur)
+        run: |
+          xcodebuild -project AllMyPrinters.xcodeproj -scheme AllMyPrinters -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 \
+            || { grep -E "error:" build.log | sort -u | head -80; tail -30 build.log; exit 1; }
+          echo "Warnungen: $(grep -c 'warning:' build.log || true)"
+      - name: Im Simulator starten
+        run: sh ci/smoke.sh
+      - name: Ergebnisse → Zweig ci
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: ${{ job.status }}
+        run: |
+          mkdir -p ci-out
+          if [ -f build.log ]; then grep -E "error:|warning:" build.log | sort -u | head -300 > ci-out/build-meldungen.txt; tail -60 build.log > ci-out/build-ende.txt; fi
+          printf '%s\n' "commit ${GITHUB_SHA}" "lauf ${GITHUB_RUN_ID}" "status ${STATUS}" "zeit $(date -u +%FT%TZ)" > ci-out/LAUF.txt
+          cd ci-out && git init -q -b ci && git add -A \
+            && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "ci ${GITHUB_RUN_ID} ${GITHUB_SHA}" \
+            && git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci

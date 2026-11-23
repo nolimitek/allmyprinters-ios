@@ -1,0 +1,1402 @@
+/* AllMyPrinters — Ergänzungen über app.css + Community-Schicht von /filament. Seit 09.11.2026 eigenes Design „Klar“ (unten). */
+
+
+/* Was es in der App (noch) nicht gibt: Partnerlinks, Etiketten, QR-Scanner, Klipper-Makro des 3DSEARCH-Agenten, Teilen */
+/* Etiketten (#labels, data-act=label) seit 0.4.5 in der App; Scanner steckt oben in der Kopfleiste (#fmScan) */
+.lowbuy, .lowbox .hint, .sd-buy, .bar-scan, #scan2, details.macro, [data-mkshare], #lblset { display: none !important; }
+
+/* Handy: kein Abstand für eine Kopfzeile, die es dort nicht gibt; App-Gefühl ohne Textauswahl auf Knöpfen */
+button, .btn, .fmx-bn a { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+/* Drucker hinzufügen / Drucken */
+.amp-card { margin: 0 0 16px; }
+.amp-card h2 { margin: 0 0 6px; font-size: 18px; }
+.amp-card > .hint:first-of-type { margin-top: 0; }
+.amp-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.amp-row .in.grow { flex: 1 1 220px; min-width: 0; }
+.amp-found { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.amp-dev { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg); }
+.amp-dev .pc-art { width: 52px; height: 52px; flex: none; }
+.amp-dev .pc-art svg { width: 100%; height: 100%; }
+.amp-dev .t { flex: 1; min-width: 0; }
+.amp-dev .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-dev .t small { color: var(--muted); }
+.amp-spin { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: amp-spin .8s linear infinite; vertical-align: -3px; margin-right: 8px; }
+@keyframes amp-spin { to { transform: rotate(360deg); } }
+
+.amp-file { display: flex; gap: 14px; align-items: flex-start; }
+.amp-thumb { width: 96px; height: 96px; flex: none; border-radius: 12px; background: var(--bg); display: grid; place-items: center; overflow: hidden; }
+.amp-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.amp-file .t { flex: 1; min-width: 0; }
+.amp-file .t b { display: block; word-break: break-word; }
+.amp-kv { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; }
+.amp-kv span small { display: block; color: var(--muted); font-size: 12px; }
+.amp-kv span b { font-size: 17px; }
+.amp-tools { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.amp-tool { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.amp-tool .sw { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
+.amp-tool small { display: block; color: var(--muted); }
+.amp-tool .warn-t { color: var(--warn, #b45309); }
+.amp-prog { height: 8px; border-radius: 4px; background: var(--track, #e3e5e8); overflow: hidden; margin: 12px 0 6px; }
+.amp-prog i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.amp-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.amp-acts .btn.pri { flex: 1 1 160px; justify-content: center; }
+.amp-models { display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; }
+.amp-models svg { flex: none; color: var(--accent); }
+.amp-set .fld { margin-bottom: 12px; }
+.amp-set .seg button { min-width: 80px; }
+.amp-about p { margin: 6px 0; }
+
+/* Live-Bild: Video/MJPEG füllt den 16:9-Rahmen von /filament; Antippen = Vollbild */
+.pcam-img video, .pcam-img img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0b0e13; }
+.pcam-img { cursor: zoom-in; }
+.pcam.amp-full { position: fixed; inset: 0; z-index: 1000; background: #000; display: flex; flex-direction: column; justify-content: center; gap: 0; padding: 0; margin: 0; }
+.pcam.amp-full .pcam-img { aspect-ratio: auto; flex: 1; border-radius: 0; cursor: zoom-out; }
+.pcam.amp-full .pcam-f { position: absolute; left: 12px; right: 12px; bottom: 16px; }
+.pcam.amp-full .pcam-f .hint { color: #c9d1dc; }
+.pcam.amp-full .pcam-f .btn { background: rgba(0,0,0,.55); color: #fff; border-color: rgba(255,255,255,.3); }
+
+/* Slicen: was es in der App nicht gibt (Meine Druckdateien, Warteschlange, Speichern auf 3DSEARCH) */
+#pfiles, #pkeepw, #pqaddw, #pqaddbtn, #pqmultiw, .pkept { display: none !important; }
+
+/* ── QR-Scanner in der Kopfleiste ── */
+.fmx-scan { margin-left: auto; }
+.fmx-scan + .fmx-theme { margin-left: 4px; }
+
+/* ── Etiketten (wie /filament/label.php) ── */
+.amp-lw { display: grid; gap: 16px; }
+.amp-lw-side { background: var(--panel, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.amp-lw-top { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.amp-lw-top h1 { font-size: 20px; margin: 0; }
+.amp-lw-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.amp-lw-flds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.amp-lw-flds label { display: flex; gap: 8px; align-items: center; }
+.amp-lw-prev { background: var(--panel-2, #f3f4f6); border-radius: 16px; padding: 12px; overflow: hidden; }
+.amp-lw-info { margin-bottom: 10px; }
+#lbpages { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; transform-origin: 0 0; }
+#lbpages .pg { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.18); position: relative; overflow: hidden; flex: none; }
+#lbpages .lsheet { display: grid; }
+#lbpages .lbl { box-sizing: border-box; overflow: hidden; color: #000; display: flex; gap: 1.5mm; padding: 1.6mm; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; outline: 0.2mm dashed #bbb; outline-offset: -0.1mm; }
+#lbpages .lbl.blank { outline-color: #e5e5e5; }
+#lbpages .lbl .qr { flex: none; align-self: center; }
+#lbpages .lbl .qr img, #lbpages .lbl .qr canvas { width: 100% !important; height: 100% !important; display: block; }
+#lbpages .lbl .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; font-size: var(--fs); line-height: 1.18; }
+#lbpages .lbl .tx > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lbpages .lbl .b { font-weight: 700; }
+#lbpages .lbl .m { font-weight: 800; font-size: 1.45em; line-height: 1.05; }
+#lbpages .lbl .c { display: flex; align-items: center; gap: 1mm; }
+#lbpages .lbl .c i { width: 0.9em; height: 0.9em; border-radius: 50%; border: 0.2mm solid #000; flex: none; margin-top: 0.14em; }
+#lbpages .lbl .tx > .c { white-space: normal; align-items: flex-start; flex: none; }
+#lbpages .lbl .c .cn { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+#lbpages .lbl .id { margin-top: auto; font-family: ui-monospace, monospace; color: #333; }
+@media print {
+  body.amp-lbl { background: #fff !important; padding: 0 !important; }
+  body.amp-lbl .fmx-top, body.amp-lbl .fmx-bn, body.amp-lbl .fmx-ms, body.amp-lbl .fmx-ms-scrim, body.amp-lbl #lbside, body.amp-lbl .amp-lw-info,
+  body.amp-lbl .toast, body.amp-lbl dialog { display: none !important; }
+  body.amp-lbl .amp-lw, body.amp-lbl .amp-lw-prev { display: block; padding: 0; margin: 0; background: #fff; border: 0; }
+  body.amp-lbl #view, body.amp-lbl main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  body.amp-lbl #lbpages { display: block; transform: none !important; width: auto !important; }
+  body.amp-lbl #lbpages .pg { box-shadow: none; break-after: page; page-break-after: always; }
+  body.amp-lbl #lbpages .pg:last-child { break-after: auto; page-break-after: auto; }
+  body.amp-lbl #lbpages .lbl, body.amp-lbl #lbpages .lbl.blank { outline: 0; }
+}
+
+
+/* ═══ Design „Klar“ (09.11.2026, Entwurf B): hell und ruhig, Petrol, Manrope, weiße Karten, dunkle Pillen-Leiste ═══ */
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('../fonts/manrope-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('../fonts/manrope-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+html:not(.fm-ha) body.cm-fm {
+  --bg: #f4f5f3; --panel: #ffffff; --panel-2: #eef2f0; --line: #e1e6e3; --line-2: #c9cfcc;
+  --text: #17201e; --muted: #56625f; --faint: #66716e;
+  --accent: #0f766e; --accent-ink: #0b5a54; --accent-sub: #e6f2ef;
+  --accent-btn: #0f766e; --accent-btn-h: #0b5a54; --on-accent: #ffffff;
+  --ok: #1d7f46; --warn: #8a4b08; --bad: #c62f3a; --track: #e4e8e6;
+  --shadow: 0 1px 2px rgba(23,32,30,0.06), 0 8px 24px rgba(23,32,30,0.06);
+  --shadow-h: 0 2px 4px rgba(23,32,30,0.07), 0 14px 32px rgba(23,32,30,0.10);
+  --r: 20px; --r-sm: 14px;
+  --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fm-sel: #17201e; --fm-on-sel: #ffffff; --fm-seg: #e4e8e6; --fm-tag: #eef2f0; --fm-ink-strong: #0b5a54; --fm-warn-sub: #fff4e5;
+  --amp-bar: #17201e; --amp-bar-t: #dfe6e3; --amp-low: #f0b464;
+  --spi-fl: #9aa6a2;
+}
+html[data-theme="dark"]:not(.fm-ha) body.cm-fm {
+  --bg: #0f1513; --panel: #18201e; --panel-2: #222c29; --line: #2a3532; --line-2: #3a4743;
+  --text: #eef3f1; --muted: #a9b5b1; --faint: #8e9a96;
+  --accent: #2dd4bf; --accent-ink: #5eead4; --accent-sub: rgba(45,212,191,0.14);
+  --accent-btn: #2dd4bf; --accent-btn-h: #5eead4; --on-accent: #0f1513;
+  --ok: #3fbf74; --warn: #e0a84a; --bad: #ff6b74; --track: #2a3532;
+  --shadow: 0 1px 2px rgba(0,0,0,0.35); --shadow-h: 0 10px 28px rgba(0,0,0,0.45);
+  --fm-sel: #eef3f1; --fm-on-sel: #0f1513; --fm-seg: #2a3532; --fm-tag: #222c29; --fm-ink-strong: #5eead4; --fm-warn-sub: rgba(224,168,74,0.13);
+  --amp-bar: #26302d; --amp-bar-t: #c3ccc9; --amp-low: #b7792a;
+  --spi-fl: #5f6c68;
+}
+body.cm-fm { background: var(--bg); }
+html:not(.fm-ha) body.cm-fm :is(.fmx-top, .fmx-ms) { --fx-bg: var(--bg); --fx-acc: var(--accent); --fx-acc-sub: var(--accent-sub); }
+body.cm-fm .fmx-top { border-bottom: 0; }
+
+/* Logo: Petrol-Kachel mit Spule (wie im Entwurf) */
+html:not(.fm-ha) body.cm-fm .fmx-mark, html[data-theme="dark"]:not(.fm-ha) body.cm-fm .fmx-mark {
+  width: 30px; height: 30px; border-radius: 9px; background: #0f766e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='20 14 68 76'%3E%3Crect x='38' y='22' width='32' height='17' rx='4' fill='%23fff'/%3E%3Crect x='45' y='17' width='18' height='7' rx='2' fill='%23fff' opacity='.7'/%3E%3Cpath d='M46 39h16l-5 10h-6z' fill='%23fff'/%3E%3Crect x='24' y='56' width='33' height='8' rx='4' fill='%232dd4bf'/%3E%3Ccircle cx='54' cy='52' r='2.6' fill='%232dd4bf'/%3E%3Crect x='24' y='67' width='60' height='8' rx='4' fill='%23fff' opacity='.85'/%3E%3Crect x='24' y='78' width='60' height='8' rx='4' fill='%23fff' opacity='.55'/%3E%3C/svg%3E") center / 20px no-repeat; }
+html:not(.fm-ha) body.cm-fm .fmx-mark::after { display: none; }
+
+/* Karten: weiß, ohne Rahmen, weicher Schatten, große Rundung */
+body.cm-fm :is(.card, .pcard) { border: 0; border-radius: var(--r); box-shadow: var(--shadow); }
+body.cm-fm main h1 { font-weight: 800; letter-spacing: -0.02em; }
+body.cm-fm .btn { border-radius: var(--r-sm); font-weight: 700; }
+body.cm-fm .btn.pri { color: var(--on-accent); }
+body.cm-fm .note.warn-note { background: var(--fm-warn-sub); }
+
+/* Untere Leiste: dunkle Pille, aktiver Reiter als weiße Pille */
+@media (max-width: 1000px) {
+  body.cm-fm main h1 { font-size: 28px; }
+  body.cm-fm .fmx-bn { background: transparent; border-top: 0; pointer-events: none; padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  body.cm-fm .fmx-bn-in { pointer-events: auto; height: 62px; background: var(--amp-bar); border-radius: 22px; padding: 5px; box-shadow: 0 8px 28px rgba(23,32,30,0.22); box-sizing: border-box; }
+  body.cm-fm .fmx-bn a, body.cm-fm .fmx-bn button { color: var(--amp-bar-t); border-radius: 17px; font-size: 11.5px; font-weight: 700; gap: 2px; }
+  body.cm-fm .fmx-bn svg { width: 21px; height: 21px; }
+  html:not(.fm-ha) body.cm-fm .fmx-bn .on, html:not(.fm-ha) body.cm-fm .fmx-bn [aria-expanded="true"] { background: #ffffff; color: #17201e; }
+  body.cm-fm main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+  body.cm-fm .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  body.cm-fm .fmx-ms { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); border-radius: 26px 26px 0 0; background: var(--panel); }
+  body.cm-fm .fmx-ms-grid a { border-radius: 16px; background: var(--panel-2); }
+}
+
+/* Spulen je Fach (10.11.2026, vorher Röhren): wie /filament, aber größer; die Spule im druckenden Fach dreht sich */
+.amp-tubes { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 12px 10px; }
+.amp-tube { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.amp-tube-g { display: block; width: 100%; max-width: 78px; aspect-ratio: 1; border-radius: 50%; box-sizing: border-box; }
+.amp-tube-g .spf { width: 100%; height: 100%; }
+.amp-tube.inuse .amp-tube-g { outline: 3px solid var(--accent); outline-offset: 3px; }
+.amp-tube.low .amp-tube-g { box-shadow: 0 0 0 2px var(--amp-low); }
+.amp-tube.low .amp-tube-v { color: var(--warn); }
+.amp-tube.crit .amp-tube-g { box-shadow: 0 0 0 2px var(--bad); }   /* Warnstufe kritisch (10.11.2026) */
+.amp-tube.crit .amp-tube-v { color: var(--bad); }
+.amp-tube.run .spf { animation: spool-turn 4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .amp-tube.run .spf { animation: none; } }
+.amp-tube.amp-te .amp-tube-g { display: flex; justify-content: center; align-items: center; border: 2px dashed var(--line-2); color: var(--muted); font-size: 20px; font-weight: 700; }
+.amp-tube-l { font-size: 11px; font-weight: 700; color: var(--muted); line-height: 1; margin-top: 2px; }
+.amp-tube-v { font-size: 12.5px; font-weight: 800; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-tube:active .amp-tube-g { transform: scale(.97); }
+details.amp-slots > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; border-radius: var(--r-sm); background: var(--panel-2); font-weight: 700; cursor: pointer; }
+details.amp-slots > summary::-webkit-details-marker { display: none; }
+details.amp-slots > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+details.amp-slots[open] > summary { margin-bottom: 10px; }
+details.amp-slots[open] > summary::after { transform: rotate(-135deg) translateY(-2px); }
+.slot.amp-flash { animation: amp-flash 1.4s ease; }
+@keyframes amp-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* Bibliothek: Ordner einlesen (12.11.2026) */
+.amp-lbscan { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 2px; padding: 10px 14px; border-radius: var(--r-sm, 14px); background: var(--panel-2); }
+.amp-lbscan .hint { margin: 0; min-width: 0; }
+.amp-lbscan .btn { flex: none; }
+
+/* Lüfter und Licht (12.11.2026): Kacheln wie OctoApp, zwei je Reihe; Lüfter drehen je nach Drehzahl, Licht = Schalter */
+.amp-ctl { margin: 12px 0 4px; }
+.amp-ctl-h { font-weight: 800; font-size: 14px; color: var(--muted); margin: 0 2px 8px; }
+.amp-ct-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.amp-ct { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 58px; padding: 10px 12px 10px 14px; border: 0; border-radius: var(--r-sm, 14px);
+  background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .2s; }
+.amp-ct:active { transform: scale(.98); }
+.amp-ct.on { background: var(--accent-sub); }
+.amp-ct.ro { cursor: default; }
+.amp-ct-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.amp-ct-t b { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-ct-t small { font-size: 13px; color: var(--muted); }
+.amp-ct.on .amp-ct-t small { color: var(--accent-ink); font-weight: 700; }
+.amp-ct-i { flex: none; width: 30px; height: 30px; color: var(--muted); }
+.amp-ct-i svg { display: block; width: 100%; height: 100%; }
+.amp-ct.on .amp-fan { color: var(--accent); }
+.amp-ct.on .amp-fan svg { animation: amp-fan var(--d, 1s) linear infinite; animation-delay: var(--o, 0s); }
+@keyframes amp-fan { to { transform: rotate(360deg); } }
+.amp-bulb .amp-bulb-r { opacity: 0; transition: opacity .2s; }
+.amp-ct.lt.on .amp-bulb { color: #b7791f; filter: drop-shadow(0 0 5px rgba(255, 196, 61, .75)); }
+.amp-ct.lt.on .amp-bulb .amp-bulb-g { fill: #ffd34d; }
+.amp-ct.lt.on .amp-bulb .amp-bulb-r { opacity: 1; }
+html[data-theme="dark"] .amp-ct.lt.on .amp-bulb { color: #ffd34d; }
+@media (prefers-reduced-motion: reduce) { .amp-ct.on .amp-fan svg { animation: none; } }
+/* Druckgeschwindigkeit (21.11.2026): Stufen als volle Breite über den Kacheln, nur im Druck */
+.amp-spd { margin: 0 0 12px; }
+.amp-spd .amp-ctl-h small { font-weight: 700; }
+.amp-seg.amp-spdseg { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); width: 100%; }
+.amp-seg.amp-spdseg button { padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-seg.amp-spdseg.n4 { gap: 0; padding: 3px; } .amp-seg.amp-spdseg.n4 button { padding: 0 2px; font-size: 13px; }
+/* Kalibrieren vor dem Druck (21.11.2026): Häkchen unter „Bett nivellieren“ (Druck- und G-Code-Ansicht) */
+.amp-cal { margin: 10px 0 2px; }
+.amp-cal .chk + .chk { margin-top: 6px; }
+.amp-cal .hint { margin: 4px 0 0 26px; }
+.amp-fan-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.amp-fan-steps .btn { padding-left: 4px; padding-right: 4px; justify-content: center; }
+.amp-fan-sl { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.amp-fan-sl input { flex: 1; accent-color: var(--accent); }
+.amp-fan-sl b { min-width: 48px; text-align: right; }
+
+/* Spulenkarten: gezeichnete Spule oben, Name und Rest darunter; am Handy zwei je Reihe */
+#view .grid:has(> .spool) { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+@media (max-width: 520px) { #view .grid:has(> .spool) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+body.cm-fm .spool { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 12px 14px; border: 0; border-radius: var(--r); box-shadow: var(--shadow); }
+body.cm-fm .spool .amp-sf .spf { width: 92px; height: 92px; }
+body.cm-fm .spool .t { width: 100%; }
+body.cm-fm .spool .t .x { justify-content: center; }
+body.cm-fm .spool .t .x .tag { justify-content: center; text-align: center; }   /* zweizeiliges Fach-Schild mittig */
+body.cm-fm .spool.twin > .ring { margin-top: 4px; }
+
+/* Einstellungen → Verbrauch ausgleichen */
+.amp-adj-l { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.amp-adj-l li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--panel-2); }
+/* Adresse ändern: Hinweis unter dem Feld „Zweite Adresse“ (10.11.2026) */
+.amp-addr-h { margin: -2px 0 12px; font-size: 13px; line-height: 1.45; }
+/* Eigener Slicer-Container zu alt (10.11.2026): Befehl zum Markieren */
+.amp-slc-upd code { display: inline-block; margin-top: 6px; padding: 4px 6px; border-radius: 6px; background: var(--panel-2); font-size: 12px; word-break: break-all; user-select: all; }
+
+/* Hilfe-Links unter Hinweisen */
+.amp-help { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; }
+.amp-help a { font-weight: 700; color: var(--accent-ink); }
+
+/* Was braucht mein Drucker? */
+.amp-guide { max-width: 720px; display: flex; flex-direction: column; gap: 12px; }
+.amp-guide h1 { margin: 4px 0 4px; }
+.amp-back { margin-bottom: -4px; }
+.amp-gall { background: #17201e; color: #ffffff; border-radius: var(--r); padding: 16px 18px; }
+.amp-gall p { margin: 6px 0 0; color: #d5ddda; font-size: 14px; line-height: 1.55; }
+.amp-gcard { padding: 16px 18px; scroll-margin-top: 84px; }
+.amp-gcard.on { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+.amp-gh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.amp-gh h2 { margin: 0; font-size: 18px; }
+.amp-port { flex: none; font-size: 12px; font-weight: 800; color: var(--accent-ink); background: var(--accent-sub); padding: 3px 9px; border-radius: 8px; white-space: nowrap; }
+.amp-gcard .hint { margin: 4px 0 8px; }
+.amp-gcard :is(ol, ul) { margin: 0 0 4px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; line-height: 1.5; }
+.amp-gcard .note { margin-top: 10px; }
+.amp-gnf { box-shadow: inset 0 0 0 2px var(--line-2); }
+.amp-gnf .btn { margin-top: 12px; width: 100%; }
+
+/* Problem melden */
+.amp-rep textarea.in { height: auto; min-height: 96px; padding: 10px 12px; resize: vertical; font: inherit; line-height: 1.45; }
+.amp-rep-inc { border: 0; margin: 4px 0 12px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--panel-2); display: flex; flex-direction: column; gap: 9px; }
+.amp-rep-inc legend { float: left; width: 100%; padding: 0; margin-bottom: 4px; font-weight: 800; }
+.amp-rep-inc label { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; font-size: 14px; }
+.amp-rep-inc input[type="checkbox"] { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--accent); }
+.amp-rep-inc .hint { margin: 2px 0 0; }
+.amp-rep .linkbtn { border: 0; background: none; padding: 0; color: var(--accent-ink); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.amp-rep-pre { max-height: 220px; overflow: auto; margin: 0; padding: 10px; border-radius: 10px; background: var(--panel); font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+
+/* Spulen übernehmen */
+.amp-imp .lead{margin-top:0}
+.amp-imp-url{display:flex;gap:8px;margin:6px 0 4px}
+.amp-imp-url .in{flex:1;min-width:0}
+.amp-impres:empty{display:none}
+.amp-impok p{margin:0 0 12px;line-height:1.5}
+.amp-imp .amp-gcard{margin:0 0 14px}
+.amp-imp .linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--accent-ink,var(--accent));text-decoration:underline;cursor:pointer}
+
+/* Startbildschirm E1 „Schicht für Schicht“: von unten nach oben wie im Drucker, oberste Schicht Mint. Weg, sobald die erste Ansicht steht */
+#amp-splash{position:fixed;inset:0;z-index:9999;background:var(--bg,#f4f5f3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;transition:opacity .28s ease}
+#amp-splash.off{opacity:0;pointer-events:none}
+.amp-sp-stack{width:180px;height:130px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.amp-sp-stack i{display:block;height:14px;border-radius:7px;margin-bottom:5px;background:var(--accent,#0f766e);transform-origin:left center;transform:scaleX(0);opacity:0;animation:amp-sp 1.5s cubic-bezier(.4,0,.2,1) infinite}
+.amp-sp-stack i:first-child{background:#2dd4bf}
+.amp-sp-stack b{display:block;height:6px;width:180px;border-radius:3px;background:#d5dad7;margin-top:3px}
+@keyframes amp-sp{0%{transform:scaleX(0);opacity:0}20%{opacity:1}55%,85%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
+.amp-sp-name{font:800 26px/1 Manrope,system-ui,sans-serif;letter-spacing:-.02em;color:var(--text,#17201e)}
+.amp-sp-sub{font:500 14px Manrope,system-ui,sans-serif;color:var(--muted,#56625f);margin-top:-14px;min-height:1.2em}
+html[data-theme="dark"] .amp-sp-stack b{background:#2a3532}
+@media (prefers-reduced-motion:reduce){.amp-sp-stack i{animation:none;transform:none;opacity:1}}
+
+/* Eigene Slicer-Profile (Experten-Einstellungen) */
+.amp-prof{margin:4px 0 14px;padding:12px;border-radius:var(--r-sm,14px);background:var(--panel-2,#eef2f0)}
+.amp-pf-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.amp-pf-row .in{flex:1 1 160px;min-width:0}
+.amp-pf-row + .amp-pf-row{margin-top:8px}
+.amp-pf-del{display:block;margin-top:10px;background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--accent-ink,var(--accent));text-decoration:underline;cursor:pointer}
+.amp-pf-msg .note,.amp-pf-msg .hint{margin:10px 0 0}
+/* Einstellungen → Slicer (10.11.2026): Standard oder eigener Container */
+.amp-slc .seg { margin: 6px 0 2px; }
+.amp-slc-own { margin-top: 12px; }
+.amp-srep { margin-top: 12px; }
+.amp-srep .hint { margin: 2px 0 0; }
+.amp-lvl { margin: 12px 0 2px; }
+.amp-slc-own .amp-pf-row .in { flex: 1; min-width: 0; }
+.amp-slc-own .amp-pf-msg { margin-top: 8px; }
+.note.ok-note { background: rgba(22,163,74,.12); }
+/* NFC-Tags in der Spulenansicht (10.11.2026) */
+.amp-nfc h3 { display: flex; align-items: center; gap: 6px; }
+.amp-nfc-l { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.amp-nfc-l li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: var(--r-sm); background: var(--panel-2); }
+.amp-nfc-l code { font-size: 12px; word-break: break-all; }
+.amp-nfc-wait { text-align: center; }
+.amp-nfc-wait svg { color: var(--accent, #0f766e); margin: 8px auto; display: block; }
+.amp-nfc-new { margin: 14px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Bibliothek in der App (10.11.2026): Plattenbild statt 3D-Ansicht, Ort, „In Bibliothek speichern“ */
+.amp-lbimg { display: flex; justify-content: center; align-items: center; min-height: 180px; border-radius: var(--r-sm); background: var(--panel-2); padding: 8px; }
+.amp-lbimg img { max-width: 100%; max-height: 340px; object-fit: contain; }
+.amp-lbwhere { margin: 8px 0 0; }
+.amp-lbadd { margin: 8px 0 0; }
+/* Speicherort der Bibliothek: Handy / Ordner / NAS (10.11.2026) */
+.amp-libloc-b { margin-top: 12px; }
+.amp-dav-bk { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.amp-lb3d { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; }
+
+/* Warnschwellen: Einstellungen und Spule (10.11.2026) */
+.amp-lowf { display: grid; gap: 10px; margin-top: 8px; }
+.amp-lowf .seg { justify-self: start; }
+.amp-warn .seg { margin-bottom: 8px; }
+/* Zugriff von unterwegs (nur Agent, 11.11.2026) */
+.amp-remote h3{font-size:15px;margin:16px 0 4px}
+.amp-rm-st{display:flex;align-items:center;gap:8px;font-weight:700;margin:6px 0 4px}
+.amp-rm-st i{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.amp-rm-online i{background:#16a34a}.amp-rm-error i{background:#d92d20}.amp-rm-connecting i{background:#f59e0b}
+.amp-rm-qr{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:12px 0 4px;padding:14px;border:1px solid var(--line-2);border-radius:var(--r)}
+.amp-rm-qr .qr{background:#fff;padding:10px;border-radius:12px;line-height:0;flex:none}
+.amp-rm-qr .qr img,.amp-rm-qr .qr canvas{width:200px;height:200px}
+.amp-rm-qr>div:last-child{flex:1 1 220px;min-width:0}
+.amp-rm-devs{list-style:none;margin:6px 0 0;padding:0}
+.amp-rm-devs li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line-2)}
+
+/* ── Bibliothek ordnen + Druckbuch (13.11.2026): Brotkrumen, Tags, Auswahl, Foto, Druckbuch ── */
+.amp-lbcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 4px 0 8px; font-size: 14px; }
+.amp-lbcrumb .lnk { font-size: 14px; }
+.amp-lbcrumb b { display: inline-flex; align-items: center; gap: 4px; }
+.amp-lbtagrow { margin: -4px 0 12px; }
+.amp-tagchip svg { opacity: .7; }
+.lbcard { position: relative; }
+.lbpic img.amp-photo { object-fit: cover; padding: 0; }
+.amp-lbtags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.amp-lbtags .tag { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.amp-ctag::before { content: '#'; opacity: .6; }
+.lbcard.amp-selm .lbpic { opacity: .85; }
+.lbcard.amp-on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.lbcard.amp-on .lbpic { opacity: 1; }
+.amp-chk { position: absolute; top: 8px; left: 8px; z-index: 2; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line-2); background: var(--panel); display: grid; place-items: center; color: #fff; }
+.lbcard.amp-on .amp-chk { background: var(--accent); border-color: var(--accent); }
+.amp-lbsel { position: sticky; top: 0; z-index: 6; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--accent); box-shadow: var(--shadow); }
+.amp-lbsel-r { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.amp-lbsel-r .grow { flex: 1 1 0; }
+.amp-lbsel .btn.on { background: var(--accent-sub); border-color: transparent; color: var(--accent-ink); }
+.amp-lbself { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.amp-lbself .in { flex: 1 1 220px; min-width: 0; }
+.amp-tagf { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.amp-tagbox { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 42px; height: auto; padding: 5px 8px; cursor: text; }
+.amp-tagbox #amptags { display: contents; }
+.amp-tagbox input { flex: 1 1 120px; min-width: 90px; border: 0; outline: 0; background: transparent; font: inherit; color: inherit; padding: 4px 2px; }
+.amp-tagx { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; padding: 2px 4px 2px 9px; }
+.amp-tagx button { border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; padding: 0 4px; cursor: pointer; opacity: .7; }
+.amp-notef { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.amp-notef textarea { min-height: 72px; resize: vertical; font: inherit; line-height: 1.45; }
+.amp-lbsave { display: flex; justify-content: flex-end; margin-top: 10px; }
+.amp-lbsec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.amp-lbsec h3 { font-size: 15px; margin: 0 0 8px; }
+.amp-lbphoto { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.amp-lbphoto > div { flex: 1 1 200px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.amp-lbphoto > div .hint { flex: 1 1 100%; margin: 0; }
+.amp-lbph img { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.amp-booksum { margin: 0 0 4px; }
+.amp-book .jrow:first-child { border-top: 0; }
+
+/* ── 3DSEARCH merken (13.11.2026): Modelle suchen (#models), gemerkte Einträge in der Bibliothek ── */
+.amp-mcard { position: relative; cursor: default; }
+.amp-mopen { display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.amp-msmore { display: flex; justify-content: center; margin: 16px 0 4px; }
+.amp-msweb { text-align: center; margin: 18px 0 8px; }
+.amp-msby { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-weight: 700; }
+.amp-mstags { margin: 0 0 10px; }
+.amp-mssum { white-space: pre-line; color: var(--muted); font-size: 14px; line-height: 1.5; max-height: 9.5em; overflow: auto; margin: 0 0 10px; }
+.amp-msdf { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.amp-msdf .btn { display: inline-flex; align-items: center; gap: 6px; }
+/* Filter + Sammlung (13.11.2026): Filter-Knopf neben der Suche, Seitenblatt mit Sortierung/Preis/Plattformen/Bereich, „Zur Sammlung“ */
+.amp-msfb.on { border-color: var(--accent); color: var(--accent); }
+.amp-fcount { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; box-sizing: border-box; }
+.amp-msn { margin: 0 0 10px; }
+.amp-mfs section + section { margin-top: 22px; }
+.amp-mfs h3 { margin: 0 0 10px; font-size: 14px; font-weight: 800; }
+.amp-mfs .hint { margin: -4px 0 10px; }
+.amp-mfs .chip { height: 38px; padding: 0 14px; font-size: 14px; }
+.amp-mff { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--panel); }
+.amp-mff .btn { flex: 1 1 0; justify-content: center; }
+.amp-mscoll { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--accent); text-align: left; cursor: pointer; }
+.amp-mscoll span { text-decoration: underline; text-underline-offset: 3px; }
+.amp-mscoll svg { flex: 0 0 auto; }
+.amp-collp { margin: 0; }
+.amp-colls { display: grid; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.amp-collrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.amp-collrow span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-collrow b { color: var(--muted); font-size: 13px; display: inline-flex; }
+.amp-collrow svg { flex: 0 0 auto; color: var(--muted); }
+.amp-collrow.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.amp-collrow.on svg, .amp-collrow.on b { color: var(--accent); }
+.amp-collnone { justify-content: center; color: var(--muted); font-weight: 600; }
+.amp-collnew { display: grid; gap: 8px; margin-top: 4px; }
+.amp-collnew .in { font-size: 16px; }
+.lbcard.amp-want .lbpic { position: relative; }
+.amp-wantbadge { position: absolute; top: 8px; left: 8px; padding: 3px 9px; border-radius: 999px; background: #fdf0e3; color: #6b4a12; font-size: 11px; font-weight: 800; }
+.amp-wantchip svg { width: 13px; height: 13px; vertical-align: -2px; }
+.lbf .amp-lbimg { flex-shrink: 0; }   /* Dialog ist eine Flex-Spalte: Rahmen nicht unter die Bildhöhe schrumpfen */
+.amp-wantimg { height: 240px; }
+.amp-wantimg img { width: 100%; height: 100%; max-height: none; object-fit: contain; border-radius: 10px; }
+.amp-remote { margin: 8px 0 0; }
+.amp-wantbox { margin-top: 12px; padding: 14px; border-radius: var(--r); background: #fdf0e3; color: #4a3410; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.amp-wantbox b { color: #6b4a12; }
+.amp-wantbox p { margin: 0; font-size: 14px; line-height: 1.45; }
+.amp-wantbox .btn { display: inline-flex; align-items: center; gap: 6px; }
+.amp-wantbox .lbups { width: 100%; }
+.amp-wantlist { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.amp-wantrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 64px; }
+.amp-wantrow:hover { border-color: var(--accent); }
+.amp-wantrow-i { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: var(--panel-2); display: grid; place-items: center; }
+.amp-wantrow-i img { width: 100%; height: 100%; object-fit: cover; }
+.amp-wantrow-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+html[data-theme="dark"] .amp-wantbox, html[data-theme="dark"] .amp-wantbadge { background: #3a2c14; color: #f5d9a8; }
+html[data-theme="dark"] .amp-wantbox b { color: #f5d9a8; }
+
+
+/* ── Modellsuche neu (14.11.2026): klebende Suchleiste, Schnellfilter, Vorschläge, Startseite, Karten, Platzhalter ── */
+.amp-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.amp-msbar { position: sticky; top: var(--amp-toph, 0px); z-index: 30; margin: -12px -16px 10px; padding: 8px 16px 6px; background: var(--bg); }   /* ±16px = Innenabstand von main: deckt beim Scrollen die Karten ab, ohne Querscrollen */
+.amp-msf { display: flex; gap: 8px; margin: 0; }
+.amp-msq { position: relative; flex: 1 1 auto; min-width: 0; }
+body .amp-msq input.in:placeholder-shown { padding-right: 10px; }   /* × ist dann ausgeblendet → mehr Platz für den Hinweistext */
+body .amp-msq input.in { width: 100%; height: 46px; padding: 0 42px 0 44px; font-size: 16px; border-radius: 14px; box-sizing: border-box; }   /* body.cm-fm .in (Theme) setzt sonst padding 0 12px → Lupe über dem Text */
+.amp-msq .in::-webkit-search-cancel-button, .amp-msq .in::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.amp-msgo { position: absolute; left: 4px; top: 4px; width: 38px; height: 38px; border: 0; border-radius: 10px; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.amp-msgo svg { width: 20px; height: 20px; }
+.amp-msclr { position: absolute; right: 5px; top: 5px; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--panel-2); color: var(--muted); font-size: 19px; line-height: 1; cursor: pointer; }
+.amp-msclr[hidden] { display: none; }
+.amp-msbtns { display: contents; }
+body .amp-msf .btn { height: 46px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; position: relative; }
+.amp-msf .btn svg { width: 18px; height: 18px; }
+.amp-mslb svg { color: var(--accent); }
+.amp-lbcount { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; box-sizing: border-box; }
+@media (max-width: 560px) {
+  .amp-msf .amp-mslbl { display: none; }
+  .amp-msf .btn { padding: 0 12px; }
+  .amp-msf .btn .amp-fcount, .amp-msf .btn .amp-lbcount { position: absolute; top: -5px; right: -5px; box-shadow: 0 0 0 2px var(--bg); }
+  .amp-msf .btn .amp-lbcount { background: var(--text); color: var(--bg); }
+}
+/* Vorschläge unter dem Suchfeld */
+.amp-mssug { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; max-height: min(62vh, 480px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.16); }
+.amp-mssug[hidden] { display: none; }
+.amp-sug { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 10px; background: none; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.amp-sug:hover, .amp-sug:focus-visible { background: var(--panel-2); outline: none; }
+.amp-sug > svg { flex: 0 0 auto; width: 17px; height: 17px; color: var(--muted); }
+.amp-sug > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-sugm > span:last-child { display: flex; flex-direction: column; }
+.amp-sugm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-sugpic { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 8px; overflow: hidden; background: var(--panel-2); display: grid; place-items: center; color: var(--faint); }
+.amp-sugpic img { width: 100%; height: 100%; object-fit: cover; }
+.amp-sugpic svg { width: 20px; height: 20px; }
+.amp-sugh { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 4px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.amp-suglink { border: 0; background: none; padding: 4px 0; font: inherit; font-size: 12px; font-weight: 700; color: var(--accent-ink); cursor: pointer; }
+.amp-sugrow { display: flex; align-items: center; }
+.amp-sugrow .amp-sug { flex: 1 1 auto; min-width: 0; }
+.amp-sugx { flex: 0 0 auto; width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+/* Schnellfilter: eine Zeile, quer wischen */
+.amp-msquick { display: flex; align-items: center; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.amp-msquick::-webkit-scrollbar { display: none; }
+body .amp-msquick .chip { flex: 0 0 auto; height: 34px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text); }
+body .amp-msquick .chip.on { color: var(--panel); }
+.amp-msquick .chip svg { width: 14px; height: 14px; }
+.amp-qsrc i, .amp-msrc i, .amp-msrcl i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.amp-qsrc.on i { box-shadow: 0 0 0 2px var(--panel); }
+.amp-qsep { flex: 0 0 1px; align-self: stretch; margin: 6px 2px; background: var(--line-2); }
+/* Karten: Plattform + Bezahlt im Bild, Likes/Makes, kleiner Merken-Knopf */
+.amp-mcard .lbpic { position: relative; }
+.amp-msrc { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.92); color: #17201e; font-size: 11px; font-weight: 700; line-height: 1.3; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-mpaid { position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 999px; background: #17201e; color: #fff; font-size: 11px; font-weight: 800; line-height: 1.3; }
+.amp-mstat { display: flex; gap: 10px; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.amp-mstat span { display: inline-flex; align-items: center; gap: 4px; }
+.amp-mstat svg { flex: 0 0 auto; }
+.amp-markbtn { position: absolute; top: 6px; right: 6px; z-index: 2; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: rgba(23,32,30,.55); color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-backdrop-filter: none; }
+.amp-markbtn svg { width: 17px; height: 17px; }
+.amp-markbtn.on { background: var(--accent); color: #fff; }
+.amp-markbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Startseite */
+.amp-mssec { margin: 6px 0 22px; }
+.amp-mssec h2 { margin: 0 0 10px; font-size: 18px; font-weight: 800; }
+.amp-msrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.amp-msrow::-webkit-scrollbar { display: none; }
+.amp-rq { flex: 0 0 auto; height: 36px; display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; max-width: 70vw; }
+.amp-rq span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-rq svg { flex: 0 0 auto; width: 15px; height: 15px; color: var(--muted); }
+.amp-msstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 46%); gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 2px 2px 6px; }
+.amp-msstrip::-webkit-scrollbar { display: none; }
+.amp-msstrip > .lbcard { scroll-snap-align: start; }
+@media (min-width: 700px) { .amp-msstrip { grid-auto-columns: 190px; } }
+.amp-msareas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.amp-msarea { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
+.amp-msarea:hover { border-color: var(--line-2); }
+.amp-msarea > span:last-child { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.amp-msai { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-sub); color: var(--accent-ink); display: grid; place-items: center; }
+@media (max-width: 560px) { .amp-msareas { grid-template-columns: repeat(2, minmax(0, 1fr)); } .amp-msarea { gap: 10px; padding: 8px 10px; font-size: 13px; } .amp-msai { flex-basis: 36px; width: 36px; height: 36px; } }
+/* Platzhalter beim Laden */
+.amp-skel { cursor: default; pointer-events: none; }
+.amp-skel .lbpic, .amp-skel .lbt i { background: linear-gradient(90deg, var(--panel-2) 0%, var(--line) 50%, var(--panel-2) 100%); background-size: 200% 100%; animation: amp-skel 1.2s ease-in-out infinite; }
+.amp-skel .lbt i { display: block; height: 11px; border-radius: 6px; }
+.amp-skel .lbt i + i { width: 55%; margin-top: 6px; }
+@keyframes amp-skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .amp-skel .lbpic, .amp-skel .lbt i { animation: none; } }
+/* Modell-Dialog: Designer, Tags als Knöpfe, Ähnliche */
+.amp-mslink { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--accent-ink); cursor: pointer; }
+.amp-mslink span { text-decoration: underline; text-underline-offset: 3px; }
+.amp-msrcl { display: inline-flex; align-items: center; gap: 6px; }
+.amp-msst { margin: -2px 0 8px; }
+.amp-tagbtn { cursor: pointer; font: inherit; font-size: 12px; padding: 4px 10px; }
+.amp-tagbtn:hover { color: var(--text); border-color: var(--line-2); }
+.amp-msmoreby { margin: 4px 0 6px; }
+.amp-msrelw { margin-top: 16px; }
+/* .dlg-b ist ein Raster mit auto-Spalte: die wuchs auf die Mindestbreite des Inhalts (10 Ähnliche ≈ 1.500 px) und zog Bild, Tags und Text mit (14.11.2026) */
+.amp-msrelw h3 { margin: 0 0 8px; font-size: 15px; font-weight: 800; }
+.amp-msrel { grid-auto-columns: minmax(140px, 42%); }
+@media (min-width: 700px) { .amp-msrel { grid-auto-columns: 170px; } }
+.amp-msrel .lbt b { font-size: 13px; }
+/* Blatt „Deine Bibliothek“ */
+.amp-mslibs { display: grid; gap: 6px; align-content: start; }
+.amp-mslibs h3 { margin: 14px 0 4px; font-size: 14px; font-weight: 800; }
+.amp-mslrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.amp-mslrow span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-mslrow svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--accent); }
+.amp-mslrow b { color: var(--muted); font-size: 13px; }
+
+/* Benachrichtigungen + Neuigkeiten (14.11.2026) */
+.amp-notif h3 { margin: 16px 0 4px; font-size: 15px; }
+.amp-notif .chk.row.amp-nt-news { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 10px; margin: 4px 0 2px; color: var(--text); }
+.amp-notif .chk.row.amp-nt-news input { margin-top: 4px; flex: none; }
+.amp-nt-evs { display: grid; gap: 8px; margin: 10px 0 14px; }
+/* Ereignisse mit langem Text (Warnungen 15.11.2026): Häkchen links, Text daneben umbrechen; Feuchte-Schwelle unter „Box zu feucht“ */
+.amp-nt-evs .chk.row { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 10px; }
+.amp-nt-evs .chk.row input { margin-top: 4px; flex: none; }
+.amp-nt-hp { display: flex; align-items: center; gap: 8px; margin: -2px 0 2px 30px; font-size: 14px; color: var(--muted); }
+.amp-nt-hp[hidden] { display: none; }
+.amp-nt-hp input.in { width: 5.5em; flex: none; text-align: right; }
+.amp-notif .note { margin: 10px 0; }
+.amp-notif .note .btn { margin-left: 6px; }
+.amp-nt-newslink { margin: 14px 0 0; }
+.amp-news h2 { margin: 2px 0 6px; }
+.amp-news .hint { margin: 0; }
+.amp-news-b { white-space: pre-line; margin: 0 0 10px; }
+.amp-news.new { border-color: var(--accent, #0f766e); box-shadow: inset 3px 0 0 var(--accent, #0f766e); }
+.amp-news-set { margin-top: 10px; }
+/* Punkt bei ungelesenen Neuigkeiten: Mehr-Knopf unten und Eintrag im Mehr-Blatt */
+#fmMore, .fmx-ms-grid a.amp-news-lnk { position: relative; }
+body.amp-news-new #fmMore::after, body.amp-news-new .fmx-ms-grid a.amp-news-lnk::after {
+  content: ''; position: absolute; top: 7px; left: calc(50% + 7px); width: 9px; height: 9px; border-radius: 50%;
+  background: #e5484d; box-shadow: 0 0 0 2px var(--panel, #fff); pointer-events: none; }
+body.amp-news-new .fmx-ms-grid a.amp-news-lnk::after { top: 15px; }
+
+/* ═══ Bibliothek kompakt (14.11.2026, User: „die Seite muss optimiert werden“): eine schmale Zeile Hinzufügen + Speicherplatz,
+   Ordner als eine Zeile (am Handy zum Wischen), Tags als Auswahlfeld neben der Sortierung statt Chip-Wand ═══ */
+/* .lbtop bleibt als Kennzeichen „Bibliothek offen“ (view.querySelector('.lbtop') vor dem Neuzeichnen) — dessen Raster hier aus */
+.lbtop.amp-lbtop { display: flex; align-items: center; gap: 14px; margin: 2px 0 12px; grid-template-columns: none; }
+.amp-lbnew { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1.5px dashed var(--line-2);
+  border-radius: var(--r); background: var(--panel); cursor: pointer; transition: border-color .15s, background .15s; }
+.amp-lbnew:hover, .amp-lbnew.over { border-color: var(--accent); background: var(--accent-sub); }
+.amp-lbnew.off { opacity: .5; cursor: not-allowed; }
+.amp-lbnew input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.amp-lbnew-i { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
+.amp-lbnew-i svg { width: 18px; height: 18px; }
+.amp-lbnew-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.amp-lbnew-t b { font-size: 15px; color: var(--text); }
+.amp-lbnew-t small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.amp-lbuse { flex: 0 0 auto; width: 170px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); line-height: 1.3; }
+.amp-lbuse b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.amp-lbuse .lbq-bar { height: 5px; }
+.amp-lbuse .warn-t { font-size: 12px; }
+.amp-lbuse.free { width: auto; }
+.amp-lbbar { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin: 0 0 14px; }
+.amp-lbfold { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.amp-lbfold::-webkit-scrollbar { display: none; }
+.amp-lbfold .chip { flex: none; white-space: nowrap; }
+.amp-lbfold .chip b { font-size: 11px; font-weight: 700; opacity: .7; margin-left: 4px; }
+.amp-lbf { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.amp-lbf .lbsearch { flex: 1 1 220px; min-width: 0; width: auto; height: 40px; }
+.amp-lbf-r { display: flex; gap: 8px; align-items: center; flex: 0 1 auto; min-width: 0; }
+body .amp-lbf select.in { width: auto; max-width: 200px; height: 40px; padding-right: 28px; text-overflow: ellipsis; }
+.amp-lbtagsel.on { border-color: var(--accent); color: var(--accent-ink, var(--accent)); font-weight: 600; }
+.amp-lbselb { flex: none; height: 40px; }
+.amp-lbselb svg { flex: none; }
+@media (max-width: 600px) {
+  .lbtop.amp-lbtop { gap: 10px; }
+  .amp-lbnew { padding: 9px 12px; gap: 10px; }
+  .amp-lbnew-t small { display: none; }
+  .amp-lbuse { width: 112px; }
+  /* Handy: Suche + Auswählen in einer Zeile, darunter Tags und Sortierung je halbe Breite */
+  .amp-lbf .lbsearch { flex: 1 1 0; order: 1; }
+  .amp-lbselb { order: 2; }
+  .amp-lbf-r { flex: 1 1 100%; order: 3; }
+  body .amp-lbf-r select.in { flex: 1 1 0; max-width: none; min-width: 0; }
+  .amp-lbselb { width: 40px; padding: 0; justify-content: center; }
+  .amp-lbselb span { display: none; }
+  .amp-lbselb.pri { width: auto; padding: 0 12px; }
+  .amp-lbselb.pri span { display: inline; }
+}
+/* Modellbild in der Druckkarte (14.11.2026): breite Vorschaubilder aus dem G-Code (Kobra 230×110) nicht ins Quadrat quetschen */
+.j-thumb.rnd { width: auto; min-width: 52px; max-width: 88px; }
+.j-thumb.rnd img { width: auto; max-width: 100%; height: 100%; margin: 0 auto; object-fit: contain; }
+/* Name daneben darf zweizeilig sein (vorher nach einer Zeile abgeschnitten) */
+.j-head .j-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* ── Modellseite (15.11.2026): eigene Seite #models/<id> statt Dialog, Galerie zum Wischen wie model.php ── */
+.amp-mp { display: grid; gap: 16px; min-width: 0; }
+.amp-mp > * { min-width: 0; }
+.amp-mphead { display: flex; align-items: flex-start; gap: 12px; }   /* Pfeil bleibt oben links, auch bei dreizeiligem Titel */
+.amp-mpback { flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1.5px solid var(--line-2); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, border-color .15s, color .15s, transform .15s; }
+.amp-mpback svg { margin-left: -2px; }
+.amp-mpback:hover { color: var(--accent-ink); border-color: var(--accent); }
+.amp-mpback:active { background: var(--accent-sub); border-color: var(--accent); color: var(--accent-ink); transform: scale(.92); }
+.amp-mpback:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.amp-mph1 { margin: 0; min-width: 0; padding-top: 9px; font-size: 19px; line-height: 1.3; font-weight: 800; overflow-wrap: anywhere; }
+.amp-mphero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 900px) { .amp-mphero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; } .amp-mph1 { padding-top: 4px; font-size: 26px; } }
+.amp-gal { position: relative; aspect-ratio: 5 / 4; border-radius: 16px; overflow: hidden; background: var(--panel-2); border: 1px solid var(--line); }
+.amp-gal0 { display: grid; place-items: center; color: var(--muted); }
+.amp-galtrack { display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }   /* contain: sonst blättert Android beim Wischen am Rand zurück */
+.amp-galtrack::-webkit-scrollbar { display: none; }
+.amp-galtrack:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.amp-galslide { flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.amp-galslide img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+/* Pfeile nur mit Maus (oder breit) — am Handy wird gewischt, dort wären sie nur Stolperstellen über dem Bild */
+.amp-galnav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 42px; height: 42px; padding: 0; border-radius: 50%; border: 1px solid var(--line-2); background: var(--panel); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.2); display: none; place-items: center; cursor: pointer; opacity: .85; transition: opacity .15s, color .15s, border-color .15s; }
+.amp-galnav.prev { left: 12px; }
+.amp-galnav.next { right: 12px; }
+.amp-galnav:hover, .amp-galnav:focus-visible { opacity: 1; color: var(--accent-ink); border-color: var(--accent); }
+.amp-galnav:disabled { opacity: 0; pointer-events: none; }
+@media (min-width: 900px), (hover: hover) and (pointer: fine) { .amp-gal.multi .amp-galnav { display: grid; } }
+.amp-galdots { position: absolute; left: 0; right: 0; bottom: 12px; z-index: 2; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
+.amp-galdots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.5); box-shadow: 0 1px 3px rgba(0,0,0,.45); transition: width .2s, background .2s; }
+.amp-galdots i.on { width: 16px; background: #fff; }
+.amp-galcount { position: absolute; right: 10px; bottom: 8px; z-index: 2; padding: 2px 9px; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+.amp-gal:not(.multi) .amp-galnav, .amp-gal:not(.multi) .amp-galdots, .amp-gal:not(.multi) .amp-galcount { display: none; }
+.amp-mpinfo { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.amp-mpinfo > * { margin: 0; min-width: 0; }
+.amp-mpacts { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.amp-mpacts .btn { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }   /* füllen die Zeile; am Handy untereinander in voller Breite */
+.amp-mpdesc h2, .amp-mp .amp-msrelw h2 { margin: 6px 0 8px; font-size: 17px; font-weight: 800; }
+.amp-mp .amp-mssum { max-height: none; overflow: visible; overflow-wrap: anywhere; margin: 0; }
+.amp-mp .amp-msrelw { margin-top: 4px; }
+/* Ähnliche: am Handy Streifen zum Wischen, breit ein Raster (mit Maus lässt sich ein Streifen ohne Leiste nicht schieben) */
+@media (min-width: 900px) { .amp-mp .amp-msrel { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); overflow: visible; } }
+
+/* NFC-Tag beschreiben (15.11.2026) */
+.amp-nfc .amp-acts { margin-top: 6px; }
+.amp-nfcw .fgrid { margin-top: 10px; }
+.amp-nfcw-sp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 0; }
+.amp-nfcw-sp i { width: 22px; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.amp-nfcw-r { display: flex; align-items: center; gap: 8px; }
+.amp-nfcw-r input.in { width: 5.5em; text-align: right; }
+.amp-nfcw-wait { font-weight: 600; }
+.amp-nfcw.armed > :not(.amp-nfcw-sp):not(#nfcwmsg) { display: none; }   /* bereit zum Schreiben: nur Spule + großes Symbol */
+.amp-nfcw-arm { padding: 14px 0 6px; }
+.amp-nfcw-arm svg { animation: ampNfcPulse 1.6s ease-in-out infinite; }
+@keyframes ampNfcPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .6; } }
+.amp-nfcw-done { padding-top: 18px; }
+.amp-nfcw-done svg { color: var(--ok); margin: 4px auto 6px; display: block; }
+.amp-nfcw-done-t { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.amp-nfc-l li.amp-nfc-fresh { animation: ampNfcFresh 2.6s ease-out; }
+@keyframes ampNfcFresh { 0%, 35% { background: var(--accent-sub); box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 2px transparent; } }
+@media (prefers-reduced-motion: reduce) { .amp-nfcw-arm svg { animation: none; } }
+.amp-ha-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }   /* Home-Assistant-Schlüssel (Agent, 16.11.2026) */
+
+/* Abo-Weichen (Agent, 16.11.2026): Karte in den Einstellungen + Sperrseite */
+.amp-plan-st { font-weight: 600; margin: 4px 0 8px; }
+.amp-plan-l { margin: 4px 0 10px; padding-left: 20px; }
+.amp-plan-lock { position: fixed; inset: 0; z-index: 3000; background: var(--bg, #f4f5f3); display: grid; place-items: center; padding: 24px; overflow-y: auto; }
+.amp-plan-lockc { max-width: 460px; width: 100%; background: var(--panel, #fff); border: 1px solid var(--line, #e1e6e3); border-radius: 20px; padding: 24px; box-shadow: var(--shadow, 0 8px 30px rgba(0,0,0,.08)); }
+.amp-plan-lockc h2 { margin: 0 0 10px; }
+
+/* Überwachung (17.11.2026): Platte leer + Fehldruck-Erkennung, Einstellungen → #swatch */
+.amp-watch h3 { margin: 16px 0 6px; font-size: 15px; }
+.amp-w-list { margin: 6px 0 8px; padding-left: 20px; }
+.amp-w-pr { display: grid; gap: 8px; margin-top: 8px; }
+.amp-w-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.amp-w-ref { flex: none; width: 72px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--line, #e7e9ea); display: grid; place-items: center; }
+.amp-w-ref img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.amp-w-ref svg { width: 28px; height: 28px; opacity: .5; }
+.amp-w-t { flex: 1 1 140px; min-width: 0; display: grid; }
+.amp-w-t small { color: var(--muted, #6b7280); }
+.amp-w-b { display: flex; gap: 6px; flex-wrap: wrap; }
+.amp-w-cmd { margin: 4px 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--line, #eef0f1); font-size: 12.5px; overflow-x: auto; white-space: pre; }
+.amp-w-ai { margin-top: 8px; display: grid; gap: 8px; }
+.amp-w-row2 small { font-weight: 400; }
+
+/* Einstellungen in aufklappbaren Gruppen (17.11.2026): #settings/<gruppe>, immer nur eine offen */
+.amp-sgs { display: grid; gap: 10px; margin-bottom: 16px; }
+.amp-sg { background: var(--panel, #fff); border: 1px solid var(--line, #e1e6e3); border-radius: 18px; overflow: hidden; scroll-margin-top: 76px; }
+.amp-sg > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
+.amp-sg > summary::-webkit-details-marker { display: none; }
+.amp-sg > summary:focus-visible { outline: 2px solid var(--accent, #0f766e); outline-offset: -2px; border-radius: 18px; }
+.amp-sg-ic { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-sub, #e6f2ef); color: var(--accent, #0f766e); }
+.amp-sg-ic svg { width: 20px; height: 20px; }
+.amp-sg-t { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.amp-sg-t b { font-size: 16px; }
+.amp-sg-t small { color: var(--muted, #56625f); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-sg-chev { flex: none; width: 9px; height: 9px; margin: 0 6px 4px 0; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .45; transition: transform .2s; }
+.amp-sg[open] .amp-sg-chev { transform: rotate(-135deg); margin-bottom: -4px; }
+.amp-sg[open] > summary { border-bottom: 1px solid var(--line, #e1e6e3); }
+.amp-sg-b { padding: 0 16px 6px; }
+#view .amp-sg .amp-sg-b > .card { background: transparent; border: 0; box-shadow: none; border-radius: 0; margin: 0; padding: 16px 0; }
+#view .amp-sg .amp-sg-b > .card + .card { border-top: 1px solid var(--line, #e1e6e3); }
+#view .amp-sg .amp-sg-b > a.card { padding: 14px 0; }
+/* Bibliothek → Drucken: NAS-Fehler über den Knöpfen (#23, 18.11.2026), Abstand wie .dlg-b/.dlg-f */
+#lbperr { margin: 0 18px 12px; }
+/* Platte zusammenstellen (18.11.2026): Knöpfe unter der STL-Liste, Auswahl aus der Bibliothek, Teile einer gespeicherten Platte */
+.amp-stlx { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.amp-stlx .btn svg { vertical-align: -2px; }
+.amp-lbsel .btn svg { vertical-align: -2px; }
+.chip[data-plates] svg { width: 13px; height: 13px; vertical-align: -2px; }
+.amp-plpl { display: grid; gap: 6px; margin-top: 10px; }
+.amp-plpi { position: relative; display: grid; grid-template-columns: 26px 48px 1fr; gap: 10px; align-items: center; width: 100%; padding: 8px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--r-sm, 10px); background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+.amp-plpi[hidden] { display: none; }
+.amp-plpi .amp-chk { position: static; }
+.amp-plpi.amp-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.amp-plpi.amp-on .amp-chk { background: var(--accent); border-color: var(--accent); }
+.amp-plpi .t, .amp-plparts .t { display: grid; gap: 2px; min-width: 0; }
+.amp-plpi .t b, .amp-plparts .t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-plpi .t small, .amp-plparts .t small { color: var(--muted); }
+.amp-plpi .pic, .amp-plparts .pic { width: 48px; height: 48px; border-radius: 8px; background: var(--panel-2); display: grid; place-items: center; overflow: hidden; color: var(--muted); }
+.amp-plpi .pic img, .amp-plparts .pic img { width: 100%; height: 100%; object-fit: contain; }
+.amp-plparts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.amp-plparts li { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; }
+.amp-plparts li.off { opacity: .55; }
+.amp-plparts .n { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* feste Höhe: das Bild lädt nach dem Öffnen — ohne reservierten Platz rutschte der Dialog dabei nach unten (Scroll-Verankerung) */
+.amp-plpv { height: 240px; border-radius: var(--r, 14px); background: var(--panel-2); overflow: hidden; }
+.amp-plpv img { display: block; width: 100%; height: 100%; object-fit: contain; }   /* Block statt Grid: im Grid griff height: 100% nicht, das Bild wurde abgeschnitten */
+.amp-plpv .lbnone { height: 100%; box-sizing: border-box; padding: 28px; }
+/* Vorschau: Umschalter Filamentfarbe / Linienarten in der Legende (18.11.2026) */
+#plegend .amp-pvseg { margin-right: 6px; }
+#plegend .amp-pvseg button { padding: 4px 10px; font: inherit; }
+/* ═══ Bibliothek neu (18.11.2026, Entwurf A + C): Desktop-Kopf, Seitenleiste, Dropdown am Handy, Weiter drucken, Karten, Fakten ═══ */
+.amp-lbhd { display: none; }
+.amp-lbwrap { display: flex; gap: 28px; align-items: flex-start; }
+.amp-lbmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.amp-lbmain > .lbbar, .amp-lbmain > .amp-lbcrumb { margin: 0; }
+.amp-lbside { display: none; }
+.amp-lbdd { display: block; margin: 0; }
+.amp-lbdd > summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.amp-lbdd > summary > svg:first-child { flex: none; color: var(--accent); }
+.amp-lbdd .subdd-list { max-height: 70vh; overflow: auto; }
+.amp-lbdd .subdd-list button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+.amp-lbdd .subdd-list button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-lbdd .subdd-list button b { color: var(--muted); font-weight: 600; font-size: 13px; }
+.amp-lbdd .subdd-list button svg { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.amp-lbdd .subdd-list button:hover { background: var(--panel-2); }
+.amp-lbdd .subdd-list button.on { background: var(--accent-sub); color: var(--accent-ink); font-weight: 700; }
+.amp-lbddh { margin: 8px 12px 2px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+@media (min-width: 1001px) {
+  .amp-lbph { display: none; }
+  .amp-lbhd { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 4px 0 18px; }
+  .amp-lbhd h1 { margin: 0; }
+  .amp-lbhd .lead { margin: 6px 0 0; }
+  .amp-lbhd .amp-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+  .amp-lbhd .btn svg { vertical-align: -3px; }
+  .amp-lbdd { display: none; }
+  .amp-lbside { display: flex; flex-direction: column; gap: 2px; flex: 0 0 232px; position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; }
+}
+#view .amp-lbside h2 { margin: 16px 0 6px 10px; font-size: 12px; line-height: 1.3; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+#view .amp-lbside h2:first-child { margin-top: 0; }
+.amp-lbnav { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.amp-lbnav span { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-lbnav span svg { flex: none; color: var(--muted); }
+.amp-lbnav b { font-size: 13px; color: var(--muted); font-weight: 600; }
+.amp-lbnav:hover { background: var(--panel-2); }
+.amp-lbnav.on { background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.amp-lbnav.on b { color: var(--accent-ink); }
+.amp-lbstags { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 6px; }
+.amp-lbfit.on { border-color: var(--accent); color: var(--accent-ink, var(--accent)); font-weight: 600; }
+/* Weiter drucken: Desktop drei nebeneinander, Handy nur der letzte Druck (keine Wischleiste) */
+.amp-lbrec h2 { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; font-size: 18px; }
+.amp-lbrec h2 svg { color: var(--accent); }
+.amp-lbrcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+@media (max-width: 1000px) { .amp-lbrcs > .amp-lbrc:nth-child(n+2) { display: none; } }
+.amp-lbrc { display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); min-width: 0; }
+.amp-lbrcpic { width: 60px; height: 60px; flex: none; border-radius: 12px; background: var(--panel-2); display: grid; place-items: center; overflow: hidden; color: var(--faint); }
+.amp-lbrcpic img { width: 100%; height: 100%; object-fit: contain; }
+.amp-lbrct { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.amp-lbrct b, .amp-lbrct .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amp-lbrct .hint { font-size: 12.5px; }
+.amp-lbrc .btn { flex: none; background: var(--accent-sub); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+/* Karten: ganze Fläche tippbar (Knopf darüber), Hinweise auf dem Bild, Schnellaktionen beim Darüberfahren (nicht am Touch-Gerät) */
+.amp-lbhit { position: absolute; inset: 0; z-index: 1; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.amp-lbhit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.amp-lbc .lbpic { position: relative; }
+.amp-lbbdg { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; }
+.amp-selm .amp-lbbdg { left: 40px; }
+.amp-lbbdg span { padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--text); }
+.amp-lbqa { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; display: flex; gap: 6px; opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s; }
+.amp-lbqa .btn.pri { flex: 1; justify-content: center; }
+.amp-lbqa .btn svg { vertical-align: -3px; }
+.amp-lbc:hover .amp-lbqa, .amp-lbc:focus-within .amp-lbqa { opacity: 1; transform: none; }
+@media (hover: none) and (pointer: coarse) { .amp-lbqa { display: none; } }
+.amp-lbst { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.amp-lbst > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-lbst .amp-lbnever { color: #b4410c; }
+html[data-theme="dark"] .amp-lbst .amp-lbnever { color: #fb923c; }
+.amp-dots { display: inline-flex; gap: 3px; flex: none; }
+.amp-dots i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(0,0,0,.22); }
+/* Dialog: Fakten unter der Vorschau, Drucken mit dem letzten Drucker */
+.amp-lbfacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.amp-lbfacts > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 12px; background: var(--panel-2); }
+.amp-lbfacts > div > span { font-size: 12px; color: var(--muted); }
+.amp-lbfacts > .amp-lbfits { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0; background: transparent; }
+.amp-lbfits .tag { font-weight: 700; }
+.amp-lbfacts .amp-lbfits .tag.amp-fit { background: var(--accent-sub); color: var(--accent-ink); }
+.amp-lbfacts .amp-lbfits .tag.amp-nofit { background: rgba(194, 65, 12, .12); color: #9a3412; }
+html[data-theme="dark"] .amp-lbfacts .amp-lbfits .tag.amp-nofit { color: #fdba74; }
+.amp-lbpbtn small { margin-left: 4px; font-size: 12px; font-weight: 600; opacity: .85; }
+/* Handy: Passt auf über die ganze Breite, darunter Tags + Sortierung (drei schmale Felder waren unlesbar) */
+@media (max-width: 640px) {
+  .amp-lbmain .amp-lbf-r { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  .amp-lbmain .amp-lbf-r > select { width: 100%; min-width: 0; }
+  .amp-lbmain .amp-lbf-r > #amplbfit { grid-column: 1 / -1; }
+  .amp-lbmain .amp-lbf-r > select:only-child { grid-column: 1 / -1; }
+}
+/* ═══ Modellsuche wie 3DSEARCH (18.11.2026): Seitenleiste ab 1001 px, Karten wie 3DSEARCH, ×-Chips, Wettbewerbe; Kamera-Knopf ═══ */
+.amp-mslay { display: flex; gap: 24px; align-items: flex-start; }
+.amp-msmain { flex: 1 1 auto; min-width: 0; }
+.amp-msside, .amp-dtonly { display: none; }
+body .amp-msf .amp-msgo2 { display: none; }
+.amp-sbsec { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 6px; }
+.amp-sbsec > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 800; }
+.amp-sbsec > summary::-webkit-details-marker { display: none; }
+.amp-sbsec > summary > span { flex: 1; min-width: 0; }
+.amp-sbsec > summary > svg:first-child { flex: none; color: var(--muted); }
+.amp-sbsec > summary small { font-size: 12px; font-weight: 700; color: var(--muted); }
+.amp-sbsec > summary .chev { flex: none; color: var(--muted); transition: transform .15s; }
+.amp-sbsec:not([open]) > summary .chev { transform: rotate(-90deg); }
+.amp-sbbody { display: flex; flex-direction: column; gap: 1px; padding-bottom: 4px; }
+.amp-sbrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 6px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.amp-sbrow > span:not(.amp-chkbox) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-sbrow > svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.amp-sbrow > b { font-size: 13px; font-weight: 600; color: var(--muted); }
+.amp-sbrow:hover { background: var(--panel-2); color: var(--text); }
+.amp-sbrow.on { background: var(--panel-2); color: var(--text); font-weight: 800; }
+.amp-sbrow.on > svg { color: var(--accent); }
+.amp-sbsrc { color: var(--text); }
+.amp-dot { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.amp-chkbox { flex: none; width: 20px; height: 20px; box-sizing: border-box; border-radius: 6px; border: 1.5px solid var(--line-2); display: grid; place-items: center; color: var(--on-accent); }
+.amp-chkbox.on { background: var(--accent); border-color: var(--accent); }
+.amp-chkbox svg { width: 13px; height: 13px; }
+.amp-sbbtns { display: flex; gap: 8px; padding: 8px 4px 4px; }
+.amp-sbbtns .btn { flex: 1 1 0; justify-content: center; height: 36px; font-weight: 700; }
+.amp-sbcont, .amp-mfcont { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); color: var(--text); font-weight: 700; text-decoration: none; }
+.amp-sbcont { margin: 6px 4px 4px; padding: 10px 12px; border-radius: 12px; font-size: 14px; }
+.amp-sbcont > svg, .amp-mfcont > svg:first-child { flex: none; color: var(--accent); }
+.amp-sbcont > span, .amp-mfcont > span { flex: 1; min-width: 0; }
+.amp-sbcont b, .amp-mfcont b { padding: 2px 8px; border-radius: 999px; background: var(--accent-sub); color: var(--accent-ink); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.amp-sbcont:hover, .amp-mfcont:hover { border-color: var(--line-2); }
+@media (min-width: 1001px) {
+  .amp-msside { display: flex; flex-direction: column; gap: 12px; flex: 0 0 256px; position: sticky; top: calc(var(--amp-toph, 0px) + 12px); max-height: calc(100vh - var(--amp-toph, 0px) - 24px); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  body .amp-msf .amp-msfb, body .amp-msf .amp-mslb { display: none; }
+  body .amp-msf .amp-msgo2 { display: inline-flex; padding: 0 24px; font-weight: 800; }
+  .amp-dtonly { display: inline-flex; }
+  .amp-msmain .lbgrid.amp-msgrid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  #mstrend { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; overflow: visible; padding: 0; }
+  #mstrend:not(.amp-all) > .lbcard:nth-child(n+5) { display: none; }
+}
+/* Karten wie 3DSEARCH */
+.amp-mcard .lbpic { aspect-ratio: 4 / 3; }
+.amp-mcard .amp-mopen { flex: 1 1 auto; }
+.amp-mcard .lbt { flex: 1 1 auto; }
+.amp-msrc { top: 8px; bottom: auto; }
+.amp-mpaid { top: auto; bottom: 8px; }
+.amp-mwin { position: absolute; right: 8px; bottom: 8px; padding: 3px 8px; border-radius: 999px; background: #f0b429; color: #17201e; font-size: 11px; font-weight: 800; line-height: 1.3; }
+.amp-macts { position: absolute; top: 6px; right: 6px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+.amp-macts .amp-markbtn, .amp-collbtn { position: static; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px; background: rgba(255,255,255,.95); color: #17201e; box-shadow: 0 1px 3px rgba(0,0,0,.22); display: grid; place-items: center; cursor: pointer; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.amp-macts .amp-markbtn.on, .amp-collbtn.on { background: var(--accent); color: #fff; }
+.amp-collbtn svg { width: 18px; height: 18px; }
+.amp-collbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.amp-mdes { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.amp-mdes svg { flex: none; }
+.amp-mdes span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-mstat { gap: 12px; }
+.amp-mtags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 6px; }
+.amp-mtags span { max-width: 100%; box-sizing: border-box; padding: 3px 8px; border-radius: 7px; background: var(--panel-2); color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Gesetzte Filter als ×-Chips: brechen um, keine Wischleiste */
+.amp-msquick { flex-wrap: wrap; overflow: visible; margin: 0 0 12px; padding: 0; }
+.amp-msquick[hidden] { display: none; }
+body .amp-msquick .chip.on.amp-qx { background: var(--accent-sub); border-color: transparent; color: var(--accent-ink); font-weight: 700; }
+.amp-qx i { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.amp-qreset { padding: 6px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.amp-mslead { margin: 0 0 14px; font-size: 14px; color: var(--muted); }
+.amp-msh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 10px; }
+.amp-msh h2 { margin: 0; }
+.amp-msh .hint { font-size: 13px; }
+.amp-msall { margin-left: auto; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 800; text-decoration: none; cursor: pointer; }
+a.amp-msall { display: inline-flex; }
+/* Filterblatt am Handy */
+.amp-mfs section + section, .amp-mfs .amp-mfcont + section { margin-top: 22px; }
+.amp-mfs h3 { display: flex; align-items: center; gap: 8px; }
+.amp-mfs h3 > svg { flex: none; color: var(--muted); }
+.amp-mfs h3 > span { flex: 1; }
+.amp-mfs h3 small { font-size: 12px; font-weight: 700; color: var(--muted); }
+.amp-mflist { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.amp-mfrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer; }
+.amp-mfrow:last-child { border-bottom: 0; }
+.amp-mfrow > span:not(.amp-chkbox):not(.amp-radio) { flex: 1; min-width: 0; }
+.amp-radio { flex: none; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-2); display: grid; place-items: center; }
+.amp-radio.on { border: 2px solid var(--accent); }
+.amp-radio.on::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.amp-mflink { margin-top: 4px; padding: 10px 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.amp-mflink:disabled { color: var(--muted); opacity: .6; cursor: default; }
+.amp-mfcont { margin-top: 18px; padding: 14px; border-radius: 14px; background: var(--bg); font-size: 15px; font-weight: 800; }
+.amp-seg { display: inline-flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--panel-2); box-sizing: border-box; }
+.amp-seg button { min-height: 38px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.amp-seg button.on { background: var(--panel); color: var(--text); font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.amp-mfseg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.amp-mfs .subdd.amp-mfdd { display: block; margin: 0; }
+.amp-mfdd > summary > span { flex: 1; min-width: 0; font-weight: 700; }
+.amp-mfdd .subdd-list { position: static; margin-top: 6px; box-shadow: none; }
+.amp-mfdd .subdd-list button, .amp-ctdd .subdd-list button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+.amp-mfdd .subdd-list button span, .amp-ctdd .subdd-list button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-mfdd .subdd-list button > svg, .amp-ctdd .subdd-list button > svg { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.amp-ctdd .subdd-list button b { color: var(--muted); font-size: 13px; font-weight: 600; }
+.amp-mfdd .subdd-list button:hover, .amp-ctdd .subdd-list button:hover { background: var(--panel-2); }
+.amp-mfdd .subdd-list button.on, .amp-ctdd .subdd-list button.on { background: var(--accent-sub); color: var(--accent-ink); font-weight: 700; }
+/* Wettbewerbe: Karten, Startseite (Desktop Karten, Handy Kachel), Liste, ein Wettbewerb */
+.amp-ctgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.amp-ctl .amp-ctgrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.amp-ccard { display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; color: var(--text); text-decoration: none; transition: transform .12s, box-shadow .12s; }
+.amp-ccard:hover { border-color: var(--line-2); transform: translateY(-1px); box-shadow: var(--shadow); }
+.amp-ccard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.amp-ccard .amp-cpic { position: relative; display: block; aspect-ratio: 2 / 1; background: var(--panel-2); overflow: hidden; }
+.amp-cpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.amp-cnoai { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 999px; background: rgba(23,32,30,.82); color: #fff; font-size: 11px; font-weight: 700; line-height: 1.3; }
+.amp-cbody { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px 14px; }
+.amp-cbody > b { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.amp-cprize { display: flex; align-items: flex-start; gap: 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.amp-cprize svg { flex: none; margin-top: 1px; }
+.amp-cprize span { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.amp-cchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.amp-cchip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 8px; background: var(--panel-2); color: var(--muted); font-size: 12px; font-weight: 700; }
+.amp-cchip.warn { background: var(--fm-warn-sub); color: var(--warn); font-weight: 800; }
+.amp-mscont { display: none; }
+.amp-cttile { display: flex; flex-direction: column; gap: 12px; margin: 0 0 22px; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); color: var(--text); text-decoration: none; box-shadow: var(--shadow); }
+.amp-cttop { display: flex; align-items: center; gap: 12px; }
+.amp-ctico { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-sub); color: var(--accent-ink); display: grid; place-items: center; }
+.amp-cttx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.amp-cttx b { font-size: 16px; }
+.amp-cttx span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+.amp-cttx span.warn { color: var(--warn); font-weight: 700; }
+.amp-ctmini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.amp-ctmini > span { aspect-ratio: 2 / 1; border-radius: 10px; overflow: hidden; background: var(--panel-2); }
+.amp-ctmini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (min-width: 1001px) { .amp-mscont { display: block; } .amp-cttile { display: none; } }
+.amp-ctl, .amp-ctd { display: flex; flex-direction: column; gap: 16px; }
+.amp-ctback { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px 0 2px; border-radius: 10px; color: var(--muted); font-weight: 700; text-decoration: none; }
+.amp-ctback svg { width: 20px; height: 20px; }
+.amp-cthead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.amp-cthd { flex: 1 1 380px; min-width: 0; }
+.amp-cthd h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
+.amp-cthd h1 svg { width: 26px; height: 26px; color: var(--accent); }
+.amp-cthd .hint { margin: 0; max-width: 62ch; }
+.amp-ctplats .chip { display: inline-flex; align-items: center; gap: 7px; height: 36px; font-weight: 700; color: var(--text); }
+.amp-ctplats .chip small { font-size: 12px; color: var(--muted); }
+.amp-ctplats .chip.on, .amp-ctplats .chip.on small { color: var(--panel); }
+.subdd.amp-ctdd { display: none; width: 100%; margin: 0; }
+.amp-ctdd > summary { width: 100%; box-sizing: border-box; }
+.amp-ctdd > summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.amp-ctdd > summary > svg:first-child { flex: none; color: var(--accent); }
+@media (max-width: 760px) { .amp-ctplats { display: none; } .subdd.amp-ctdd { display: block; } .amp-cthead .amp-seg { width: 100%; } .amp-cthead .amp-seg button { flex: 1 1 0; } }
+.amp-ctdhero { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; }
+@media (max-width: 860px) { .amp-ctdprz { order: -1; } }
+.amp-ctdl { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.amp-ctdr { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.amp-ctdimg { aspect-ratio: 2 / 1; border-radius: var(--r); overflow: hidden; background: var(--panel-2); }
+@media (min-width: 1001px) { .amp-ctdimg { aspect-ratio: 5 / 2; } }
+.amp-ctdimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.amp-ctdsec { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.amp-ctdsec h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 800; }
+.amp-ctdsec h2 svg { color: var(--accent); }
+.amp-ctdinfo { box-shadow: var(--shadow); }
+.amp-ctdinfo h1 { margin: 0; font-size: 24px; line-height: 1.2; overflow-wrap: anywhere; }
+.amp-ctpill { align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); font-size: 12px; font-weight: 800; }
+.amp-ctdinfo .amp-cchips { margin-top: 0; }
+.amp-ctjoin { justify-content: center; height: 48px; gap: 8px; font-weight: 800; }
+.amp-ctdesc { margin: 0; white-space: pre-line; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+.amp-ctdesc.amp-clip { max-height: 9.6em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.amp-ctprizes { margin: 0; padding: 0; list-style: none; }
+.amp-ctprizes li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.amp-ctprizes li:last-child { border-bottom: 0; }
+.amp-ctprizes span { color: var(--muted); }
+.amp-ctprizes b { text-align: right; overflow-wrap: anywhere; }
+.amp-ctnoprize { margin: 0; }
+.amp-ctdm { margin-top: 6px; }
+.amp-ctdm .amp-msh h2 { font-size: 20px; }
+.amp-ctdm .amp-msh .amp-seg { margin-left: auto; }
+@media (min-width: 1001px) { .amp-ctd .lbgrid.amp-msgrid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; } }
+/* Live-Bild (18.11.2026, User: „am Desktop Kamerabild zu groß, kleiner; Knopf Live-Bild dominanter“) */
+body .pcam-bar .btn.amp-camon { height: 48px; padding: 0 20px 0 16px; gap: 10px; border-radius: 14px; border: 0; background: var(--fm-sel); color: var(--fm-on-sel); font-size: 15px; font-weight: 800; box-shadow: var(--shadow); }
+body .pcam-bar .btn.amp-camon:hover { filter: brightness(1.12); }
+.pcam-bar .amp-camon svg { width: 20px; height: 20px; vertical-align: 0; }
+.amp-camdot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #ff4d55; box-shadow: 0 0 0 3px rgba(255,77,85,.28); }
+@media (max-width: 640px) { body .pcam-bar .btn.amp-camon { width: 100%; justify-content: center; } }
+@media (min-width: 900px) { .pcam { max-width: 640px; } .pcam.amp-full { max-width: none; } }
+
+/* ═══ Platte bearbeiten – Editor (19.11.2026, Entwürfe claude.ai/artifact/4sJWDcta4FEHSSRCZC5sQy): Desktop drei Spalten, Handy Bühne + Werkzeugleiste + Blatt ═══ */
+.amp-ed { display: flex; flex-direction: column; gap: 12px; }
+.amp-edload { min-height: 40vh; display: grid; place-items: center; }
+.amp-edic { flex: none; }
+.amp-edhd { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.amp-edhd .grow, .amp-edov .grow, .amp-edfoot .grow, .amp-edrowx .grow { flex: 1 1 auto; }
+.amp-edback { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px 0 4px; border-radius: var(--r-sm, 14px); color: var(--muted); text-decoration: none; font-weight: 600; }
+.amp-edtt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.amp-edtt small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.amp-edtt b { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34vw; }
+.amp-edpr { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-sm, 14px); background: var(--panel); box-sizing: border-box; }
+.amp-edpr select { border: 0; background: transparent; font: inherit; font-weight: 700; color: var(--text); max-width: 220px; min-height: 40px; }
+.amp-edpr small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.amp-edib { width: 44px; height: 44px; flex: none; border: 0; border-radius: var(--r-sm, 14px); background: var(--panel-2); color: var(--text); display: inline-grid; place-items: center; cursor: pointer; padding: 0; }
+.amp-edib:disabled { opacity: .4; cursor: default; }
+.amp-edst { display: flex; flex-wrap: wrap; gap: 8px; }
+.amp-edchip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--panel); font-size: 13px; font-weight: 700; color: var(--muted); box-shadow: var(--shadow); }
+.amp-edchip.ok { background: #e3f1e8; color: #17603a; }
+.amp-edchip.bad { background: #fdeced; color: #a3262f; }
+.amp-edchip.warn { background: var(--fm-warn-sub, #fff4e5); color: #7a4c0c; }
+.amp-edslc { flex-wrap: wrap; height: auto; min-height: 32px; padding: 6px 12px; border-radius: 14px; line-height: 1.4; }
+.amp-edslc code { display: block; margin-top: 4px; font-size: 12px; user-select: all; }
+#edslotsL:empty { display: none; }
+#edslotsL .amp-edslots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#edslotsL { border-top: 1px solid var(--line); padding-top: 12px; }
+:root[data-theme="dark"] .amp-edchip.ok { background: rgba(63,191,116,0.16); color: #7fd9a3; }
+:root[data-theme="dark"] .amp-edchip.bad { background: rgba(255,107,116,0.16); color: #ff9aa1; }
+:root[data-theme="dark"] .amp-edchip.warn { color: #f0c27a; }
+.amp-edbody { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.amp-edparts, .amp-edprops { background: var(--panel); border-radius: var(--r, 20px); box-shadow: var(--shadow); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
+.amp-edparts { flex: 1 1 240px; max-width: 280px; }
+.amp-edprops { flex: 1 1 300px; max-width: 360px; gap: 18px; }
+.amp-edview { flex: 999 1 560px; min-width: 0; position: relative; display: flex; flex-direction: column; gap: 12px; }
+.amp-edstage { position: relative; height: calc(100vh - 230px); min-height: 520px; border-radius: var(--r, 20px); background: #e7ebe9; overflow: hidden; }
+:root[data-theme="dark"] .amp-edstage { background: #131a18; }
+.amp-edcanvas { position: absolute; inset: 0; }
+.amp-edcv { width: 100%; height: 100%; display: block; touch-action: none; }
+.amp-edtools { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 6px; background: var(--amp-bar, #17201e); border-radius: 18px; width: max-content; max-width: calc(100% - 32px); box-sizing: border-box; }
+.amp-edtools button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 11px; border: 0; border-radius: 13px; background: transparent; color: var(--amp-bar-t, #c3ccc9); font: inherit; font-weight: 700; cursor: pointer; }
+.amp-edtools button[aria-pressed="true"] { background: #ffffff; color: #17201e; }
+.amp-edtools .n { display: none; }
+.amp-edsep { width: 1px; margin: 8px 4px; background: rgba(255,255,255,0.18); }
+@media (min-width: 1001px) { .amp-ednar { display: none !important; } }
+@media (min-width: 1001px) and (max-width: 1360px) { .amp-edtools [data-act="mirror"] .w { display: none; } .amp-edtools button { padding: 0 10px; } }
+.amp-edov { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 2; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.amp-edov > * { pointer-events: auto; }
+.amp-edlbl { position: absolute; z-index: 2; padding: 4px 12px; border-radius: 999px; background: var(--panel); color: var(--text); font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; box-shadow: var(--shadow); }
+.amp-edfoot { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; pointer-events: none; }
+.amp-edfoot > * { pointer-events: auto; }
+.amp-edhint { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel); padding: 6px 12px; border-radius: 999px; opacity: .92; }
+.amp-edviews { display: inline-flex; gap: 4px; padding: 4px; background: var(--panel); border-radius: 14px; }
+.amp-edviews button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-weight: 700; font-size: 13px; color: var(--text); cursor: pointer; }
+.amp-edviews button[aria-pressed="true"] { background: var(--fm-sel, #17201e); color: var(--fm-on-sel, #fff); }
+#view .amp-edparts h2 { margin: 0 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+#edlist { display: flex; flex-direction: column; gap: 4px; }
+.amp-edrow { display: flex; align-items: center; border-radius: var(--r-sm, 14px); }
+.amp-edrow.on { background: var(--accent-sub); }
+.amp-edrow.off .t { opacity: .55; }
+.amp-edrowb { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border: 0; background: none; text-align: left; font: inherit; color: var(--text); cursor: pointer; }
+.amp-edrowb .sw, .amp-edph .sw, .amp-edallr .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
+.amp-edrowb .t, .amp-edph .t { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.amp-edrowb .t b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-edrow.on .t b { color: var(--accent-ink); font-weight: 800; }
+.amp-edrowb .t small, .amp-edph .t small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-edrow.bad .t small { color: var(--bad); font-weight: 600; }
+.amp-edrow .amp-edib { background: transparent; color: var(--muted); }
+.amp-edparts .btn { justify-content: center; gap: 8px; }
+#view .amp-edparts h2:not(:first-child) { margin-top: 8px; }
+.amp-edfits { list-style: none; margin: 0; padding: 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.amp-edfits li { display: flex; align-items: center; gap: 8px; }
+.amp-edfits li span { flex: 1; min-width: 0; }
+.amp-edfits li small { font-size: 12px; color: var(--muted); }
+.amp-edfits li.ok svg { color: var(--ok); }
+.amp-edfits li.no svg, .amp-edfits li.no small { color: var(--bad); font-weight: 600; }
+.amp-edph { display: flex; align-items: center; gap: 10px; }
+.amp-edph .sw { width: 18px; height: 18px; }
+.amp-edph .t { flex: 1; }
+.amp-edph .t b { font-size: 18px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-edsec { display: flex; flex-direction: column; gap: 8px; }
+.amp-edsec h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.amp-edsub { margin: 0; font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.amp-edsub.b { font-weight: 700; }
+.amp-edsub .lnk { font-size: 12px; }
+.amp-edg2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.amp-edrowx { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.amp-edsec .btn.sm { min-height: 40px; justify-content: center; gap: 6px; }
+.amp-edin { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); box-sizing: border-box; min-width: 0; }
+.amp-edin input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; font: inherit; font-weight: 600; color: var(--text); outline: none; padding: 0; }
+.amp-edin:focus-within, .amp-edsl input:focus { border-color: var(--accent); outline: 2px solid var(--accent-sub); }
+.amp-edin .u { color: var(--muted); font-size: 12px; }
+.amp-edin .ax { font-weight: 800; }
+.amp-edin .ax.x { color: #c2410c; }
+.amp-edin .ax.y { color: #1d5fbf; }
+:root[data-theme="dark"] .amp-edin .ax.x { color: #ff9a62; }
+:root[data-theme="dark"] .amp-edin .ax.y { color: #7fb0ff; }
+.amp-edin.grow { flex: 1 1 90px; }
+.amp-edseg { display: inline-flex; padding: 3px; background: var(--panel-2); border-radius: 10px; }
+.amp-edseg button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-weight: 700; font-size: 12px; color: var(--muted); cursor: pointer; }
+.amp-edseg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.amp-edsz { display: flex; gap: 8px; align-items: flex-end; }
+.amp-edseg3 { display: flex; padding: 4px; border-radius: 14px; }
+.amp-edseg3 button { flex: 1; min-height: 40px; border-radius: 10px; font-size: 13px; }
+.amp-edsl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.amp-edsl input { height: 44px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 12px; font: inherit; font-weight: 600; color: var(--text); background: var(--panel); min-width: 0; width: 100%; }
+.amp-edlock[aria-pressed="true"] { background: var(--accent-sub); color: var(--accent-ink); }
+.amp-edwarn { display: grid; grid-template-columns: auto 1fr; gap: 8px 8px; padding: 12px; border-radius: 14px; background: #fdeced; color: #a3262f; font-weight: 700; font-size: 13px; line-height: 1.4; }
+.amp-edwarn .amp-edg2 { grid-column: 1 / -1; }
+.amp-edwarn .btn { background: var(--panel); color: var(--text); }
+:root[data-theme="dark"] .amp-edwarn { background: rgba(255,107,116,0.14); color: #ff9aa1; }
+.amp-edslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.amp-edslot { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 2px solid transparent; border-radius: 14px; background: var(--bg); font: inherit; color: var(--text); cursor: pointer; min-width: 0; }
+.amp-edslot .sw { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.14); background: var(--panel-2); }
+body .amp-edslot > .sw.empty { width: 28px; height: 28px; min-height: 0; border: 0; background: transparent; color: var(--muted); text-shadow: none; box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.amp-edslot b { font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-edslot.on { border-color: var(--accent); background: var(--accent-sub); }
+.amp-edslot:disabled { opacity: .45; cursor: default; }
+.amp-edall { display: flex; flex-direction: column; gap: 8px; }
+.amp-edallr { display: flex; align-items: center; gap: 10px; }
+.amp-edallr .sw { width: 16px; height: 16px; }
+.amp-edallr .t { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-edallr select { width: 170px; max-width: 55%; height: 44px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--text); font: inherit; font-weight: 600; }
+.amp-edact { display: none; }
+@media (max-width: 1000px) {
+  .amp-ed { gap: 10px; }
+  .amp-edparts, .amp-edwonly, .amp-edhd .amp-edsave, .amp-edhd .amp-edgo, .amp-edback span, .amp-edviews, .amp-edph { display: none !important; }
+  .amp-edtt b { max-width: 48vw; font-size: 17px; }
+  .amp-edpr { order: 9; min-height: 36px; border-radius: 999px; padding: 0 10px; border: 0; box-shadow: var(--shadow); }
+  .amp-edpr select { max-width: 52vw; min-height: 34px; font-size: 13px; }
+  .amp-edpr { max-width: 100%; min-width: 0; }   /* „Unbekannte Platte, nehme 220 × 220 mm an“ lief am Handy über den Rand (19.11.2026) */
+  .amp-edpr small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .amp-edbody { gap: 12px; }
+  .amp-edview { flex-basis: 100%; }
+  .amp-edstage { height: 44vh; min-height: 290px; max-height: 420px; }
+  .amp-edtools { position: static; transform: none; width: auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: none; border-radius: 20px; }
+  .amp-edtools button { flex-direction: column; justify-content: center; gap: 3px; min-height: 56px; padding: 0; font-size: 11px; border-radius: 14px; min-width: 0; }
+  .amp-edtools .w { display: none; }
+  .amp-edtools .n { display: inline; }
+  .amp-edov select { height: 44px; padding: 0 12px; border: 0; border-radius: 14px; background: var(--panel); font: inherit; font-weight: 700; color: var(--text); box-shadow: var(--shadow); max-width: 62%; }
+  .amp-edov .amp-edib { background: var(--panel); box-shadow: var(--shadow); }
+  .amp-edfoot { left: 10px; right: 10px; bottom: 10px; }
+  .amp-edprops { flex-basis: 100%; max-width: none; }
+  .amp-ed[data-tool="move"] .amp-edsec:not([data-sec="move"]), .amp-ed[data-tool="rotate"] .amp-edsec:not([data-sec="rotate"]),
+  .amp-ed[data-tool="scale"] .amp-edsec:not([data-sec="scale"]), .amp-ed[data-tool="flat"] .amp-edsec:not([data-sec="flat"]),
+  .amp-ed[data-tool="color"] .amp-edsec:not([data-sec="color"]) { display: none; }
+  .amp-edsec h3 { font-size: 16px; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--text); }
+  .amp-edact { display: flex; gap: 8px; }
+  .amp-edact .btn { min-height: 52px; }
+  .amp-edact .btn.pri { flex: 1; font-size: 15px; }
+}
+
+/* ═══ Bibliothek-Umbau (19.11.2026, Entwurf claude.ai/artifact/2ZS7ZUQqUM2C47W6So3prt): Kästen wie die Modellsuche, Dateityp, ×-Chips, Typ-Abzeichen ═══ */
+.amp-lbside .amp-lbsec2 { margin: 0; }
+.amp-lbside .amp-sbrow > span.amp-lbty { flex: none; }
+.amp-lbty { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 7px; font-size: 11px; font-weight: 800; letter-spacing: .04em; line-height: 1.5; }
+.amp-lbty.amp-lbty-stl { background: #e8f0fb; color: #1d4f99; }
+.amp-lbty.amp-lbty-3mf { background: #e6f2ef; color: #0b5a54; }
+.amp-lbty.amp-lbty-gcode { background: #fdf1e3; color: #8a4b0c; }
+:root[data-theme="dark"] .amp-lbty-stl { background: rgba(127,176,255,.16); color: #a9c9ff; }
+:root[data-theme="dark"] .amp-lbty-3mf { background: rgba(45,212,191,.14); color: #5eead4; }
+:root[data-theme="dark"] .amp-lbty-gcode { background: rgba(240,180,100,.16); color: #f0c27a; }
+.amp-lbbdg span.amp-lbty { border: 0; border-radius: 7px; font-weight: 800; letter-spacing: .04em; box-shadow: 0 1px 2px rgba(0,0,0,.12); }   /* Dateityp vor „Mehrfarbig“ & Co. in derselben Reihe */
+.amp-edparts .amp-edg2 { grid-template-columns: 1fr; }   /* „Aus der Bibliothek“ / „Vom Gerät“ untereinander, die Spalte ist nur 280 px breit */
+.amp-edparts .amp-edallr { flex-wrap: wrap; gap: 6px 10px; }
+.amp-edparts .amp-edallr select { width: 100%; max-width: none; }
+.amp-lbchips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; }
+.amp-lbchips > b { font-size: 15px; font-weight: 800; margin-right: 4px; }
+body .amp-lbchips .chip { height: 34px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+body .amp-lbchips .chip.on.amp-qx { background: var(--accent-sub); border-color: transparent; color: var(--accent-ink); }
+.amp-lbmoretags { margin: 2px 10px 6px; padding: 6px 0; text-align: left; font-weight: 700; }
+.amp-edopen { font-weight: 700; }
+.amp-edpl span { font-size: 12px; font-weight: 700; color: var(--muted); }
+@media (min-width: 1001px) {
+  .amp-lbside { gap: 12px; }
+  body .amp-lbf-r #amplbfit, body .amp-lbf-r #amplbtag, body .amp-lbf-r #amplbtype { display: none; }   /* stehen links in den Kästen */
+}
+
+/* Hersteller-Konten im Agenten, nur ansehen (19.11.2026) */
+.amp-clcard h2 { display: flex; align-items: center; gap: 8px; }
+.amp-clprovs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.amp-claccs { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.amp-clacc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm, 12px); background: var(--panel); }
+.amp-clacc-t { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.amp-clacc-t .hint { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-clbad { color: var(--warn, #b7791f); font-weight: 700; font-size: 13px; }
+.amp-cldevs { display: grid; gap: 8px; margin: 8px 0 10px; }
+.amp-cldev { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line-2, var(--line)); border-radius: var(--r-sm, 12px); cursor: pointer; }
+.amp-cldev input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
+.amp-cldev > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.amp-cldev > span .hint { margin: 0; }
+.amp-cldev.off { opacity: .6; cursor: default; }
+.amp-clcode { font-size: 22px; font-weight: 800; letter-spacing: .25em; }
+.amp-clpriv { font-size: 12.5px; }
+
+/* ═══ Neue Anordnung „Aufgeräumt“ (20.11.2026, Leinwand claude.ai/artifact/WFLVyf5Uctsr1ZC9sKs8Yp): altes Aussehen, weniger vor dem Inhalt ═══ */
+/* Kopf: Überschrift ist die Bereichsauswahl, rechts Drucken bzw. eigene Knöpfe — Handy und PC gleich, keine Reiterleiste, kein Erklärsatz */
+body.cm-fm .ph-row.amp-ph { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 14px; }
+.amp-ph .subdd.amp-hdd { display: block; position: relative; margin: 0; min-width: 0; }
+body.cm-fm .amp-ph .subdd.amp-hdd > summary { display: flex; align-items: center; gap: 6px; height: auto; padding: 0; border: 0; background: none; font-size: inherit; cursor: pointer; }
+.amp-ph .amp-hdd > summary h1 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amp-ph .amp-hdd > summary .chev { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.amp-ph .amp-hdd .subdd-list { right: auto; min-width: 250px; }
+body.cm-fm .amp-ph .ph-acts { flex: none; width: auto; margin: 0; flex-wrap: nowrap; }
+body.cm-fm .amp-ph .ph-acts > .btn { flex: none; height: 44px; margin: 0; padding: 0 18px; display: inline-flex; align-items: center; gap: 8px; }
+.amp-ph .ph-acts > .btn svg { flex: none; }
+.amp-phsub { margin: -8px 0 14px; color: var(--muted); font-size: 13.5px; }
+@media (max-width: 640px) {
+  .amp-ph .amp-hdd > summary h1 { font-size: 27px; }
+  body.cm-fm .amp-ph .ph-acts > .btn { padding: 0 14px; }
+}
+/* Einrichtung als schmale Zeile; zu bleiben nur die Knöpfe des aktuellen Schritts */
+.ob.amp-ob { padding: 12px 14px; }
+.amp-obbar { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "l s c" "n n c"; align-items: center; gap: 6px 14px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.amp-obl { grid-area: l; display: flex; gap: 8px; font-size: 14px; white-space: nowrap; }
+.amp-obl > span { color: var(--muted); }
+.amp-obseg { grid-area: s; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; max-width: 220px; }
+.amp-obseg i { display: block; height: 5px; border-radius: 3px; background: var(--track); }
+.amp-obseg i.ok { background: var(--accent); }
+.amp-obnx { grid-area: n; font-size: 14px; font-weight: 700; color: var(--accent-ink); }
+.amp-obbar > .chev { grid-area: c; width: 18px; height: 18px; color: var(--muted); transition: transform .15s; }
+.amp-ob.amp-obopen .amp-obbar > .chev { transform: rotate(180deg); }
+.amp-ob.amp-obopen .amp-obbar { margin-bottom: 12px; }
+.amp-ob:not(.amp-obopen) > .ob-top, .amp-ob:not(.amp-obopen) .ob-steps > li:not(.cur), .amp-ob:not(.amp-obopen) .ob-steps > li.cur > .ob-n,
+.amp-ob:not(.amp-obopen) .ob-steps > li.cur > div > b, .amp-ob:not(.amp-obopen) .ob-steps > li.cur > div > p:not(.ob-wait) { display: none; }
+.amp-ob:not(.amp-obopen) .ob-steps { display: block; margin: 0; padding: 0; }
+.amp-ob:not(.amp-obopen) .ob-steps > li.cur { display: block; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; min-height: 0; }
+.amp-ob:not(.amp-obopen) .ob-steps > li.cur > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.amp-ob:not(.amp-obopen) .ob-steps > li.cur > div:has(.btn) { margin-top: 10px; }
+.amp-ob:not(.amp-obopen) .ob-steps > li.cur .ob-wait { flex: 1 1 100%; margin: 0; font-size: 13px; }
+@media (min-width: 900px) { .amp-obbar { grid-template-columns: auto minmax(120px, 220px) 1fr auto; grid-template-areas: "l s n c"; } .amp-obnx { text-align: right; } }
+/* Druckerkarte: Fächer-Kopf, Material + Zustand je Spule, Knopfzeile Kamera · Steuern, Steuern-Bereich */
+.amp-tubes-h { display: flex; justify-content: space-between; gap: 10px; margin: 16px 2px 8px; font-size: 13px; }
+.amp-tubes-h span { color: var(--muted); }
+.amp-tubes-h .amp-dry { color: var(--warn); font-weight: 700; }
+.amp-tube { position: relative; }
+.amp-tube-l { position: absolute; top: -2px; left: 50%; margin: 0 0 0 -34px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); display: grid; place-items: center; font-size: 10.5px; }
+.amp-tube-v { font-size: 13px; margin-top: 2px; }
+.amp-tube-s { font-size: 12px; font-weight: 500; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-tube-s.run { color: var(--accent-ink); font-weight: 700; }
+.amp-tube-s.asg { color: var(--accent-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.amp-tube.low .amp-tube-s { color: var(--warn); font-weight: 700; }
+.amp-tube.crit .amp-tube-s { color: var(--bad); font-weight: 700; }
+.amp-tube.low .amp-tube-v, .amp-tube.crit .amp-tube-v { color: var(--text); }
+details.amp-slots { margin-top: 10px; }
+details.amp-slots > summary { min-height: 40px; padding: 0 12px; background: transparent; border: 1px dashed var(--line-2); color: var(--muted); font-size: 13.5px; }
+details.amp-slots[open] > summary { color: var(--text); }
+.amp-pacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+body.cm-fm .amp-pacts .btn.amp-pa { height: 44px; padding: 0 12px; justify-content: center; gap: 7px; border: 1px solid var(--line-2); background: var(--panel); color: var(--text); font-size: 14px; font-weight: 700; border-radius: var(--r-sm); box-shadow: none; }
+body.cm-fm .amp-pacts .btn.amp-pa svg { width: 16px; height: 16px; flex: none; }
+body.cm-fm .amp-pacts .btn.amp-steerb.on { background: var(--accent-sub); border-color: var(--accent); color: var(--accent-ink); }
+.amp-steer { margin-top: 10px; }
+.amp-steer[hidden] { display: none; }
+.amp-steer > .amp-ctl { margin-top: 4px; }
+.amp-steer > .boxes { margin-top: 10px; }
+@media (min-width: 641px) { .amp-pacts { grid-template-columns: repeat(auto-fit, minmax(0, 180px)); } }
+/* PC: Drucker nebeneinander im Raster (Kopf, Hinweise und Leisten über die ganze Breite) */
+@media (min-width: 1001px) {
+  #view:has(> .amp-ph):has(> .pcard) { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 0 18px; align-items: start; }
+  #view:has(> .amp-ph):has(> .pcard) > :not(.pcard) { grid-column: 1 / -1; }
+  #view:has(> .amp-ph):has(> .pcard) > .pcard { margin: 0 0 18px; min-width: 0; }
+  #view:has(> .amp-ph):has(> .pcard) > .pcard .slots { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+/* PC-Menü: 5 Punkte + „Mehr“ (Statistik, Einstellungen, Community) */
+.amp-navmore { position: relative; }
+.amp-navmore > summary { list-style: none; display: inline-flex; align-items: center; gap: 4px; height: 40px; padding: 0 12px; border-radius: var(--r-sm, 10px); color: var(--fx-text, var(--text)); font-size: 16px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.amp-navmore > summary::-webkit-details-marker { display: none; }
+.amp-navmore > summary:hover, .amp-navmore[open] > summary { background: var(--fx-hover, var(--panel-2)); }
+html:not(.fm-ha) .amp-navmore:has(a.on) > summary { background: var(--fx-hover, var(--panel-2)); font-weight: 700; }
+.amp-navmore > summary .chev { width: 14px; height: 14px; color: var(--muted); transition: transform .15s; }
+.amp-navmore[open] > summary .chev { transform: rotate(180deg); }
+.amp-navlist { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 220px; display: grid; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.18); }
+body.cm-fm .fmx-tabs .amp-navlist a { display: flex; height: 42px; padding: 0 12px; font-size: 15px; }
+@media (max-width: 1280px) and (min-width: 1001px) { .amp-navmore > summary { padding: 0 9px; font-size: 15px; } }
+/* Spulen: „+ Spule“ neben der Überschrift, Filter im Suchfeld, Kennzahlen am Handy weg, Überschrift über der Liste */
+.amp-sph h1 { margin: 0; }
+.amp-sq { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.amp-sq > #q { flex: 1 1 auto; width: 100%; padding-right: 52px; }
+body.cm-fm .amp-sq > #fbtn { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); height: 38px; min-width: 38px; padding: 0 8px; border: 0; background: transparent; box-shadow: none; }
+.amp-sq > #fbtn > span:not(.fcount) { display: none; }
+.amp-sq > #fbtn.on { color: var(--accent-ink); }
+#view > .bar:has(> .amp-sq) > #scan2, #view > .bar:has(> .amp-sq) > #labels { display: none; }
+#fpanel > #labels, #fpanel > #scan2 { height: 40px; }
+.amp-sph2 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 18px 4px 8px; }
+#view .amp-sph2 h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.amp-sph2 span { color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) { #view > .skpis { display: none; } }
+/* Modellsuche: Wettbewerbe als schmale Zeile, „Gerade beliebt“ als 2er-Raster statt Wischreihe, ein kleiner Merken-Knopf, keine Schlagwörter */
+.amp-cttile { margin-bottom: 18px; padding: 12px 14px; }
+.amp-cttile .amp-ctmini { display: none; }
+.amp-mtags { display: none; }
+.amp-macts .amp-collbtn { display: none; }
+.amp-macts .amp-markbtn { width: 34px; height: 34px; border-radius: 50%; }
+.amp-macts .amp-markbtn svg { width: 16px; height: 16px; }
+@media (max-width: 1000px) {
+  .amp-msstrip.amp-trend { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; scroll-snap-type: none; padding: 0; }
+  .amp-msstrip.amp-trend:not(.amp-all) > .lbcard:nth-child(n+5) { display: none; }
+  .amp-mssec .amp-msh #mstrendmore { display: inline-flex; }
+}
+/* Seitenleisten (Modellsuche, Bibliothek) als EINE Karte statt mehrerer Kästen */
+@media (min-width: 1001px) {
+  .amp-msside, .amp-lbside { gap: 0; padding: 6px; background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); box-sizing: border-box; }
+  .amp-msside .amp-sbsec, .amp-lbside .amp-sbsec { border: 0; border-radius: 0; background: transparent; padding: 4px 0; }
+  .amp-msside .amp-sbsec + .amp-sbsec, .amp-lbside .amp-sbsec + .amp-sbsec { border-top: 1px solid var(--line); }
+}
+/* Bibliothek: Kopf mit Hochladen, Speicher in der Zeile darunter; Filter (Dateityp, Passt auf, Tags, Sortierung) am Handy hinter dem Knopf im Suchfeld */
+.amp-lbph { display: block; }
+@media (min-width: 1001px) { .amp-lbph { display: block; } }
+.amp-lbhd { display: none !important; }
+.amp-lbph .ph-acts .btn svg { width: 17px; height: 17px; vertical-align: -3px; }
+.lbtop.amp-lbtop:not(.amp-lbtop0) { margin: 16px 0 0; }
+.lbtop.amp-lbtop:not(.amp-lbtop0) .amp-lbnew { justify-content: center; padding: 10px 14px; background: transparent; }
+.lbtop.amp-lbtop:not(.amp-lbtop0) .amp-lbnew-i { width: 30px; height: 30px; }
+@media (max-width: 1000px) { .lbtop.amp-lbtop:not(.amp-lbtop0) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); margin: 0; } }
+.amp-lbqw { position: relative; flex: 1 1 220px; min-width: 0; display: flex; }
+.amp-lbqw > .lbsearch { flex: 1 1 auto; width: 100%; }
+.amp-lbfb { display: none; position: absolute; right: 2px; top: 50%; transform: translateY(-50%); height: 36px; min-width: 36px; padding: 0 6px; border: 0; border-radius: 10px; background: transparent; color: var(--text); align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+.amp-lbfb.on { color: var(--accent-ink); }
+.amp-lbfb .amp-fcount { min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+@media (max-width: 1000px) {
+  .amp-lbqw { order: 1; flex: 1 1 0; }
+  .amp-lbqw > .lbsearch { padding-right: 48px; }
+  .amp-lbfb { display: inline-flex; }
+  .amp-lbf:not(.amp-fopen) > .amp-lbf-r { display: none; }
+}
+/* PC: Bald leer + Zuletzt gedruckt unter den Druckern */
+.amp-prx { display: flex; flex-direction: column; gap: 18px; margin: 0 0 18px; }
+#view:has(> .amp-ph):has(> .pcard) > .amp-prx { grid-column: auto; }
+.amp-prx:empty { display: none; }
+.amp-prxc { background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 18px 8px; }
+.amp-prxh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+#view .amp-prxh h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.amp-prxh a { font-size: 13px; font-weight: 700; color: var(--accent-ink); }
+.amp-prxr { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.amp-prxh + .amp-prxr { border-top: 0; }
+.amp-prxt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.amp-prxt b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amp-prxt small, .amp-prxw { color: var(--muted); font-size: 12.5px; }
+.amp-prxr .amp-warn { color: var(--warn); } .amp-prxr .amp-bad { color: var(--bad); }
+.amp-prxi { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-sub); color: var(--ok); display: grid; place-items: center; font-weight: 800; }
+.amp-prxi svg { width: 13px; height: 13px; }
+.amp-prxi.fail { background: var(--fm-warn-sub); color: var(--bad); }
+/* Feinschliff nach Sichtprüfung */
+.amp-ob.amp-obopen .ob-top h2, .amp-ob.amp-obopen .ob-top .ob-prog { display: none; }
+.amp-ob.amp-obopen .ob-top { justify-content: flex-end; }
+#view:has(> .amp-sph) > .lead { display: none; }
+@media (max-width: 1000px) { body.cm-fm .amp-ph .ph-acts > .btn.amp-dtonly { display: none; } }
+
+/* ═══ PC-Ansicht Drucker (20.11.2026, User: „Lüfter und Licht rechts eigene Spalte über ‚Bald leer‘, Kamera-Knopf über ‚Fächer · ACE‘
+   unter dem Drucker“, amp-views ampPrPc/ampPrExtras): links Karten untereinander, rechts Steuern je Drucker + Bald leer + Zuletzt gedruckt ═══ */
+@media (min-width: 1001px) {
+  #view:has(> .amp-prl) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 18px; align-items: start; }
+  #view:has(> .amp-prl) > * { grid-column: 1 / -1; }
+  #view:has(> .amp-prl) > .amp-prl { grid-column: 1; display: flex; flex-direction: column; gap: 18px; min-width: 0; margin: 0 0 18px; }
+  #view:has(> .amp-prl) > .amp-prx { grid-column: 2; min-width: 0; }
+  .amp-prl > .pcard { margin: 0; min-width: 0; }
+  .amp-prl > .pcard .slots { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  /* rechts nichts zu zeigen: Karten wieder nebeneinander über die ganze Breite */
+  #view:has(> .amp-prx > .amp-prxs:empty):has(> .amp-prx > .amp-prxl:empty) > .amp-prl { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 18px; align-items: start; }
+}
+.amp-prxs, .amp-prxl { display: contents; }
+.amp-prx:has(> .amp-prxs:empty):has(> .amp-prxl:empty) { display: none; }
+.amp-prctl { padding-bottom: 16px; }
+.amp-prctl .amp-prxh > span { color: var(--muted); font-size: 13px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-prctl > .amp-ctl { margin: 10px 0 0; }
+.amp-prctl > .boxes { margin-top: 12px; }
+.amp-prctl > .amp-ctl + .boxes { margin-top: 14px; }
+.amp-pccam { margin-top: 12px; }
+body.cm-fm .amp-pccam .btn.amp-pa { width: 100%; max-width: none; }
+.amp-prl .pcard > .pcam { margin-top: 12px; }
