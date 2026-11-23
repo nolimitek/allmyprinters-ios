@@ -123,7 +123,9 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
     private func camFrame(_ task: WKURLSchemeTask, _ key: String) {
         let id = ObjectIdentifier(task)
         q.async {
-            if let b = Cam.frame(key) {
+            let fb = Cam.frame(key)
+            Log.write("cam/frame \(key): \(fb.map { "\($0.count) B" } ?? "kein Bild")")
+            if let b = fb {
                 if self.respond(task, status: 200, mime: "image/jpeg", cache: "no-store", length: Int64(b.count)) {
                     DispatchQueue.main.sync { if self.alive(id) { task.didReceive(b) } }
                 }
@@ -137,6 +139,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         let id = ObjectIdentifier(task)
         q.async {
             guard let url = URL(string: u), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), Cam.privateURL(u) else {
+                Log.write("cam/live abgelehnt: \(u.prefix(80))")
                 self.respond(task, status: 403, mime: "text/plain", cache: "no-store", length: 0); self.finish(task); return
             }
             var rq = URLRequest(url: url); rq.timeoutInterval = 15; rq.setValue("AllMyPrinters", forHTTPHeaderField: "User-Agent")
@@ -154,8 +157,9 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
                 DispatchQueue.main.sync { if self.alive(id) { task.didReceive(d) } }
                 return self.alive(id)
             }
-            job.onDone = { _ in
+            job.onDone = { e in
                 started.lock(); let was = sent; started.unlock()
+                Log.write("cam/live \(url.host ?? ""): \(was ? "gesendet" : "kein Strom") \(e.map { "\($0)" } ?? "")")
                 if !was { self.respond(task, status: 502, mime: "text/plain", cache: "no-store", length: 0) }
                 self.lock.lock(); self.pipes.removeValue(forKey: id); self.lock.unlock()
                 self.finish(task)

@@ -101,7 +101,8 @@ enum Cam {
                 if f.frames > before { ok = true; break }
             }
             if !ok && f.watched {
-                f.cond.lock(); f.err = order.isEmpty || tried.isEmpty ? "none" : tried.joined(separator: "; "); f.cond.unlock()
+                f.cond.lock(); f.err = order.isEmpty || tried.isEmpty ? "none" : tried.joined(separator: "; "); let e = f.err; f.cond.unlock()
+                Log.write("cam \(f.key): \(e)")
                 Thread.sleep(forTimeInterval: 3)
             }
         }

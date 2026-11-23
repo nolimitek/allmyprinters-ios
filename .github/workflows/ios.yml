@@ -27,7 +27,7 @@ jobs:
             || { grep -E "error:" build.log | sort -u | head -80; tail -30 build.log; exit 1; }
           echo "Warnungen: $(grep -c 'warning:' build.log || true)"
       - name: Im Simulator starten
-        run: sh ci/smoke.sh
+        run: mkdir -p ci-out && sh ci/smoke.sh 2>&1 | tee ci-out/smoke.txt
       - name: Ergebnisse → Zweig ci
         if: always()
         env:
