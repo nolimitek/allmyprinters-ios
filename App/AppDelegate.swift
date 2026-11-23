@@ -8,10 +8,17 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let w = UIWindow(frame: UIScreen.main.bounds)
-        w.rootViewController = WebViewController()
+        let vc = WebViewController()
+        Push.shared.vc = vc
+        Push.shared.launched()   // Meldungs-Empfänger setzen, bevor iOS ein angetipptes Push beim Kaltstart zustellt
+        w.rootViewController = vc
         w.makeKeyAndVisible()
         window = w
         Log.write("start \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") iOS \(UIDevice.current.systemVersion)")
         return true
     }
+
+    // Apple-Push (Druck-Meldungen über den Agenten, App/Push.swift)
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) { Push.shared.didRegister(deviceToken) }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) { Push.shared.didFail(error) }
 }

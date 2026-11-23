@@ -74,6 +74,7 @@ jobs:
           security find-identity -v -p codesigning "$KC" | tee -a ci-out/tf.txt
           for d in ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles; do
             mkdir -p "$d"; cp "$RUNNER_TEMP/sign/profile.mobileprovision" "$d/$PROFILE_UUID.mobileprovision"
+            cp "$RUNNER_TEMP/sign/profile-nse.mobileprovision" "$d/$PROFILE_UUID_NSE.mobileprovision"
           done
           echo "TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"; echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
       - name: Archiv bauen (Release, Gerät)
@@ -83,7 +84,7 @@ jobs:
           xcodebuild -project AllMyPrinters.xcodeproj -scheme AllMyPrinters -configuration Release -destination 'generic/platform=iOS' \
             -archivePath build/AllMyPrinters.xcarchive archive \
             CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="AMP CI AppStore" CURRENT_PROJECT_VERSION=${{ github.run_number }} > build-tf.log 2>&1 \
+            AMP_PROFILE="AMP CI AppStore" AMP_PROFILE_NSE="AMP CI Notify" CURRENT_PROJECT_VERSION=${{ github.run_number }} > build-tf.log 2>&1 \
             || { grep -E "error:" build-tf.log | sort -u | head -80 | tee -a ci-out/tf.txt; tail -40 build-tf.log | tee -a ci-out/tf.txt; exit 1; }
           echo "Archiv ok, Build ${{ github.run_number }}" | tee -a ci-out/tf.txt
       - name: IPA exportieren

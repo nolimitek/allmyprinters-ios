@@ -1,0 +1,3 @@
+/* Ersatztext einer Druck-Meldung, falls die Extension sie nicht entschlüsseln kann (api/push.php loc-key) */
+"AMP_PUSH_T" = "AllMyPrinters";
+"AMP_PUSH_B" = "New message from your printer";

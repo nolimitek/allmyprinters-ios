@@ -125,6 +125,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "putChunks": return try putChunks(id, a)
         case "make3mf": return try make3mf(a)
         case "remap_tools": return try remapTools(a)
+        case "push": return try Push.shared.push(self, a)   // Druck-Meldungen über den Agenten (App/Push.swift)
+        case "news": return try Push.shared.news(self, a)
         default: throw BErr("IllegalArgumentException", "unknown method \(m)")   // kommt in den nächsten Etappen (Live, Kamera, Bambu …)
         }
     }

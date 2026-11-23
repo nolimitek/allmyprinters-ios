@@ -44,7 +44,10 @@ jobs:
           APP=$(ls -d build-dev/Build/Products/Release-iphoneos/*.app | head -1)
           { echo "Release-Gerät ok: $(du -sh "$APP" | cut -f1)"; ls "$APP" | grep -E "Assets.car|PrivacyInfo|AppIcon" ;
             /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons' "$APP/Info.plist" 2>&1 | head -8;
-            /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$APP/Info.plist"; } | tee ci-out/release.txt
+            /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$APP/Info.plist";
+            echo "Extensions: $(ls "$APP/PlugIns" 2>/dev/null | tr '\n' ' ')";
+            /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPrincipalClass' "$APP/PlugIns/AllMyPrintersNotify.appex/Info.plist" 2>&1;
+            ls "$APP" | grep -c lproj; } | tee ci-out/release.txt
       - name: Ergebnisse → Zweig ci
         if: always()
         env:

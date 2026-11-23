@@ -16,6 +16,8 @@ import base64, datetime, json, os, plistlib, shutil, subprocess, sys, tempfile, 
 API = 'https://api.appstoreconnect.apple.com/v1'
 BUNDLE = os.environ.get('BUNDLE_ID', 'com.allmyprinters.app')
 PROFILE = 'AMP CI AppStore'
+# Notification Service Extension (Druck-Meldungen entschlüsseln, 23.11.2026): eigene Bundle-ID + eigenes Profil
+NSE, NSE_PROFILE = BUNDLE + '.notify', 'AMP CI Notify'
 OPENSSL = '/usr/bin/openssl' if os.path.exists('/usr/bin/openssl') else 'openssl'  # macOS: LibreSSL → .p12, die der Schlüsselbund lesen kann
 
 
@@ -78,21 +80,34 @@ def die(msg, code=1):
     sys.exit(code)
 
 
-def bundle_id():
-    st, j = call('GET', f'/bundleIds?filter[identifier]={BUNDLE}&limit=200')
+def bundle_id(ident=BUNDLE, name='AllMyPrinters'):
+    st, j = call('GET', f'/bundleIds?filter[identifier]={ident}&limit=200')
     if st == 401:
         die('Schlüssel abgelehnt (401) — ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8 prüfen. ' + errtext(j))
     if st != 200:
         die(f'bundleIds {st}: ' + errtext(j))
     for b in j.get('data', []):
-        if b['attributes'].get('identifier') == BUNDLE:
-            print(f'Bundle-ID vorhanden: {BUNDLE}')
+        if b['attributes'].get('identifier') == ident:
+            print(f'Bundle-ID vorhanden: {ident}')
             return b['id'], b['attributes'].get('seedId')
-    st, j = call('POST', '/bundleIds', {'data': {'type': 'bundleIds', 'attributes': {'identifier': BUNDLE, 'name': 'AllMyPrinters', 'platform': 'IOS'}}})
+    st, j = call('POST', '/bundleIds', {'data': {'type': 'bundleIds', 'attributes': {'identifier': ident, 'name': name, 'platform': 'IOS'}}})
     if st != 201:
         die(f'Bundle-ID anlegen {st}: ' + errtext(j))
-    print(f'Bundle-ID registriert: {BUNDLE}')
+    print(f'Bundle-ID registriert: {ident}')
     return j['data']['id'], j['data']['attributes'].get('seedId')
+
+
+def push_capability(bid):
+    """Push Notifications an der App-ID einschalten (sonst fehlt aps-environment im Profil)"""
+    st, j = call('GET', f'/bundleIds/{bid}/bundleIdCapabilities')
+    if st == 200 and any(c['attributes'].get('capabilityType') == 'PUSH_NOTIFICATIONS' for c in j.get('data', [])):
+        print('Push-Berechtigung: an')
+        return
+    st, j = call('POST', '/bundleIdCapabilities', {'data': {'type': 'bundleIdCapabilities', 'attributes': {'capabilityType': 'PUSH_NOTIFICATIONS'},
+                                                           'relationships': {'bundleId': {'data': {'type': 'bundleIds', 'id': bid}}}}})
+    if st not in (200, 201):
+        die(f'Push-Berechtigung einschalten {st}: ' + errtext(j))
+    print('Push-Berechtigung eingeschaltet')
 
 
 def app_record():
@@ -154,19 +169,19 @@ def certificate(state, pw, work):
     return cid, p12
 
 
-def profile(bid, cid, out):
+def profile(bid, cid, out, name=PROFILE, fname='profile.mobileprovision'):
     st, j = call('GET', '/profiles?limit=200')
     for p in (j.get('data', []) if st == 200 else []):
-        if p['attributes'].get('name') == PROFILE:
+        if p['attributes'].get('name') == name:
             call('DELETE', f"/profiles/{p['id']}")
-    body = {'data': {'type': 'profiles', 'attributes': {'name': PROFILE, 'profileType': 'IOS_APP_STORE'},
+    body = {'data': {'type': 'profiles', 'attributes': {'name': name, 'profileType': 'IOS_APP_STORE'},
                      'relationships': {'bundleId': {'data': {'type': 'bundleIds', 'id': bid}},
                                        'certificates': {'data': [{'type': 'certificates', 'id': cid}]}}}}
     st, j = call('POST', '/profiles', body)
     if st != 201:
         die(f'Profil anlegen {st}: ' + errtext(j))
     a = j['data']['attributes']
-    open(os.path.join(out, 'profile.mobileprovision'), 'wb').write(base64.b64decode(a['profileContent']))
+    open(os.path.join(out, fname), 'wb').write(base64.b64decode(a['profileContent']))
     print(f"Profil: {a['name']} {a.get('uuid')} bis {a.get('expirationDate')}")
     return a['uuid']
 
@@ -178,6 +193,8 @@ def prepare(out):
     if not team:
         die('keine Team-ID (seedId) an der Bundle-ID')
     print(f'Team-ID: {team}')
+    push_capability(bid)
+    nid, _ = bundle_id(NSE, 'AllMyPrinters Notify')
     app = app_record()
     if not app:
         die(f'Die App ist in App Store Connect noch nicht angelegt: „Meine Apps“ → + → Neue App, Bundle-ID {BUNDLE}', 3)
@@ -185,12 +202,13 @@ def prepare(out):
     cid, p12 = certificate(state, pw, work)
     shutil.copy(p12, os.path.join(out, 'dist.p12'))
     uuid = profile(bid, cid, out)
+    uuid_nse = profile(nid, cid, out, NSE_PROFILE, 'profile-nse.mobileprovision')
     plistlib.dump({'method': 'app-store-connect', 'destination': 'export', 'teamID': team, 'signingStyle': 'manual',
-                   'signingCertificate': 'Apple Distribution', 'provisioningProfiles': {BUNDLE: PROFILE},
+                   'signingCertificate': 'Apple Distribution', 'provisioningProfiles': {BUNDLE: PROFILE, NSE: NSE_PROFILE},
                    'uploadSymbols': True, 'manageAppVersionAndBuildNumber': False},
                   open(os.path.join(out, 'ExportOptions.plist'), 'wb'))
     with open(os.path.join(out, 'sign.env'), 'w') as f:
-        f.write(f'TEAM_ID={team}\nPROFILE_UUID={uuid}\nPROFILE_NAME="{PROFILE}"\nAPP_ID={app}\n')
+        f.write(f'TEAM_ID={team}\nPROFILE_UUID={uuid}\nPROFILE_NAME="{PROFILE}"\nPROFILE_UUID_NSE={uuid_nse}\nPROFILE_NAME_NSE="{NSE_PROFILE}"\nAPP_ID={app}\n')
     shutil.rmtree(work, ignore_errors=True)
 
 

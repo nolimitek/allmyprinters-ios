@@ -30,8 +30,28 @@ enum Diag {
         }
     }
 
+    /// Druck-Meldungen (23.11.2026): Prüfwerte vom Agenten-Verfahren (Node aes-256-gcm, iv vorn, base64url) entschlüsseln,
+    /// Texte wie auf Android, falscher Schlüssel → nichts, geteilter Schlüsselbund speichern/lesen → diag-push.json
+    static func pushTest() {
+        let k = "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw="
+        let c1 = "AQIDBAUGBwgJCgsMKwAf0Bwkb9HSy7ZsNz3x6FiCpaNIYIueQffseaA5HA6WJJvb3CZZp61GosGL6i5KD17FYTUAHI6sMybKkaAtvTCASTlUGg2Xie9p5s6C0MEjsGKSHERj9hVT2xY"
+        let c2 = "AQIDBAUGBwgJCgsMKwAf0BwkZ9HLjLhiZW_p8Cr4meMWI9uvB_n0O-V_TV3BKoOMyTBZheoI6OqH9z5WQXqpECRzTd_pcnfEieJ5qj6SJCkRFBXGmftprkSvSqdIxeqFbXHLIuk0N4jcuvbQq_zM6Q"
+        var o: [String: Any] = [:]
+        if let m = PushText.open(key: k, c: c1), let r = PushText.render(m, lang: "de") { o["c1"] = [r.title, r.body, r.go] } else { o["c1"] = "nil" }
+        if let m = PushText.open(key: k, c: c2), let r = PushText.render(m, lang: "en") { o["c2"] = [r.title, r.body, r.go] } else { o["c2"] = "nil" }
+        o["wrongkey"] = PushText.open(key: Data(count: 32).base64EncodedString(), c: c1) == nil
+        let had = PushStore.load()
+        let ok = PushStore.save(.init(kid: "diagkid", key: k, lang: "nl")), back = PushStore.load()
+        o["keychain"] = [ok, back?.kid ?? "", back?.lang ?? ""]
+        if let h = had { PushStore.save(h) } else { PushStore.clear() }
+        o["after"] = PushStore.load()?.kid ?? ""
+        if let d = try? JSONSerialization.data(withJSONObject: o) { try? d.write(to: Log.docs.appendingPathComponent("diag-push.json")) }
+        Log.write("diag push \(o)")
+    }
+
     static func run(_ vc: WebViewController) {
         let full = (UserDefaults.standard.string(forKey: "ampHash") ?? "").isEmpty
+        if full { DispatchQueue.global().async { pushTest() } }
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
             let js = """
             const out = { href: location.href, origin: location.origin, title: document.title, secure: window.isSecureContext,
@@ -48,6 +68,8 @@ enum Diag {
             await t('file', async () => { const s = await AMP.native('stash', { b64: btoa('hallo'), name: 'x.txt' }); const r = await AMP.native('fileRead', { token: s.token });
               const m = await AMP.native('md5', { token: s.token }); await AMP.native('fileDrop', { token: s.token }); return [s.size, r.text, m.md5]; });
             await t('lib', async () => (await AMP.api('lib_list')).files.length);
+            await t('push_state', () => AMP.native('push', { op: 'state' }));
+            await t('news_state', () => AMP.native('news', { op: 'state', lang: 'de' }));
             await t('make3mf', async () => { const g = await AMP.native('stash', { b64: btoa('G28\\nT0\\nG1 X1\\nT1 ; wechsel\\n'), name: 'd.gcode' });
               const z = await AMP.native('make3mf', { token: g.token, name: 'd.gcode.3mf', extra: { 'Metadata/slice_info.config': '<config/>' } });
               const h = await AMP.native('fileRead', { token: z.token, length: 4 });

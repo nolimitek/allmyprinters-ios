@@ -11,6 +11,9 @@ WKWebView, dazu ein kleiner Swift-Teil für das, was eine Webseite nicht darf (D
 - `.github/workflows/testflight.yml` + `ci/asc.py` – TestFlight ohne Mac: `git push origin main:testflight`. Signatur über einen
   App-Store-Connect-API-Schlüssel (Secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`, Rolle Admin): Bundle-ID,
   Verteilungszertifikat (im Actions-Cache weiterverwendet) und Profil entstehen über die API; Ergebnis im Zweig `ci-tf`
+- `Notify/` + `Shared/PushText.swift` – Druck-Meldungen über den Agenten: Apple-Push direkt von allmyprinters.com/api/push.php
+  (Token `apns:<hex>`, ohne Firebase), die Notification Service Extension entschlüsselt (AES-256-GCM wie Android) und setzt
+  die Texte in der Sprache der App; Schlüssel im geteilten Schlüsselbund `com.allmyprinters.shared`
 - `Support/` – App-Symbol (`AppIcon.svg` → 1024er PNG, aus dem Android-Symbol), Datenschutz-Manifest
 
 Stand: in Arbeit (Simulator). Noch nicht dabei: Live-Verbindungen (MQTT/WebSocket), Kamera, Bambu-FTPS, NFC, Push.

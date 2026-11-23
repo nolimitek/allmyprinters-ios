@@ -5,6 +5,7 @@ options:
   deploymentTarget:
     iOS: "16.4"
   createIntermediateGroups: true
+  developmentLanguage: en
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -18,8 +19,12 @@ targets:
     platform: iOS
     dependencies:
       - sdk: libz.tbd
+      # Druck-Meldungen entschlüsseln (Notify/), wird in die App eingebettet
+      - target: AllMyPrintersNotify
     sources:
       - path: App
+      - path: Shared
+      - path: Support/Localizable
       - path: www
         type: folder
         buildPhase: resources
@@ -33,6 +38,9 @@ targets:
         CFBundleDisplayName: AllMyPrinters
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleLocalizations: [en, de, fr, es, it, nl]
+        # geteilter Schlüsselbund mit der Extension (Shared/PushText.swift PushStore)
+        AMPKeychainGroup: $(AppIdentifierPrefix)com.allmyprinters.shared
         # nur Standard-Verschlüsselung des Systems (TLS, CommonCrypto) → keine Exportdokumente
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
@@ -56,3 +64,30 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Support/App.entitlements
+        # TestFlight-Lauf setzt AMP_PROFILE / AMP_PROFILE_NSE (je Ziel ein eigenes Profil)
+        PROVISIONING_PROFILE_SPECIFIER: $(AMP_PROFILE)
+  AllMyPrintersNotify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Notify
+      - path: Shared
+    info:
+      path: Notify/Info.plist
+      properties:
+        CFBundleDisplayName: AllMyPrinters
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        AMPKeychainGroup: $(AppIdentifierPrefix)com.allmyprinters.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.allmyprinters.app.notify
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
+        PROVISIONING_PROFILE_SPECIFIER: $(AMP_PROFILE_NSE)
+        SKIP_INSTALL: YES
