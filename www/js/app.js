@@ -24,7 +24,18 @@ const eur = new Intl.NumberFormat(LANG, { style: 'currency', currency: 'EUR' });
 const g = v => nf.format(Math.round(v)) + ' g';
 const kg = v => v >= 1000 ? nf1.format(v / 1000) + ' kg' : g(v);
 const date = s => s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleDateString(LANG, { day: '2-digit', month: 'short', year: 'numeric' }) : '–';
-const dtime = s => s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString(LANG, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–';
+// Uhrzeit 24/12 h (23.11.2026, AllMyPrinters-Community #53: App auf Englisch in Schweden zeigte AM/PM). Nur in der App (FM.app):
+// localStorage amp_time = 24 | 12, sonst automatisch: 24 h, sobald App-Sprache ODER Gerät (navigator.languages[0]) 24 h nutzt.
+// Website /filament: {} → wie bisher nach Sprache.
+const HC = (() => {
+  if (!FM.app) return {};
+  let v = ''; try { v = localStorage.getItem('amp_time') || ''; } catch (e) {}
+  if (v === '24' || v === '12') return { hour12: v === '12' };
+  const hc = l => { try { return new Intl.DateTimeFormat(l, { hour: 'numeric' }).resolvedOptions().hourCycle || ''; } catch (e) { return ''; } };
+  const dev = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+  return { hour12: ![LANG, dev].some(l => l && /^h2[34]$/.test(hc(l))) };
+})();
+const dtime = s => s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString(LANG, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', ...HC }) : '–';
 const matName = m => m === '?' ? t('mat_unknown') : m;
 const dia = d => new Intl.NumberFormat(LANG, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(d) + ' mm';
 const catName = it => it.name.toLowerCase().includes(String(it.material).toLowerCase()) ? `${it.vendor} · ${it.name}` : `${it.vendor} ${it.material} · ${it.name}`;
@@ -703,7 +714,7 @@ function histRow(h) {
   const sp = st.spools.find(x => x.id === h.spool_id);
   const vis = sp ? ring(sp) : `<span class="sw lg" style="background:${esc(h.color_hex || '#888')}"></span>`;
   const note = histNote(h), neg = h.grams < 0;
-  const time = new Date(h.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit' });
+  const time = new Date(h.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit', ...HC });
   return `<div class="hrow">${vis}<span class="ht"><a href="#s${h.spool_id}"><b>${esc(sp ? title(sp) : h.name || '#' + h.spool_id)}</b></a>
       <span class="hs"><span class="tag k-${esc(h.kind)}">${esc(t('kind_' + h.kind))}</span>${note ? `<span class="hn">${esc(note)}</span>` : ''}${h.printer ? `<span class="hp">${I_PRINTER_S}${esc(h.printer)}</span>` : ''}</span></span>
     <span class="hg"><b class="${neg ? 'pos' : ''}">${+h.grams === 0 ? '–' : (neg ? '+' : '−') + gUse(h.grams)}</b><small>${time}${h.cost ? ' · ' + cur.format(h.cost) : ''}</small></span></div>`;
@@ -1017,7 +1028,7 @@ const ps_ok = () => !!FM.can_print;
 const pv = { data: null, sub: 'overview', timer: null, busy: false };
 function stopPoll() { clearInterval(pv.timer); pv.timer = null; }
 const dur = m => (m >= 60 ? Math.floor(m / 60) + ' h ' : '') + String(m % 60).padStart(2, '0') + ' min';
-const clockIn = m => new Date(Date.now() + m * 60000).toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit' });
+const clockIn = m => new Date(Date.now() + m * 60000).toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit', ...HC });
 const ago = s => {
   if (!s) return '–';
   const sec = Math.max(0, (Date.now() - new Date(s.replace(' ', 'T') + 'Z').getTime()) / 1000);
@@ -5787,6 +5798,7 @@ async function viewGcode() {
 
 // ── Einstellungen ──────────────────────────────────────────────────────────
 const AMP_CUR = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'TRY', 'ILS', 'JPY', 'CNY', 'HKD', 'TWD', 'SGD', 'KRW', 'INR', 'BRL', 'MXN', 'ZAR'];
+const ampTimeMode = () => { let v = ''; try { v = localStorage.getItem('amp_time') || ''; } catch (e) {} return v === '24' || v === '12' ? v : 'auto'; };
 const LANG_NAME = { de: 'Deutsch', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', nl: 'Nederlands' };
 // ── Einstellungen: aufklappbare Gruppen (17.11.2026) ──
 // #settings/<gruppe> öffnet die Gruppe; sonst die zuletzt offene (localStorage amp_set_open). Immer nur eine offen.
@@ -5833,6 +5845,7 @@ async function viewSettings(group) {
     <section class="card amp-card amp-set">
       <label class="fld"><span>${esc(t('amp_lang'))}</span><select class="in" id="slang">${FM.LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAME[l]}</option>`).join('')}</select></label>
       <div class="fld"><span>${esc(t('amp_theme'))}</span><span class="seg" id="sth">${['system', 'light', 'dark'].map(m => `<button type="button" data-th="${m}" class="${theme === m ? 'on' : ''}">${esc(t('amp_' + m))}</button>`).join('')}</span></div>
+      <div class="fld"><span>${esc(t('amp_time'))}</span><span class="seg" id="stime">${['auto', '24', '12'].map(m => `<button type="button" data-tm="${m}" class="${ampTimeMode() === m ? 'on' : ''}">${esc(t('amp_time_' + m))}</button>`).join('')}</span></div>
       <label class="fld"><span>${esc(t('amp_currency'))}</span><select class="in" id="scur">${AMP_CUR.map(c => `<option${c === FM.cur ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
     </section>
     <section class="card amp-card amp-about"><h2>${esc(t('amp_about_h'))}</h2>${verLines}
@@ -5884,6 +5897,12 @@ async function viewSettings(group) {
   ampLibLocDraw();
   ampLowDraw();
   ampCostsDraw();
+  // Zeitformat (23.11.2026, #53): gilt je Gerät; neu laden, damit alle Uhrzeiten (HC in app.js) es übernehmen
+  view.querySelectorAll('#stime [data-tm]').forEach(b => b.onclick = () => {
+    if (b.classList.contains('on')) return;
+    try { if (b.dataset.tm === 'auto') localStorage.removeItem('amp_time'); else localStorage.setItem('amp_time', b.dataset.tm); } catch (e) {}
+    location.reload();
+  });
   view.querySelectorAll('[data-th]').forEach(b => b.onclick = () => {
     AMP_THEME.set(b.dataset.th);
     view.querySelectorAll('[data-th]').forEach(x => x.classList.toggle('on', x === b));
@@ -5975,7 +5994,7 @@ if (window.AMPNative && !AMP.agent) setTimeout(async () => {
   try {
     await api('amp_import', { text: r.text });
     await AMP.native('agent_restore', { op: 'done' });
-    toast(r.kind === 'copy' ? t('amp_ag_restored_copy', { d: new Date(+r.at).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' }) }) : t('amp_ag_restored'));
+    toast(r.kind === 'copy' ? t('amp_ag_restored_copy', { d: new Date(+r.at).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short', ...HC }) }) : t('amp_ag_restored'));
     st.spools = []; if (typeof pv !== 'undefined') pv.data = null;
     render();
     // 3D-Netze der Bibliothek liegen nur dort, wo sie gebaut wurden → hier neu bauen, eins nach dem anderen
@@ -6227,7 +6246,7 @@ async function ampPlanDraw() {
   box.innerHTML = `<h2>${esc(t('amp_plan_h'))}</h2><p class="amp-plan-st">${esc(head)}</p>
     ${locked.length ? `<p class="hint">${esc(t('amp_plan_locked'))}</p><ul class="amp-plan-l">${locked.map(k => `<li>${esc(t('amp_plan_f_' + k))}</li>`).join('')}</ul>` : ''}
     ${s.printers != null ? `<p class="hint">${esc(t('amp_plan_printers', { n: s.printers }))}</p>` : ''}
-    <p class="hint">${esc(t('amp_plan_code', { c: s.code }))}${s.checked ? ' · ' + esc(t('amp_plan_checked', { d: new Date(s.checked).toLocaleString(LANG, { dateStyle: 'short', timeStyle: 'short' }) })) : ''}</p>
+    <p class="hint">${esc(t('amp_plan_code', { c: s.code }))}${s.checked ? ' · ' + esc(t('amp_plan_checked', { d: new Date(s.checked).toLocaleString(LANG, { dateStyle: 'short', timeStyle: 'short', ...HC }) })) : ''}</p>
     <div class="amp-acts"><button type="button" class="btn sm" id="splanre">${esc(t('amp_plan_refresh'))}</button></div>`;
   $('#splanre').onclick = async () => { try { await AMP.remote('plan_refresh'); } catch (e) { fail(e); } ampPlanDraw(); };
 }
@@ -6313,7 +6332,7 @@ async function ampRemoteDraw(pair) {
   if (!box) return;
   let s;
   try { s = await AMP.remote('status'); } catch (e) { box.hidden = true; return; }
-  const when = ms => new Date(ms).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' });
+  const when = ms => new Date(ms).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short', ...HC });
   if (s.locked) { box.innerHTML = `<h2>${esc(t('amp_dev_h'))}</h2><div class="note">${esc(t('amp_rm_locked'))}</div>`; return; }
   const stTxt = s.state === 'online' ? t('amp_rm_online') : s.state === 'error' ? t('amp_rm_err') : t('amp_rm_connecting');
   const now = d => d.via === 'lan' ? t('amp_rm_now_lan') : t('amp_rm_now_relay');

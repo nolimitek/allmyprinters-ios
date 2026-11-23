@@ -1438,8 +1438,10 @@ function applyHistory(p, L, jobs) {
     const parts = [];
     if (Array.isArray(mj.parts) && mj.parts.length) {
       // Hersteller-Cloud im Agenten (19.11.2026): Gramm je Fach kommen fertig zugeordnet; abgebrochen nur mit bekanntem Fortschritt
-      const r = status === 2 ? 1 : mj.prog != null ? clamp(+mj.prog, 0, 1) : 0;
-      for (const x of mj.parts) if (+x.g > 0 && r > 0) parts.push({ slot: x.slot, raw: x.g * r, g: x.g * r * fa });
+      // actual (Anycubic LAN, 23.11.2026): am Drucker gemessen, also schon der echte Verbrauch → nicht anteilig kürzen
+      const r = status === 2 || mj.actual ? 1 : mj.prog != null ? clamp(+mj.prog, 0, 1) : 0;
+      // gemessen (actual) enthält Spülen/Vorlauf schon → ohne Verbrauchsausgleich (der gleicht nur Slicer-Gewichte an)
+      for (const x of mj.parts) if (+x.g > 0 && r > 0) parts.push({ slot: x.slot, raw: x.g * r, g: x.g * r * (mj.actual ? 1 : fa) });
       if (!parts.length) { j.state = 'no_data'; j.grams = null; continue; }
     } else {
     // Fremder Druck (am Display, aus dem Slicer, über die Anycubic-Cloud)
@@ -1744,6 +1746,8 @@ function obsHistory(p, L, c) {
   const cur = p.hist[0] && p.hist[0].status === 'in_progress' ? p.hist[0] : null;
   const md = { filament_total: c.mm || 0, filament_weights: c.weights || [], filament_weight_total: (c.weights || []).reduce((a, b) => a + b, 0) };
   const close = (h, status) => { h.status = status; h.end_time = Date.now() / 1000; h.filament_used = (h.metadata.filament_total || 0) * (status === 'completed' ? 1 : h.prog || 0); };
+  // gemessener Verbrauch je Fach (Anycubic LAN: supplies_usage, acUsage) → applyHistory bucht ihn wie gemessen, auch bei Abbruch
+  const useOn = h => { if (h && c.use && c.use.parts && c.use.parts.length && c.use.file === String(h.filename || '').split('/').pop()) { h.parts = c.use.parts; h.actual = true; } };
   if (c.state) {
     if (!cur || cur.filename !== c.file || (c.jid != null && cur.jid !== c.jid)) {
       if (cur) close(cur, 'cancelled');
@@ -1751,9 +1755,11 @@ function obsHistory(p, L, c) {
                        end_time: null, print_duration: c.print_s || 0, filament_used: 0, metadata: md, prog: c.prog || 0 });
       p.hist = p.hist.slice(0, 60);
     } else { cur.print_duration = c.print_s || cur.print_duration; cur.prog = Math.max(cur.prog || 0, c.prog || 0); if (md.filament_total || md.filament_weight_total) cur.metadata = md; }
+    useOn(p.hist[0]);
     persist();
   } else if (cur) {
     if (c.prog) cur.prog = Math.max(cur.prog || 0, c.prog);
+    useOn(cur);
     close(cur, c.error ? 'error' : c.finished || (cur.prog || 0) >= 0.995 ? 'completed' : 'cancelled');
     persist();
   }
@@ -2322,6 +2328,11 @@ const AC_PREP = ['preheating', 'auto_leveling', 'vibrating', 'flow_calibrating',
                  'hotbed_heating', 'z_offset_calibrating', 'frequency_sweeping', 'extfilbox_filament_feeding', 'hotbed_cooling_off', 'init'];
 const AC_RUN = [...AC_PREP, 'printing', 'pausing', 'paused', 'pause', 'resuming', 'resumed', 'stopping', 'busy', 'downloading', 'checking'];
 const acRgb = c => Array.isArray(c) && c.length >= 3 ? '#' + c.slice(0, 3).map(v => (+v & 255).toString(16).padStart(2, '0')).join('') : null;
+// Auftragsnummer des laufenden Drucks: info.project.taskid, je nach Firmware task_id (anycubic-cloud-api LAN), sonst aus dem print-Bericht.
+// Pause/Stopp brauchen sie (23.11.2026 #52, Kobra X FW 2.0.2.8: mit taskid "-1" passiert nichts, nur „Weiter“ nimmt sie an —
+// Anycubic Slicer Next und hass-anycubic schicken immer die echte Nummer)
+const acTaskOf = S => { const pj = (S.info || {}).project || {}, pr = S.print || {}; const v = pj.taskid ?? pj.task_id ?? pr.taskid ?? pr.task_id;
+  return v != null && String(v) !== '' && String(v) !== '-1' ? String(v) : null; };
 const acArr = h => { const m = /^#?([0-9a-f]{6})/i.exec(h || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : [0, 0, 0]; };
 /**
  * Auftrag: Lebenslauf (state, pause) NUR aus info.project; Fortschritt kommt schneller als print-Bericht — der ist ungeschachtelt
@@ -2334,7 +2345,7 @@ function acPhase(S) {
   const busy = !!cur && (AC_RUN.includes(st) || (String(info.state || '') === 'busy' && !['finished', 'stoped', 'stopped'].includes(st)));
   const pj = Object.assign({}, busy ? cur : (last || {}));
   if (busy && 'progress' in pr && (S.print_at || 0) > (S.info_at || 0) && (!pr.filename || !pj.filename || String(pr.filename).split('/').pop() === String(pj.filename).split('/').pop()))
-    for (const k of ['progress', 'curr_layer', 'total_layers', 'remain_time', 'print_time']) if (pr[k] !== undefined) pj[k] = pr[k];
+    for (const k of ['progress', 'curr_layer', 'total_layers', 'remain_time', 'print_time', 'supplies_usage']) if (pr[k] !== undefined) pj[k] = pr[k];
   // Vor dem eigentlichen Druck (Aufheizen, Nivellieren, Kalibrieren) gibt es noch keinen Druckfortschritt
   if (busy && AC_PREP.includes(st)) pj.progress = 0;
   const lst = String((last || {}).state || '').toLowerCase();
@@ -2398,12 +2409,56 @@ async function acSync(p, force) {
     entry.ttg_map = entry.slots.map(x => x.index);
   } else singleSlot(p, entry);
   const pj = ph.pj;
+  // ACE im Druck alle 10 s fragen: welches Fach gerade fördert, für die Verbrauchsaufteilung (acUsage)
+  if (ph.busy && boxes.length && Date.now() - (L.acBoxAt || 0) > 10000) { L.acBoxAt = Date.now(); acSend(p, 'multiColorBox', 'getInfo').catch(() => {}); }
   const c = { state: ph.busy ? (ph.paused ? 'paused' : 'printing') : '', file: String(pj.filename || '').split('/').pop(), jid: pj.taskid && pj.taskid !== '-1' ? String(pj.taskid) : null,
-              prog: Math.min(1, (+pj.progress || 0) / 100), print_s: +pj.print_time || 0, finished: ph.done, error: false };
+              prog: Math.min(1, (+pj.progress || 0) / 100), print_s: +pj.print_time || 0, finished: ph.done, error: false, use: acUsage(p, L, S, ph, boxes) };
   if (ph.busy) entry.job = jobEntry(L, c, (+pj.remain_time || 0) * 60, +pj.total_layers ? [+pj.curr_layer || 0, +pj.total_layers] : null);
   obsHistory(p, L, c);
   finish(p, entry, L);
   return entry;
+}
+/**
+ * Verbrauch fremder Drucke (23.11.2026, Meldung Kobra X FW 2.0.2.8: Drucke aus Anycubic Slicer Next standen als „ohne Filamentdaten“):
+ * Der Drucker meldet supplies_usage = tatsächlich geförderte mm (info.project und print-Bericht, nach dem Ende in info.last_project;
+ * so liest es auch hass-anycubic / anycubic-cloud-api). Gramm je Fach: jeden Zuwachs dem Fach zuschreiben, das die ACE gerade als
+ * geladen meldet (im Druck alle 10 s erfragt); Fach noch unbekannt → zurückhalten, bis eins gemeldet wird. Ohne ACE: Fach 0.
+ * Stand in p.acUse { key, file, last (mm), mm: { Fach: mm }, slot, pend, done } — in den Daten, übersteht einen Neustart.
+ * → { file, parts: [{ slot, g }] } für obsHistory (gebucht wird wie gemessen, auch bei Abbruch), sonst null.
+ */
+function acUsage(p, L, S, ph, boxes) {
+  const bn = f => String(f || '').split('/').pop();
+  let u = p.acUse || null, dirty = false, now = Date.now();
+  const add = (mm, slot) => {
+    if (slot === null || slot === undefined) { u.pend = (u.pend || 0) + mm; return; }
+    u.mm[slot] = (u.mm[slot] || 0) + mm + (u.pend || 0); u.pend = 0;
+  };
+  if (ph.busy) {
+    const pj = ph.pj, file = bn(pj.filename), key = file + '|' + String(pj.taskid ?? pj.task_id ?? '');
+    const mm = +pj.supplies_usage;
+    if (!file || !Number.isFinite(mm)) return u && u.key === key ? acUseOut(p, u) : null;   // Firmware ohne supplies_usage → wie bisher
+    if (!u || u.key !== key || mm + 5 < u.last) { u = p.acUse = { key, file, last: 0, mm: {}, slot: null, pend: 0, done: false }; dirty = true; L.acUseSave = 0; }
+    let sl = boxes.length ? null : 0;
+    for (let pos = 0; pos < boxes.length && sl === null; pos++) { const ls = +boxes[pos].loaded_slot; if (ls >= 0 && ls < 4) sl = pos * 4 + ls; }
+    if (sl !== null && sl !== u.slot) { u.slot = sl; if (u.pend) add(0, sl); dirty = true; L.acUseSave = 0; }
+    if (mm > u.last) { add(mm - u.last, sl ?? u.slot); u.last = mm; dirty = true; }
+  } else if (u && !u.done) {
+    // Ende: letzter Stand aus last_project (die letzten Sekunden seit der Abfrage), sonst was bis dahin gemessen wurde
+    const lp = (S.info || {}).last_project || {}, fin = +lp.supplies_usage;
+    if (bn(lp.filename) === u.file && Number.isFinite(fin) && fin > u.last) { add(fin - u.last, u.slot); u.last = fin; }
+    u.done = true; dirty = true; L.acUseSave = 0;
+  }
+  if (dirty && now - (L.acUseSave || 0) > 60000) { L.acUseSave = now; persist(); }
+  return u ? acUseOut(p, u) : null;
+}
+function acUseOut(p, u) {
+  const parts = Object.entries(u.mm).filter(([, mm]) => mm > 0).map(([s, mm]) => {
+    const sl = db.slots.find(x => x.printer_id === p.id && x.index === +s), sp = sl && sl.spool_id ? db.spools.find(x => x.id === sl.spool_id) : null;
+    const box = (p.acBox || []).flatMap((b, pos) => (b.slots || []).map(x => [pos * 4 + (+x.index || 0), x.type])).find(x => x[0] === +s);
+    const mat = String((sp && sp.material) || (box && box[1]) || 'PLA').toUpperCase();
+    return { slot: +s, g: Math.round(mmToG(mm, (sp && +sp.diameter) || 1.75, (sp && +sp.density) || DENSITY[mat] || 1.24) * 10) / 10 };
+  });
+  return { file: u.file, parts };
 }
 /** Anycubic-LAN-Antwort auf GET :18910/info → Fund (ctrlType lan/cloud, modelId, cn). */
 async function acInfo(host, port) {
@@ -2565,7 +2620,7 @@ function acCtl(p, L, S, busy) {
   // Geschwindigkeit 1 leise, 2 Standard, 3 Sport: im info-Bericht oben, nach print/update auch in print.settings (der neuere zählt)
   const prs = ((S.print || {}).settings || {}).print_speed_mode, ifs = info.print_speed_mode ?? ((info.project || {}).settings || {}).print_speed_mode;
   const sm = prs != null && (ifs == null || (S.print_at || 0) > (S.info_at || 0)) ? prs : ifs;
-  L.acTask = busy && info.project && info.project.taskid != null ? String(info.project.taskid) : null;
+  L.acTask = busy ? acTaskOf(S) : null;
   if (busy) ctl.speed = spdMk(SPD.slice(0, 3), sm == null ? null : SPD[+sm - 1] || null, null);
   const enclosed = /Kobra S1/i.test(p.model || '');
   if ('fan_speed_pct' in fan) ctl.fans.push({ id: 'fan_speed_pct', k: 'part', name: '', pct: pctOf(fan.fan_speed_pct, 100), set: busy });
@@ -2635,7 +2690,7 @@ async function ctlSet(p, inp) {
       : { cmd: 'printerCtl_cmd', args: { [id]: v } };
     await ffPost(p, '/control', { payload: args });
   } else if (kind === 'acl') {
-    if (fan) { await acSend(p, 'print', 'update', { taskid: '-1', settings: { [id]: v } }); setTimeout(() => acSend(p, 'fan', 'query').catch(() => {}), 1500); }
+    if (fan) { await acSend(p, 'print', 'update', { taskid: L.acTask || '-1', settings: { [id]: v } }); setTimeout(() => acSend(p, 'fan', 'query').catch(() => {}), 1500); }
     else { const tp = +id.slice(1); await acSend(p, 'light', 'control', { type: tp, status: on ? 1 : 0, brightness: on ? 100 : 0 }); setTimeout(() => acSend(p, 'light', 'query').catch(() => {}), 1500); }
   } else fail('cmd');
   (L.ctlWant || (L.ctlWant = {}))[(fan ? 'f:' : 'l:') + id] = { v: fan ? (known && known.onoff ? (v > 0 ? 100 : 0) : v) : on, at: Date.now() };
@@ -4981,7 +5036,13 @@ const A = {
     if (kindOf(p) === 'sdcp') await sdSend(p, { pause: 129, stop: 130, resume: 131 }[inp.cmd]);
     else if (kindOf(p) === 'cc2') await ccSend(p, { pause: 1021, stop: 1022, resume: 1023 }[inp.cmd]);   // Antwort kommt erst nach dem Ablauf
     else if (kindOf(p) === 'creality') await crSet(p, { pause: { pause: 1 }, resume: { pause: 0 }, stop: { stop: 1 } }[inp.cmd]);
-    else if (kindOf(p) === 'acl') { await acSend(p, 'print', inp.cmd, { taskid: '-1' }); setTimeout(() => acSend(p, 'info', 'query').catch(() => {}), 1200); }
+    else if (kindOf(p) === 'acl') {
+      // echte Auftragsnummer (acTaskOf); fehlt sie im letzten Abgleich, frisch aus dem Verbindungsstand
+      let tid = (live[p.id] || {}).acTask || null;
+      if (!tid) { try { await acOpen(p); tid = acTaskOf(((await native('live_state', { key: acKey(p) })) || {}).state || {}); } catch (e) {} }
+      await acSend(p, 'print', inp.cmd, { taskid: tid || '-1' }); setTimeout(() => acSend(p, 'info', 'query').catch(() => {}), 1200);
+      diag({ a: 'cmd', p: 'acl', m: p.model || '', err: '', d: inp.cmd + (tid ? ' taskid' : ' taskid=-1') });
+    }
     else if (kindOf(p) === 'flashforge') await ffPost(p, '/control', { payload: { cmd: 'jobCtl_cmd', args: { jobID: '', action: { pause: 'pause', resume: 'continue', stop: 'cancel' }[inp.cmd] } } });
     else if (kindOf(p) === 'bambu') await native('live_send', { key: 'bb_' + p.id, payload: JSON.stringify({ print: { sequence_id: String(Date.now() % 100000), command: inp.cmd, param: '' } }) });
     else if (kindOf(p) === 'octoprint') await dj(p, 'POST', '/api/job', inp.cmd === 'stop' ? { command: 'cancel' } : { command: 'pause', action: inp.cmd }, 15000);
