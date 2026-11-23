@@ -34,9 +34,8 @@ enum Diag {
               return [s.connected, s.err]; });
             await t('cam_start', async () => { await AMP.native('cam', { key: 'diagcam', urls: ['http://127.0.0.1:8765/stream'] }); await new Promise(r => setTimeout(r, 3000)); return AMP.native('cam_status', { key: 'diagcam' }); });
             await t('cam_frame', async () => { const fr = await fetch('/cam/frame?k=diagcam&n=1', { cache: 'no-store' }); return [fr.status, fr.headers.get('content-type'), (await fr.arrayBuffer()).byteLength]; });
-            // MJPEG wie in der Oberfläche (<img src=/cam/live?u=…>): fetch() kennt multipart/x-mixed-replace nicht
-            await t('cam_live', async () => { const im = new Image(); im.src = '/cam/live?u=' + encodeURIComponent('http://127.0.0.1:8765/stream'); document.body.appendChild(im);
-              await new Promise(r => setTimeout(r, 2500)); const w = [im.naturalWidth, im.naturalHeight, im.complete]; im.src = ''; im.remove(); return w; });
+            // /cam/live = rohe Durchleitung (in der Oberfläche nur für H.264/FLV; MJPEG zeigt sie als Einzelbilder über /cam/frame)
+            await t('cam_live', async () => { const r = await fetch('/cam/live?u=' + encodeURIComponent('http://127.0.0.1:8765/snap')); return [r.status, r.headers.get('content-type'), (await r.arrayBuffer()).byteLength]; });
             await t('cam_snap', async () => { await AMP.native('cam', { key: 'diagsnap', urls: ['http://127.0.0.1:8765/snap'] }); await new Promise(r => setTimeout(r, 2000));
               const st = await AMP.native('cam_status', { key: 'diagsnap' }); await AMP.native('cam_stop', { key: 'diagsnap' }); return st; });
             await t('cam_bad', async () => { await AMP.native('cam', { key: 'diagbad', urls: ['http://8.8.8.8/x'] }); await new Promise(r => setTimeout(r, 1200)); return (await AMP.native('cam_status', { key: 'diagbad' })).err; });
