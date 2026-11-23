@@ -42,6 +42,8 @@ targets:
         NSLocalNetworkUsageDescription: "AllMyPrinters spricht direkt mit deinen 3D-Druckern im Heimnetz."
         NSBonjourServices: [_http._tcp, _octoprint._tcp, _moonraker._tcp]
         NSCameraUsageDescription: "Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten)."
+        # Agent-Modus: allmyprinters.com/web braucht einen Service Worker — in WKWebView nur für App-gebundene Domains
+        WKAppBoundDomains: [allmyprinters.com]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.allmyprinters.app

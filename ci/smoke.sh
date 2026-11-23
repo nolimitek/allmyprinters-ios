@@ -31,6 +31,12 @@ shot library 04-bibliothek
 shot settings 05-einstellungen
 xcrun simctl ui "$U" appearance dark 2>/dev/null || true
 shot printers 06-drucker-dunkel
+xcrun simctl ui "$U" appearance light 2>/dev/null || true
+# Agent-Modus: Seite allmyprinters.com/web in der App (Service Worker, WebSocket-Ersatz)
+xcrun simctl terminate "$U" "$BID" 2>/dev/null || true
+xcrun simctl launch "$U" "$BID" -ampAgentURL "https://allmyprinters.com/web/" -ampDiag 1 >/dev/null || echo "Start Agent-Seite fehlgeschlagen"
+sleep 30
+xcrun simctl io "$U" screenshot "$OUT/07-agent.png" >/dev/null 2>&1 || echo "kein Bild: 07-agent"
 D=$(xcrun simctl get_app_container "$U" "$BID" data 2>/dev/null)
 [ -n "$D" ] && cp "$D"/Documents/*.json "$D"/Documents/*.log "$OUT/" 2>/dev/null
 xcrun simctl spawn "$U" log show --last 20m --style compact --predicate 'subsystem == "com.allmyprinters.app" OR process == "AllMyPrinters"' > "$OUT/system.log" 2>/dev/null || true

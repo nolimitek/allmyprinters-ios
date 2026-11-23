@@ -4,6 +4,32 @@ import WebKit
 /// Simulator-Lauf (ci/smoke.sh startet mit -ampDiag 1): nach dem Laden Grundfunktionen prüfen und als
 /// Documents/diag-<ansicht>.json ablegen — der Lauf in GitHub Actions kopiert die Datei in den Zweig „ci“.
 enum Diag {
+    /// Agent-Seite (ci/smoke.sh mit -ampAgentURL): Service Worker, Krypto, Speicher und der WebSocket-Ersatz für ws:// (Echo auf 8766)
+    static func agent(_ vc: WebViewController) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+            let js = """
+            const out = { href: location.href, sw: 'serviceWorker' in navigator, ctrl: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+              subtle: !!(window.crypto && crypto.subtle), idb: !!window.indexedDB, rs: !!window.ReadableStream, nat: !!window.AMPNative,
+              wsShim: String(window.WebSocket).slice(0, 40), text: (document.body ? document.body.innerText : '').slice(0, 400) };
+            const echo = (binary) => new Promise(res => {
+              const w = new WebSocket('ws://127.0.0.1:8766/echo'); w.binaryType = 'arraybuffer'; const t = setTimeout(() => res('timeout'), 6000);
+              w.onopen = () => w.send(binary ? new Uint8Array([1, 2, 3, 250]).buffer : 'hallo agent');
+              w.onmessage = ev => { clearTimeout(t); res(binary ? Array.from(new Uint8Array(ev.data)) : ev.data); w.close(); };
+              w.onerror = () => {}; w.onclose = ev => { clearTimeout(t); res('close ' + ev.code); };
+            });
+            try { out.ws_text = await echo(false); out.ws_bin = await echo(true); } catch (e) { out.ws_err = String(e && e.message); }
+            try { const r = await new Promise(res => { const w = new WebSocket('ws://8.8.8.8:9/x'); w.onclose = ev => res(ev.code); setTimeout(() => res('timeout'), 8000); }); out.ws_public = r; } catch (e) { out.ws_public = 'ERR ' + e.message; }
+            return JSON.stringify(out);
+            """
+            vc.web.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { r in
+                let s: String
+                switch r { case .success(let v): s = (v as? String) ?? String(describing: v); case .failure(let e): s = "{\"jsError\": \(Bridge.json(String(describing: e)))}" }
+                try? Data(s.utf8).write(to: Log.docs.appendingPathComponent("diag-agent.json"))
+                Log.write("diag agent " + String(s.prefix(1500)))
+            }
+        }
+    }
+
     static func run(_ vc: WebViewController) {
         let full = (UserDefaults.standard.string(forKey: "ampHash") ?? "").isEmpty
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {

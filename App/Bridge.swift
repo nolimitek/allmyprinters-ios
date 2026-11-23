@@ -11,6 +11,7 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
     weak var vc: WebViewController?
     let store = Store()
     private let q = DispatchQueue(label: "amp.bridge", qos: .userInitiated, attributes: .concurrent)
+    private let wsq = DispatchQueue(label: "amp.ws", qos: .userInitiated)   // seriell: Tunnel-Rahmen in Reihenfolge
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     private let iosVersion = UIDevice.current.systemVersion
     private let model: String = {
@@ -37,6 +38,13 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "print":
             vc?.printView(String((a["title"] as? String ?? "AllMyPrinters").prefix(60)))
             reply(id, true, [String: Any]()); return
+        case "ws_send":
+            wsq.async {
+                guard let w = NativeWS.get(self.s(a, "sid")) else { return }
+                if let t = a["text"] as? String { try? w.sendText(t) }
+                else if let d = Data(base64Encoded: self.s(a, "b64"), options: .ignoreUnknownCharacters) { try? w.sendBin(d) }
+            }
+            return
         default: break
         }
         q.async {
@@ -85,10 +93,17 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
             return ["free": v?.volumeAvailableCapacityForImportantUsage ?? 0]
         case "lib_dir_ok": return ["ok": false]
         case "nfc_state": return ["available": false, "enabled": false]
-        case "agent_state": return ["coupled": false, "url": ""]
-        case "agent_restore": return [String: Any]()            // nichts zu übernehmen (Agent-Modus kommt später)
-        case "agent_migrate": return ["pending": false]
-        case "agent_snapshot": return ["at": 0]
+        case "agent_state": let u = Agent.url; return ["coupled": u != nil, "url": u ?? ""]
+        case "agent_couple": return try agentCouple(a)
+        case "agent_migrate": return try agentMigrate(a)
+        case "agent_snapshot": return try agentSnapshot(a)
+        case "agent_leave": return try agentLeave(a)
+        case "agent_restore": return agentRestore(a)
+        case "ws_open":
+            let sid = try req(a, "sid"), url = try req(a, "url")
+            NativeWS.open(self, sid: sid, url: url, protocols: (a["protocols"] as? [Any])?.map { "\($0)" } ?? [])
+            return ["ok": true]
+        case "ws_close": let sid = try req(a, "sid"); NativeWS.get(sid)?.close(i(a, "code", 1000)); return [String: Any]()
         case "cam":
             let k = try req(a, "key"), urls = (a["urls"] as? [Any])?.map { "\($0)" } ?? []
             return Cam.start(k, urls)

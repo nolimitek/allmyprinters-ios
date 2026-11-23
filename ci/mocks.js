@@ -21,4 +21,26 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/snap')) { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': jpg.length }); return res.end(jpg); }
   mjpeg(res);
 }).listen(8765, '127.0.0.1');
+// WebSocket-Echo (Agent-Modus: Ersatz für ws:// auf der https-Seite), ohne Zusatzpakete
+const crypto = require('crypto');
+http.createServer().on('upgrade', (req, sock) => {
+  const acc = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + acc + '\r\n\r\n');
+  let buf = Buffer.alloc(0);
+  sock.on('data', d => {
+    buf = Buffer.concat([buf, d]);
+    while (buf.length >= 2) {
+      const op = buf[0] & 15, masked = buf[1] & 128; let len = buf[1] & 127, o = 2;
+      if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); o = 4; } else if (len === 127) { if (buf.length < 10) return; len = Number(buf.readBigUInt64BE(2)); o = 10; }
+      if (buf.length < o + (masked ? 4 : 0) + len) return;
+      const mk = masked ? buf.slice(o, o + 4) : null; o += masked ? 4 : 0;
+      const p = Buffer.from(buf.slice(o, o + len)); if (mk) for (let i = 0; i < p.length; i++) p[i] ^= mk[i % 4];
+      buf = buf.slice(o + len);
+      if (op === 8) { sock.end(Buffer.from([0x88, 0])); return; }
+      const h = p.length < 126 ? Buffer.from([0x80 | op, p.length]) : Buffer.from([0x80 | op, 126, p.length >> 8, p.length & 255]);
+      sock.write(Buffer.concat([h, p]));
+    }
+  });
+  sock.on('error', () => {});
+}).listen(8766, '127.0.0.1');
 console.log('Nachbauten bereit');

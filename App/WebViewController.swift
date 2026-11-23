@@ -47,8 +47,10 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         bridge.web = web
         bridge.vc = self
         var url = Self.start
-        // Simulator-Lauf (ci/smoke.sh): -ampHash printers öffnet gleich diese Ansicht
+        // Simulator-Lauf (ci/smoke.sh): -ampHash printers öffnet gleich diese Ansicht, -ampAgentURL die Agent-Seite
         if let hsh = UserDefaults.standard.string(forKey: "ampHash"), !hsh.isEmpty { url += "#" + hsh }
+        if let au = UserDefaults.standard.string(forKey: "ampAgentURL"), Agent.okLink(au) { url = au }
+        else if let au = Agent.url, Agent.okLink(au) { url = au }   // gekoppelt: gleich die Oberfläche des Agenten
         web.load(URLRequest(url: URL(string: url)!))
         let nc = NotificationCenter.default
         nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.js("window.AMP_ev && AMP_ev('resume', {})") }
@@ -70,9 +72,53 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
           };
           window.addEventListener('error', function(e){ var s = 'error ' + e.message + ' @' + (e.filename || '') + ':' + (e.lineno || 0); window.__ampErr.push(s); post(s); });
           window.addEventListener('unhandledrejection', function(e){ var r = e.reason; var s = 'rejection ' + (r && (r.stack || r.message) || r); window.__ampErr.push(s); post(s); });
+          // Agent-Seite (https): ws:// ins Heimnetz verbietet WKWebView (Mixed Content) → über die App (Agent.swift NativeWS)
+          if (location.protocol === 'https:' && location.hostname === 'allmyprinters.com') {
+            var Orig = window.WebSocket, socks = {}, wseq = 0;
+            var b64e = function(u8){ var s = ''; for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+            var b64d = function(s){ var r = atob(s || ''), o = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; };
+            var nat = function(m, a){ window.webkit.messageHandlers.amp.postMessage({ id: 'ws_' + m, m: m, a: JSON.stringify(a) }); };
+            var NWS = function(url, protocols){
+              var me = this; me.url = url; me.readyState = 0; me.binaryType = 'blob'; me.protocol = ''; me.extensions = ''; me.bufferedAmount = 0;
+              me.onopen = me.onmessage = me.onclose = me.onerror = null; me._l = {}; me._id = 'w' + (++wseq); socks[me._id] = me;
+              nat('ws_open', { sid: me._id, url: url, protocols: protocols ? [].concat(protocols) : [] });
+            };
+            NWS.CONNECTING = 0; NWS.OPEN = 1; NWS.CLOSING = 2; NWS.CLOSED = 3;
+            NWS.prototype.addEventListener = function(t, f){ (this._l[t] = this._l[t] || []).push(f); };
+            NWS.prototype.removeEventListener = function(t, f){ this._l[t] = (this._l[t] || []).filter(function(x){ return x !== f; }); };
+            NWS.prototype._fire = function(t, ev){ var h = this['on' + t]; try { if (h) h.call(this, ev); } catch (e) { console.error(e); } (this._l[t] || []).slice().forEach(function(f){ try { f.call(this, ev); } catch (e) { console.error(e); } }, this); };
+            NWS.prototype.send = function(d){
+              if (this.readyState !== 1) throw new DOMException('WebSocket is not open', 'InvalidStateError');
+              if (typeof d === 'string') return nat('ws_send', { sid: this._id, text: d });
+              var u8 = d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null;
+              if (!u8) throw new TypeError('unsupported data');
+              nat('ws_send', { sid: this._id, b64: b64e(u8) });
+            };
+            NWS.prototype.close = function(code){ if (this.readyState >= 2) return; this.readyState = 2; nat('ws_close', { sid: this._id, code: code || 1000 }); };
+            window.__ampWs = function(id, t, d){
+              var w = socks[id]; if (!w) return;
+              if (t === 'open') { w.readyState = 1; w._fire('open', new Event('open')); }
+              else if (t === 'text') w._fire('message', new MessageEvent('message', { data: d }));
+              else if (t === 'bin') { var u8 = b64d(d); w._fire('message', new MessageEvent('message', { data: w.binaryType === 'arraybuffer' ? u8.buffer : new Blob([u8]) })); }
+              else if (t === 'close') { w.readyState = 3; delete socks[id]; if (!d.clean) w._fire('error', new Event('error')); w._fire('close', new CloseEvent('close', { code: d.code, reason: d.reason || '', wasClean: !!d.clean })); }
+            };
+            var W = function(url, protocols){ return String(url).slice(0, 5).toLowerCase() === 'ws://' ? new NWS(String(url), protocols) : (protocols ? new Orig(url, protocols) : new Orig(url)); };
+            W.CONNECTING = 0; W.OPEN = 1; W.CLOSING = 2; W.CLOSED = 3; W.prototype = Orig.prototype;
+            window.WebSocket = W;
+          }
           ['warn', 'error'].forEach(function(k){ var o = console[k]; console[k] = function(){ try { post(k + ' ' + Array.prototype.map.call(arguments, function(x){ return x && x.stack ? x.stack : (typeof x === 'object' ? JSON.stringify(x) : String(x)); }).join(' ')); } catch (e) {} return o.apply(console, arguments); }; });
         })();
         """
+    }
+
+    // ── Agent-Modus (Agent.swift): koppeln öffnet allmyprinters.com/web…, trennen die eigene Oberfläche ──
+    func openAgent(_ url: String) {
+        Agent.url = url.components(separatedBy: "#").first
+        if let u = URL(string: url) { web.load(URLRequest(url: u)) }
+    }
+    func openLocal() {
+        Agent.url = nil
+        web.load(URLRequest(url: URL(string: Self.start)!))
     }
 
     func js(_ s: String) {
@@ -121,7 +167,7 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
 
     func webView(_ w: WKWebView, didFinish n: WKNavigation!) {
         Log.write("geladen \(w.url?.absoluteString ?? "")")
-        if UserDefaults.standard.string(forKey: "ampDiag") == "1" { Diag.run(self) }
+        if UserDefaults.standard.string(forKey: "ampDiag") == "1" { if w.url?.host == Agent.host { Diag.agent(self) } else { Diag.run(self) } }
     }
 
     func webView(_ w: WKWebView, didFail n: WKNavigation!, withError e: Error) { Log.write("Laden fehlgeschlagen: \(e)") }
@@ -151,7 +197,8 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
     /// Kamera für den QR-Scanner (getUserMedia) nur für die eigene Oberfläche
     @available(iOS 15.0, *)
     func webView(_ w: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame f: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        decisionHandler(origin.protocol == "amp" && type == .camera ? .prompt : .deny)
+        // eigene Oberfläche und die Agent-Seite (QR-Code des Agenten scannen)
+        decisionHandler((origin.protocol == "amp" || (origin.protocol == "https" && origin.host == Agent.host)) && type == .camera ? .prompt : .deny)
     }
 
     func presentSafe(_ vc: UIViewController, orElse: @escaping () -> Void) {

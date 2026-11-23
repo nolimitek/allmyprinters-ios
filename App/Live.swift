@@ -506,7 +506,7 @@ enum Live {
         return s
     }
     /// Ein Rahmen → (op, fin, Nutzdaten)
-    private static func wsRead(_ s: Sock, max: Int) throws -> (UInt8, Bool, Data) {
+    static func wsRead(_ s: Sock, max: Int) throws -> (UInt8, Bool, Data) {
         let b0 = try s.byte(), b1 = try s.byte()
         var len = Int(b1 & 0x7f)
         if len == 126 { len = try s.u16() } else if len == 127 { let d = try s.read(8); len = d.reduce(0) { $0 << 8 | Int($1) } }
