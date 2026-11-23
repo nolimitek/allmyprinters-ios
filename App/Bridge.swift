@@ -93,6 +93,13 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
             let k = try req(a, "key"), urls = (a["urls"] as? [Any])?.map { "\($0)" } ?? []
             return Cam.start(k, urls)
         case "cam_stop": let k = try req(a, "key"); Cam.stop(k); return [String: Any]()
+        case "ftps":
+            let f = try file(a), host = try req(a, "host"), code = try req(a, "code"), remote = try req(a, "remote")
+            let tick = throttle(250)
+            let name = try Ftps.upload(host: host, code: code, file: f, remote: remote, port: i(a, "port", 990)) { sent, total in
+                if tick(sent == total) { self.event("upload", ["id": id, "sent": sent, "total": total]) }
+            }
+            return ["ok": true, "remote": name]
         case "cam_status": let k = try req(a, "key"); return Cam.state(k)
         case "live_open": let k = try req(a, "key"), kind = try req(a, "kind"); return Live.open(kind, k, a)
         case "live_state": let k = try req(a, "key"); return Live.state(k)

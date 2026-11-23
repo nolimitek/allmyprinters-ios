@@ -5,6 +5,7 @@ import WebKit
 /// Documents/diag-<ansicht>.json ablegen — der Lauf in GitHub Actions kopiert die Datei in den Zweig „ci“.
 enum Diag {
     static func run(_ vc: WebViewController) {
+        let full = (UserDefaults.standard.string(forKey: "ampHash") ?? "").isEmpty
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
             let js = """
             const out = { href: location.href, origin: location.origin, title: document.title, secure: window.isSecureContext,
@@ -40,6 +41,22 @@ enum Diag {
               const st = await AMP.native('cam_status', { key: 'diagsnap' }); await AMP.native('cam_stop', { key: 'diagsnap' }); return st; });
             await t('cam_bad', async () => { await AMP.native('cam', { key: 'diagbad', urls: ['http://8.8.8.8/x'] }); await new Promise(r => setTimeout(r, 1200)); return (await AMP.native('cam_status', { key: 'diagbad' })).err; });
             await t('cam_stop', async () => { await AMP.native('cam_stop', { key: 'diagcam' }); await AMP.native('cam_stop', { key: 'diagbad' }); return true; });
+            if (\(full ? "true" : "false")) {   // nur beim ersten Start (ci/smoke.sh wartet dort länger): gegen die Drucker-Nachbauten (ci/mocks.js)
+              await t('live_all', async () => {
+                const L = [['bambu', { host: '127.0.0.1', port: 18883, serial: '01P00A123456789', code: '12345678' }], ['cc2', { host: '127.0.0.1', port: 11883, serial: 'F01CC2TEST0001', code: '4711' }],
+                           ['sdcp', { host: '127.0.0.1', port: 13030 }], ['crws', { host: '127.0.0.1', port: 19999 }], ['acl', { host: '127.0.0.1', port: 18911, did: 'amp-diag' }]];
+                for (const [k, o] of L) await AMP.native('live_open', { kind: k, key: 'd_' + k, ...o });
+                await new Promise(r => setTimeout(r, 8000));
+                const res = {};
+                for (const [k] of L) { const s = await AMP.native('live_state', { key: 'd_' + k }); res[k] = [s.connected, s.err, s.registered, s.serial, Object.keys(s.state || {}).slice(0, 8)]; await AMP.native('live_close', { key: 'd_' + k }); }
+                return res; });
+              await t('ftps', async () => { const g = await AMP.native('stash', { b64: btoa('G28\\n'.repeat(5000)), name: 'f.gcode' });
+                const r = await AMP.native('ftps', { token: g.token, host: '127.0.0.1', port: 19990, code: '12345678', remote: 'diag.gcode.3mf' });
+                const ctl = await AMP.native('http', { url: 'http://127.0.0.1:18890/__bb' }); await AMP.native('fileDrop', { token: g.token });
+                const j = JSON.parse(ctl.text); return [r.ok, r.remote, j.reuseOk, j.reuseFails, j.uploads]; });
+              await t('cam_bambu', async () => { await AMP.native('cam', { key: 'dbb', urls: ['bambu6000://127.0.0.1:16000?code=12345678'] }); await new Promise(r => setTimeout(r, 3000));
+                const s = await AMP.native('cam_status', { key: 'dbb' }); await AMP.native('cam_stop', { key: 'dbb' }); return s; });
+            }
             out.errs = (window.__ampErr || []).slice(0, 40);
             return JSON.stringify(out);
             """
