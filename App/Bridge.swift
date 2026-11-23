@@ -86,6 +86,14 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "lib_dir_ok": return ["ok": false]
         case "nfc_state": return ["available": false, "enabled": false]
         case "agent_state": return ["coupled": false, "url": ""]
+        case "agent_restore": return [String: Any]()            // nichts zu übernehmen (Agent-Modus kommt später)
+        case "agent_migrate": return ["pending": false]
+        case "agent_snapshot": return ["at": 0]
+        case "cam":
+            let k = try req(a, "key"), urls = (a["urls"] as? [Any])?.map { "\($0)" } ?? []
+            return Cam.start(k, urls)
+        case "cam_stop": let k = try req(a, "key"); Cam.stop(k); return [String: Any]()
+        case "cam_status": let k = try req(a, "key"); return Cam.state(k)
         case "live_open": let k = try req(a, "key"), kind = try req(a, "kind"); return Live.open(kind, k, a)
         case "live_state": let k = try req(a, "key"); return Live.state(k)
         case "live_send": let k = try req(a, "key"), pl = try req(a, "payload"); return try Live.send(k, pl)

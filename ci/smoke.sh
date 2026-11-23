@@ -11,6 +11,11 @@ xcrun simctl boot "$U" 2>/dev/null || true
 xcrun simctl bootstatus "$U" -b >/dev/null
 xcrun simctl ui "$U" appearance light 2>/dev/null || true
 xcrun simctl install "$U" "$APP"
+# Test-Kamera (MJPEG) auf 127.0.0.1:8765 — der Simulator teilt das Netz des Mac
+ICN=$(ls /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/*.icns 2>/dev/null | head -1)
+if [ -n "$ICN" ] && sips -s format jpeg -Z 160 "$ICN" --out /tmp/amp-cam.jpg >/dev/null 2>&1; then
+  python3 ci/mjpeg.py /tmp/amp-cam.jpg & echo "Test-Kamera läuft ($(wc -c < /tmp/amp-cam.jpg) Bytes je Bild)"
+else echo "keine Test-Kamera (sips)"; fi
 shot() {   # $1 Ansicht (leer = Start), $2 Dateiname
   xcrun simctl terminate "$U" "$BID" 2>/dev/null || true
   xcrun simctl launch "$U" "$BID" -ampHash "$1" -ampDiag 1 >/dev/null || echo "Start fehlgeschlagen: $1"

@@ -75,6 +75,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
     let store: Store
     private let lock = NSLock()
     private var stopped = Set<ObjectIdentifier>()
+    private var pipes: [ObjectIdentifier: URLSessionDataTask] = [:]
     private let q = DispatchQueue(label: "amp.scheme", qos: .userInitiated, attributes: .concurrent)
     private let root = Bundle.main.resourceURL!
 
@@ -85,6 +86,9 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         let comp = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let qv = { (k: String) in comp?.queryItems?.first(where: { $0.name == k })?.value ?? "" }
         let path = url.path
+        // Kamera (Cam.swift): neuestes Einzelbild bzw. MJPEG-Strom der Kamera im Heimnetz durchgereicht
+        if path == "/cam/frame" { camFrame(task, qv("k")); return }
+        if path == "/cam/live" { camPipe(task, qv("u")); return }
         var file: URL? = nil, mime = "application/octet-stream", cache = "no-cache"
         if path == "/file" { file = store.file(qv("t")); cache = "no-store" }
         else if path == "/www/api.php" && qv("a") == "lib_thumb" { file = store.libThumb(qv("id"), qv("n")); mime = "image/png"; cache = "max-age=31536000" }
@@ -111,7 +115,67 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         }
     }
 
-    func webView(_ w: WKWebView, stop task: WKURLSchemeTask) { lock.lock(); stopped.insert(ObjectIdentifier(task)); lock.unlock() }
+    func webView(_ w: WKWebView, stop task: WKURLSchemeTask) {
+        lock.lock(); stopped.insert(ObjectIdentifier(task)); let p = pipes.removeValue(forKey: ObjectIdentifier(task)); lock.unlock()
+        p?.cancel()
+    }
+
+    private func camFrame(_ task: WKURLSchemeTask, _ key: String) {
+        let id = ObjectIdentifier(task)
+        q.async {
+            if let b = Cam.frame(key) {
+                if self.respond(task, status: 200, mime: "image/jpeg", cache: "no-store", length: Int64(b.count)) {
+                    DispatchQueue.main.sync { if self.alive(id) { task.didReceive(b) } }
+                }
+            } else { self.respond(task, status: 204, mime: "image/jpeg", cache: "no-store", length: 0) }
+            self.finish(task)
+        }
+    }
+
+    /// Strom unverändert durchreichen (Content-Type samt multipart-Grenze); schließt die Seite das Bild, endet auch die Verbindung
+    private func camPipe(_ task: WKURLSchemeTask, _ u: String) {
+        let id = ObjectIdentifier(task)
+        q.async {
+            guard let url = URL(string: u), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), Cam.privateURL(u) else {
+                self.respond(task, status: 403, mime: "text/plain", cache: "no-store", length: 0); self.finish(task); return
+            }
+            var rq = URLRequest(url: url); rq.timeoutInterval = 15; rq.setValue("AllMyPrinters", forHTTPHeaderField: "User-Agent")
+            let job = Net.Job()
+            let started = NSLock(); var sent = false
+            job.onResp = { r in
+                guard (200...299).contains(r.statusCode), self.alive(id) else { return false }
+                let ct = r.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
+                let ok = self.respondH(task, status: 200, headers: ["Content-Type": ct, "Cache-Control": "no-store", "Access-Control-Allow-Origin": "amp://app"])
+                started.lock(); sent = ok; started.unlock()
+                return ok
+            }
+            job.onChunk = { d in
+                guard self.alive(id) else { return false }
+                DispatchQueue.main.sync { if self.alive(id) { task.didReceive(d) } }
+                return self.alive(id)
+            }
+            job.onDone = { _ in
+                started.lock(); let was = sent; started.unlock()
+                if !was { self.respond(task, status: 502, mime: "text/plain", cache: "no-store", length: 0) }
+                self.lock.lock(); self.pipes.removeValue(forKey: id); self.lock.unlock()
+                self.finish(task)
+            }
+            let t = Net.shared.stream(rq, job: job)
+            self.lock.lock(); self.pipes[id] = t; self.lock.unlock()
+        }
+    }
+
+    @discardableResult
+    private func respondH(_ task: WKURLSchemeTask, status: Int, headers: [String: String]) -> Bool {
+        let id = ObjectIdentifier(task)
+        var ok = false
+        let run = {
+            guard self.alive(id), let url = task.request.url else { return }
+            task.didReceive(HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!); ok = true
+        }
+        if Thread.isMainThread { run() } else { DispatchQueue.main.sync(execute: run) }
+        return ok
+    }
 
     private func alive(_ id: ObjectIdentifier) -> Bool { lock.lock(); defer { lock.unlock() }; return !stopped.contains(id) }
 

@@ -31,6 +31,13 @@ enum Diag {
             await t('live', async () => { await AMP.native('live_open', { kind: 'sdcp', key: 'diag', host: '127.0.0.1', port: 9 });
               await new Promise(r => setTimeout(r, 2500)); const s = await AMP.native('live_state', { key: 'diag' }); await AMP.native('live_close', { key: 'diag' });
               return [s.connected, s.err]; });
+            await t('cam', async () => { await AMP.native('cam', { key: 'diagcam', urls: ['http://127.0.0.1:8765/stream'] });
+              await new Promise(r => setTimeout(r, 3000)); const st = await AMP.native('cam_status', { key: 'diagcam' });
+              const fr = await fetch('/cam/frame?k=diagcam&n=1', { cache: 'no-store' }); const fb = (await fr.arrayBuffer()).byteLength;
+              const lv = await fetch('/cam/live?u=' + encodeURIComponent('http://127.0.0.1:8765/stream')); const rd = lv.body.getReader(); const c1 = await rd.read(); rd.cancel();
+              const bad = await AMP.native('cam', { key: 'diagbad', urls: ['http://8.8.8.8/x'] }); await new Promise(r => setTimeout(r, 1200)); const sb = await AMP.native('cam_status', { key: 'diagbad' });
+              await AMP.native('cam_stop', { key: 'diagcam' }); await AMP.native('cam_stop', { key: 'diagbad' });
+              return { frames: st.frames, src: st.src, err: st.err, frame: [fr.status, fr.headers.get('content-type'), fb], live: [lv.status, lv.headers.get('content-type'), c1.value ? c1.value.length : 0], bad: sb.err }; });
             out.errs = (window.__ampErr || []).slice(0, 40);
             return JSON.stringify(out);
             """

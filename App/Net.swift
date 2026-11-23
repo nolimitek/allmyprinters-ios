@@ -17,6 +17,10 @@ final class Net: NSObject, URLSessionDataDelegate {
         var err: Error?
         var onSend: ((Int64, Int64) -> Void)?
         var onRecv: ((Int64, Int64) -> Void)?
+        // Datenstrom (Kamera): onResp darf ablehnen, onChunk bekommt jedes Stück (false = abbrechen), onDone statt Warten
+        var onResp: ((HTTPURLResponse) -> Bool)?
+        var onChunk: ((Data) -> Bool)?
+        var onDone: ((Error?) -> Void)?
         let done = DispatchSemaphore(value: 0)
     }
 
@@ -46,15 +50,28 @@ final class Net: NSObject, URLSessionDataDelegate {
         return job
     }
 
+    /// Ohne Warten starten (Kamera-Durchleitung); die Rückrufe in job melden Kopf, Daten und Ende
+    @discardableResult
+    func stream(_ req: URLRequest, job: Job) -> URLSessionDataTask {
+        let t = session.dataTask(with: req)
+        lock.lock(); jobs[t.taskIdentifier] = job; lock.unlock()
+        t.resume()
+        return t
+    }
+
     private func job(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs[t.taskIdentifier] }
 
     func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        if let j = job(dataTask) { j.resp = response as? HTTPURLResponse; j.expected = response.expectedContentLength }
+        if let j = job(dataTask) {
+            j.resp = response as? HTTPURLResponse; j.expected = response.expectedContentLength
+            if let cb = j.onResp, let r = j.resp, !cb(r) { completionHandler(.cancel); return }
+        }
         completionHandler(.allow)
     }
 
     func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard let j = job(dataTask) else { return }
+        if let cb = j.onChunk { if !cb(data) { dataTask.cancel() }; return }
         j.got += Int64(data.count)
         if let fh = j.out { fh.write(data) }
         else if j.data.count < j.max { j.data.append(data.prefix(j.max - j.data.count)) }
@@ -70,6 +87,7 @@ final class Net: NSObject, URLSessionDataDelegate {
         guard let j else { return }
         if j.resp == nil { j.resp = task.response as? HTTPURLResponse }
         j.err = error
+        j.onDone?(error)
         j.done.signal()
     }
 
