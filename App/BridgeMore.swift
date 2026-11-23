@@ -197,11 +197,16 @@ final class ZipWriter {
 
     private func header(_ name: String, crc: UInt32, size: UInt32) {
         let n = Data(name.utf8)
-        var l = Self.le32(0x04034b50) + Self.le16(20) + Self.le16(0x800) + Self.le16(0) + Self.le16(0) + Self.le16(0x21)
-        l += Self.le32(crc) + Self.le32(size) + Self.le32(size) + Self.le16(n.count) + Self.le16(0) + n
-        var c = Self.le32(0x02014b50) + Self.le16(20) + Self.le16(20) + Self.le16(0x800) + Self.le16(0) + Self.le16(0) + Self.le16(0x21)
-        c += Self.le32(crc) + Self.le32(size) + Self.le32(size) + Self.le16(n.count) + Self.le16(0) + Self.le16(0) + Self.le16(0) + Self.le16(0) + Self.le32(0) + Self.le32(off) + n
-        h.write(l); central += c; count += 1
+        // Lokaler Kopf: Signatur, Version, Bit 11 (UTF-8), Verfahren 0, Zeit, Datum, CRC, Größen, Namenslänge, Extra-Länge, Name
+        var l = Data()
+        for part in [Self.le32(0x04034b50), Self.le16(20), Self.le16(0x800), Self.le16(0), Self.le16(0), Self.le16(0x21)] { l.append(part) }
+        for part in [Self.le32(crc), Self.le32(size), Self.le32(size), Self.le16(n.count), Self.le16(0), n] { l.append(part) }
+        // Eintrag im Inhaltsverzeichnis
+        var c = Data()
+        for part in [Self.le32(0x02014b50), Self.le16(20), Self.le16(20), Self.le16(0x800), Self.le16(0), Self.le16(0), Self.le16(0x21)] { c.append(part) }
+        for part in [Self.le32(crc), Self.le32(size), Self.le32(size), Self.le16(n.count), Self.le16(0), Self.le16(0)] { c.append(part) }
+        for part in [Self.le16(0), Self.le16(0), Self.le32(0), Self.le32(off), n] { c.append(part) }
+        h.write(l); central.append(c); count += 1
         off += UInt32(l.count)
     }
 
@@ -229,7 +234,8 @@ final class ZipWriter {
     func finish() throws {
         let cdOff = off
         h.write(central)
-        let e = Self.le32(0x06054b50) + Self.le16(0) + Self.le16(0) + Self.le16(count) + Self.le16(count) + Self.le32(UInt32(central.count)) + Self.le32(cdOff) + Self.le16(0)
+        var e = Data()
+        for part in [Self.le32(0x06054b50), Self.le16(0), Self.le16(0), Self.le16(count), Self.le16(count), Self.le32(UInt32(central.count)), Self.le32(cdOff), Self.le16(0)] { e.append(part) }
         h.write(e)
         try h.close()
     }
