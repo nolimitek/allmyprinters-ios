@@ -26,6 +26,9 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         cfg.userContentController = uc
         cfg.allowsInlineMediaPlayback = true
         cfg.websiteDataStore = .default()
+        // App-gebundene Domains (Info.plist WKAppBoundDomains: app, allmyprinters.com): nötig für den Service Worker der Agent-Seite;
+        // ohne diese Einstellung behandelt WebKit jede Seite als „nicht gebunden“ und sperrt Skripte und Brücke überall
+        cfg.limitsNavigationsToAppBoundDomains = true
         web = WKWebView(frame: .zero, configuration: cfg)
         #if DEBUG
         if #available(iOS 16.4, *) { web.isInspectable = true }

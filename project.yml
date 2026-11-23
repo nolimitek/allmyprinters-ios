@@ -43,7 +43,8 @@ targets:
         NSBonjourServices: [_http._tcp, _octoprint._tcp, _moonraker._tcp]
         NSCameraUsageDescription: "Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten)."
         # Agent-Modus: allmyprinters.com/web braucht einen Service Worker — in WKWebView nur für App-gebundene Domains
-        WKAppBoundDomains: [allmyprinters.com]
+        # „app“ = eigene Oberfläche amp://app (sonst sperrt WebKit dort Skripte und Brücke), dazu limitsNavigationsToAppBoundDomains
+        WKAppBoundDomains: [app, allmyprinters.com]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.allmyprinters.app
