@@ -14,8 +14,11 @@ xcrun simctl install "$U" "$APP"
 # Test-Kamera (MJPEG) auf 127.0.0.1:8765 — der Simulator teilt das Netz des Mac
 ICN=$(ls /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/*.icns 2>/dev/null | head -1)
 if [ -n "$ICN" ] && sips -s format jpeg -Z 160 "$ICN" --out /tmp/amp-cam.jpg >/dev/null 2>&1; then
-  python3 ci/mjpeg.py /tmp/amp-cam.jpg > "$OUT/mjpeg.log" 2>&1 &
-  sleep 2; echo "Test-Kamera: Bild $(wc -c < /tmp/amp-cam.jpg) B, /snap $(curl -s -m 3 http://127.0.0.1:8765/snap | wc -c) B, /stream $(curl -s -m 2 http://127.0.0.1:8765/stream | wc -c) B"
+  nohup python3 -u ci/mjpeg.py /tmp/amp-cam.jpg > "$OUT/mjpeg.log" 2>&1 &
+  for k in 1 2 3 4 5 6 7 8 9 10; do curl -s -m 1 -o /dev/null http://127.0.0.1:8765/snap && break; sleep 1; done
+  echo "Test-Kamera: Bild $(wc -c < /tmp/amp-cam.jpg) B, /snap $(curl -s -m 3 http://127.0.0.1:8765/snap | wc -c) B, /stream $(curl -s -m 2 http://127.0.0.1:8765/stream | wc -c) B"
+  lsof -nP -iTCP:8765 -sTCP:LISTEN 2>&1 | head -3
+  curl -sv -m 2 -o /dev/null http://127.0.0.1:8765/snap 2>&1 | grep -E "^[<>*] " | head -12
 else echo "keine Test-Kamera (sips)"; fi
 shot() {   # $1 Ansicht (leer = Start), $2 Dateiname
   xcrun simctl terminate "$U" "$BID" 2>/dev/null || true

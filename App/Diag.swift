@@ -33,7 +33,11 @@ enum Diag {
               return [s.connected, s.err]; });
             await t('cam_start', async () => { await AMP.native('cam', { key: 'diagcam', urls: ['http://127.0.0.1:8765/stream'] }); await new Promise(r => setTimeout(r, 3000)); return AMP.native('cam_status', { key: 'diagcam' }); });
             await t('cam_frame', async () => { const fr = await fetch('/cam/frame?k=diagcam&n=1', { cache: 'no-store' }); return [fr.status, fr.headers.get('content-type'), (await fr.arrayBuffer()).byteLength]; });
-            await t('cam_live', async () => { const lv = await fetch('/cam/live?u=' + encodeURIComponent('http://127.0.0.1:8765/stream')); const rd = lv.body.getReader(); const c1 = await rd.read(); rd.cancel(); return [lv.status, lv.headers.get('content-type'), c1.value ? c1.value.length : 0]; });
+            // MJPEG wie in der Oberfläche (<img src=/cam/live?u=…>): fetch() kennt multipart/x-mixed-replace nicht
+            await t('cam_live', async () => { const im = new Image(); im.src = '/cam/live?u=' + encodeURIComponent('http://127.0.0.1:8765/stream'); document.body.appendChild(im);
+              await new Promise(r => setTimeout(r, 2500)); const w = [im.naturalWidth, im.naturalHeight, im.complete]; im.src = ''; im.remove(); return w; });
+            await t('cam_snap', async () => { await AMP.native('cam', { key: 'diagsnap', urls: ['http://127.0.0.1:8765/snap'] }); await new Promise(r => setTimeout(r, 2000));
+              const st = await AMP.native('cam_status', { key: 'diagsnap' }); await AMP.native('cam_stop', { key: 'diagsnap' }); return st; });
             await t('cam_bad', async () => { await AMP.native('cam', { key: 'diagbad', urls: ['http://8.8.8.8/x'] }); await new Promise(r => setTimeout(r, 1200)); return (await AMP.native('cam_status', { key: 'diagbad' })).err; });
             await t('cam_stop', async () => { await AMP.native('cam_stop', { key: 'diagcam' }); await AMP.native('cam_stop', { key: 'diagbad' }); return true; });
             out.errs = (window.__ampErr || []).slice(0, 40);
