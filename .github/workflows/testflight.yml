@@ -1,10 +1,11 @@
 # TestFlight: signiert über den App-Store-Connect-API-Schlüssel (ohne Mac) und lädt hoch.
-# Start: Tag tf-<n> pushen oder „Run workflow“. Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei).
+# Start: main in den Zweig testflight schieben (git push origin main:testflight) oder „Run workflow“.
+# Kein Tag: der Actions-Cache gilt je Ref, bei Tags entstünde jedes Mal ein neues Verteilungszertifikat. Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei).
 # Ergebnis (ohne Geheimnisse) landet im Zweig ci-tf.
 name: testflight
 on:
   push:
-    tags: ['tf-*']
+    branches: [testflight]
   workflow_dispatch:
 permissions:
   contents: write
