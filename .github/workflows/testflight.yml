@@ -17,6 +17,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Xcode 26 wählen (App Store verlangt das iOS-26-SDK)
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$X" ] || { ls -d /Applications/Xcode*.app; echo "kein Xcode 26 auf dem Runner"; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
       - name: Schlüssel vorhanden?
         env:
           K: ${{ secrets.ASC_KEY_P8 }}
