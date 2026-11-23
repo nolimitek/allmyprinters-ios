@@ -110,28 +110,70 @@ enum Cam {
         lock.lock(); if feeds[f.key] === f, !f.watched { feeds.removeValue(forKey: f.key) }; lock.unlock()
     }
 
+    /// HTTP-GET über einen eigenen Socket (ohne URLSession: die zerlegt multipart/x-mixed-replace in lauter Einzelantworten)
+    /// → Socket steht hinter den Kopfzeilen; Status und Kopfzeilen (klein geschrieben)
+    static func rawGet(_ url: URL, timeoutMs: Int = 4000) throws -> (Sock, Int, [String: String]) {
+        guard let host = url.host else { throw BErr("IllegalArgumentException", "bad_url") }
+        let port = url.port ?? 80
+        let s = try Sock(host: host, port: port, tls: false, connectTimeoutMs: timeoutMs)
+        s.readTimeout = 15
+        let c = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var path = c?.percentEncodedPath ?? "/"; if path.isEmpty { path = "/" }
+        if let q = c?.percentEncodedQuery { path += "?" + q }
+        do {
+            try s.write(Data("GET \(path) HTTP/1.0\r\nHost: \(host):\(port)\r\nUser-Agent: AllMyPrinters\r\nAccept: */*\r\nConnection: close\r\n\r\n".utf8))
+            var head = Data()
+            while !head.suffix(4).elementsEqual([13, 10, 13, 10]) { head.append(try s.byte()); if head.count > 16384 { throw BErr("IOException", "bad header") } }
+            let lines = String(decoding: head, as: UTF8.self).components(separatedBy: "\r\n")
+            let status = Int(lines.first?.split(separator: " ").dropFirst().first.map(String.init) ?? "") ?? 0
+            var h: [String: String] = [:]
+            for l in lines.dropFirst() { if let i = l.firstIndex(of: ":") { h[l[..<i].lowercased()] = l[l.index(after: i)...].trimmingCharacters(in: .whitespaces) } }
+            return (s, status, h)
+        } catch { s.close(); throw error }
+    }
+
     /// Eine Quelle lesen, solange jemand zusieht. Wirft, wenn sie kein Bild (mehr) liefert.
     private static func read(_ f: CamFeed, _ u: String) throws {
         if u.hasPrefix("bambu6000://") { try bambu6000(f, u); return }
         guard let url = URL(string: u) else { throw BErr("IllegalArgumentException", "bad_url") }
+        if url.scheme?.lowercased() == "http" {
+            let (s, st, h) = try rawGet(url)
+            defer { s.close() }
+            guard (200...299).contains(st) else { throw BErr("IOException", "HTTP \(st)") }
+            let ct = (h["content-type"] ?? "").lowercased()
+            if ct.hasPrefix("multipart/") {
+                f.set(src: u, err: "")
+                var buf = Data()
+                while f.watched {
+                    buf.append(try s.readSome(65536))
+                    cut(&buf) { f.put($0) }
+                    if buf.count > MAX_FRAME { buf.removeAll() }
+                }
+                throw BErr("IOException", "stream ended")
+            }
+            var img = Data()
+            while img.count < MAX_FRAME, let d = try? s.readSome(65536) { img.append(d) }
+            guard isJpeg(img) else { throw BErr("IOException", "no jpeg (\(ct))") }
+            f.set(src: u, err: "")
+            f.put(img)
+            try poll(f, url)
+            return
+        }
         var rq = URLRequest(url: url); rq.timeoutInterval = 8; rq.setValue("AllMyPrinters", forHTTPHeaderField: "User-Agent")
         // MJPEG: JPEGs zwischen FFD8 und FFD9 herausschneiden; Einzelbild: erstes Bild, dann im Takt neu holen
+        // https: URLSession liefert jeden Teil eines multipart-Stroms als eigene Antwort → Teil = Bild
         let job = Net.Job()
-        var multipart = false
-        var buf = Data()
+        var multipart = false, responses = 0
         var single = Data()
         job.onResp = { r in
             guard (200...299).contains(r.statusCode) else { return false }
-            multipart = (r.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased().hasPrefix("multipart/")
-            if multipart { f.set(src: u, err: "") }
-            return true
+            responses += 1
+            if responses > 1 { multipart = true; if isJpeg(single) { f.put(single); f.set(src: u, err: "") }; single = Data() }
+            return f.watched || responses == 1
         }
         job.onChunk = { d in
-            if !multipart { if single.count < MAX_FRAME { single.append(d) }; return true }
-            buf.append(d)
-            cut(&buf) { f.put($0) }
-            if buf.count > MAX_FRAME { buf.removeAll() }
-            return f.watched
+            if single.count < MAX_FRAME { single.append(d) }
+            return !multipart || f.watched
         }
         do { try Net.shared.run(rq, job: job) } catch {
             if multipart { throw BErr("IOException", "stream ended") }
@@ -143,6 +185,11 @@ enum Cam {
         guard isJpeg(single) else { throw BErr("IOException", "no jpeg (\(job.resp?.value(forHTTPHeaderField: "Content-Type") ?? ""))") }
         f.set(src: u, err: "")
         f.put(single)
+        try poll(f, url)
+    }
+
+    /// Kameras ohne Strom: Einzelbild im Takt neu holen
+    private static func poll(_ f: CamFeed, _ url: URL) throws {
         while f.watched {
             let t0 = Live.now()
             let j2 = Net.Job(); j2.max = MAX_FRAME

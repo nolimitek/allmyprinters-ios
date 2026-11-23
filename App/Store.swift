@@ -76,6 +76,9 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
     private let lock = NSLock()
     private var stopped = Set<ObjectIdentifier>()
     private var pipes: [ObjectIdentifier: URLSessionDataTask] = [:]
+    private var socks: [ObjectIdentifier: Sock] = [:]
+    private var responded = Set<ObjectIdentifier>()   // WebKit bricht hart ab, wenn eine Aufgabe zweimal einen Antwortkopf bekommt
+    private func firstResponse(_ id: ObjectIdentifier) -> Bool { lock.lock(); defer { lock.unlock() }; return responded.insert(id).inserted }
     private let q = DispatchQueue(label: "amp.scheme", qos: .userInitiated, attributes: .concurrent)
     private let root = Bundle.main.resourceURL!
 
@@ -116,8 +119,8 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ w: WKWebView, stop task: WKURLSchemeTask) {
-        lock.lock(); stopped.insert(ObjectIdentifier(task)); let p = pipes.removeValue(forKey: ObjectIdentifier(task)); lock.unlock()
-        p?.cancel()
+        lock.lock(); stopped.insert(ObjectIdentifier(task)); let p = pipes.removeValue(forKey: ObjectIdentifier(task)); let sk = socks.removeValue(forKey: ObjectIdentifier(task)); lock.unlock()
+        p?.cancel(); sk?.close()
     }
 
     private func camFrame(_ task: WKURLSchemeTask, _ key: String) {
@@ -141,6 +144,26 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
             guard let url = URL(string: u), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), Cam.privateURL(u) else {
                 Log.write("cam/live abgelehnt: \(u.prefix(80))")
                 self.respond(task, status: 403, mime: "text/plain", cache: "no-store", length: 0); self.finish(task); return
+            }
+            if url.scheme?.lowercased() == "http" {   // roh weiterreichen (URLSession würde multipart in Einzelantworten zerlegen)
+                Thread.detachNewThread {
+                    var sentHead = false
+                    do {
+                        let (sk, st, h) = try Cam.rawGet(url)
+                        defer { sk.close() }
+                        self.lock.lock(); self.socks[id] = sk; self.lock.unlock()
+                        guard (200...299).contains(st) else { throw BErr("IOException", "HTTP \(st)") }
+                        sentHead = self.respondH(task, status: 200, headers: ["Content-Type": h["content-type"] ?? "application/octet-stream", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "amp://app"])
+                        while sentHead && self.alive(id) {
+                            let d = try sk.readSome(65536)
+                            DispatchQueue.main.sync { if self.alive(id) { task.didReceive(d) } }
+                        }
+                    } catch { Log.write("cam/live \(url.host ?? ""): \(sentHead ? "Ende" : "kein Strom") \(error)") }
+                    if !sentHead { self.respond(task, status: 502, mime: "text/plain", cache: "no-store", length: 0) }
+                    self.lock.lock(); self.socks.removeValue(forKey: id); self.lock.unlock()
+                    self.finish(task)
+                }
+                return
             }
             var rq = URLRequest(url: url); rq.timeoutInterval = 15; rq.setValue("AllMyPrinters", forHTTPHeaderField: "User-Agent")
             let job = Net.Job()
@@ -174,7 +197,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         let id = ObjectIdentifier(task)
         var ok = false
         let run = {
-            guard self.alive(id), let url = task.request.url else { return }
+            guard self.alive(id), let url = task.request.url, self.firstResponse(id) else { return }
             task.didReceive(HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!); ok = true
         }
         if Thread.isMainThread { run() } else { DispatchQueue.main.sync(execute: run) }
@@ -188,7 +211,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         let id = ObjectIdentifier(task)
         var ok = false
         let run = {
-            guard self.alive(id), let url = task.request.url else { return }
+            guard self.alive(id), let url = task.request.url, self.firstResponse(id) else { return }
             let r = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1",
                                     headerFields: ["Content-Type": mime, "Cache-Control": cache, "Content-Length": String(length), "Access-Control-Allow-Origin": "amp://app"])!
             task.didReceive(r); ok = true
@@ -201,7 +224,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
         let id = ObjectIdentifier(task)
         let run = {
             if self.alive(id) { task.didFinish() }
-            self.lock.lock(); self.stopped.remove(id); self.lock.unlock()
+            self.lock.lock(); self.stopped.remove(id); self.responded.remove(id); self.lock.unlock()
         }
         if Thread.isMainThread { run() } else { DispatchQueue.main.async(execute: run) }
     }

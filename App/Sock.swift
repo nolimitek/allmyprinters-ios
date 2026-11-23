@@ -103,6 +103,18 @@ final class Sock {
         buf.removeFirst(n)
         return Data(d)
     }
+    /// Was gerade da ist (mindestens 1 Byte, höchstens max) — für Datenströme (Kamera)
+    func readSome(_ max: Int) throws -> Data {
+        cond.lock(); defer { cond.unlock() }
+        while buf.isEmpty {
+            if closed { throw BErr("IOException", failure ?? "closed") }
+            if !cond.wait(until: Date().addingTimeInterval(readTimeout)) && buf.isEmpty { throw BErr("SocketTimeoutException", "Read timed out") }
+        }
+        let n = min(max, buf.count)
+        let d = Data(buf.prefix(n))
+        buf.removeFirst(n)
+        return d
+    }
     func byte() throws -> UInt8 { try read(1).first! }
     func u16() throws -> Int { let d = try read(2); return Int(d[d.startIndex]) << 8 | Int(d[d.startIndex + 1]) }
 
