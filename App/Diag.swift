@@ -21,6 +21,16 @@ enum Diag {
             await t('file', async () => { const s = await AMP.native('stash', { b64: btoa('hallo'), name: 'x.txt' }); const r = await AMP.native('fileRead', { token: s.token });
               const m = await AMP.native('md5', { token: s.token }); await AMP.native('fileDrop', { token: s.token }); return [s.size, r.text, m.md5]; });
             await t('lib', async () => (await AMP.api('lib_list')).files.length);
+            await t('make3mf', async () => { const g = await AMP.native('stash', { b64: btoa('G28\nT0\nG1 X1\nT1 ; wechsel\n'), name: 'd.gcode' });
+              const z = await AMP.native('make3mf', { token: g.token, name: 'd.gcode.3mf', extra: { 'Metadata/slice_info.config': '<config/>' } });
+              const h = await AMP.native('fileRead', { token: z.token, length: 4 });
+              const r = await AMP.native('remap_tools', { token: g.token, map: { '0': 2, '1': 3 } }); const rt = await AMP.native('fileRead', { token: r.token });
+              for (const k of [g, z, r]) await AMP.native('fileDrop', { token: k.token });
+              return [z.size, h.text, r.changed, rt.text]; });
+            await t('udp', async () => (await AMP.native('udp', { ms: 400, send: { host: '127.0.0.1', port: 9, data: 'x' } })).packets.length);
+            await t('live', async () => { await AMP.native('live_open', { kind: 'sdcp', key: 'diag', host: '127.0.0.1', port: 9 });
+              await new Promise(r => setTimeout(r, 2500)); const s = await AMP.native('live_state', { key: 'diag' }); await AMP.native('live_close', { key: 'diag' });
+              return [s.connected, s.err]; });
             out.errs = (window.__ampErr || []).slice(0, 40);
             return JSON.stringify(out);
             """

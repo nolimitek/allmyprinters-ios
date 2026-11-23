@@ -16,6 +16,8 @@ targets:
   AllMyPrinters:
     type: application
     platform: iOS
+    dependencies:
+      - sdk: libz.tbd
     sources:
       - path: App
       - path: www

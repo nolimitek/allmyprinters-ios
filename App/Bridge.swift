@@ -86,6 +86,15 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "lib_dir_ok": return ["ok": false]
         case "nfc_state": return ["available": false, "enabled": false]
         case "agent_state": return ["coupled": false, "url": ""]
+        case "live_open": let k = try req(a, "key"), kind = try req(a, "kind"); return Live.open(kind, k, a)
+        case "live_state": let k = try req(a, "key"); return Live.state(k)
+        case "live_send": let k = try req(a, "key"), pl = try req(a, "payload"); return try Live.send(k, pl)
+        case "live_close": let k = try req(a, "key"); Live.close(k); return [String: Any]()
+        case "udp": return try udp(a)
+        case "chunkUpload": return try chunkUpload(id, a)
+        case "putChunks": return try putChunks(id, a)
+        case "make3mf": return try make3mf(a)
+        case "remap_tools": return try remapTools(a)
         default: throw BErr("IllegalArgumentException", "unknown method \(m)")   // kommt in den nächsten Etappen (Live, Kamera, Bambu …)
         }
     }
@@ -105,23 +114,23 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
     }
 
     // ── Hilfen für die Argumente ──
-    private func s(_ a: [String: Any], _ k: String, _ def: String = "") -> String {
+    func s(_ a: [String: Any], _ k: String, _ def: String = "") -> String {
         if let v = a[k] as? String { return v }
         if let v = a[k] as? NSNumber { return v.stringValue }
         return def
     }
-    private func req(_ a: [String: Any], _ k: String) throws -> String {
+    func req(_ a: [String: Any], _ k: String) throws -> String {
         guard let v = a[k] else { throw BErr("JSONException", "No value for \(k)") }
         if let v = v as? String { return v }
         if let v = v as? NSNumber { return v.stringValue }
         throw BErr("JSONException", "No value for \(k)")
     }
-    private func i(_ a: [String: Any], _ k: String, _ def: Int = 0) -> Int { (a[k] as? NSNumber)?.intValue ?? Int(s(a, k)) ?? def }
-    private func file(_ a: [String: Any]) throws -> URL {
+    func i(_ a: [String: Any], _ k: String, _ def: Int = 0) -> Int { (a[k] as? NSNumber)?.intValue ?? Int(s(a, k)) ?? def }
+    func file(_ a: [String: Any]) throws -> URL {
         guard let u = store.file(s(a, "token")) else { throw BErr("IllegalStateException", "file_gone") }
         return u
     }
-    private func throttle(_ ms: Double) -> (Bool) -> Bool {
+    func throttle(_ ms: Double) -> (Bool) -> Bool {
         var last = Date.distantPast
         return { force in let now = Date(); if force || now.timeIntervalSince(last) * 1000 > ms { last = now; return true }; return false }
     }
@@ -311,7 +320,7 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         return ["b64": d.base64EncodedString(), "size": size]
     }
 
-    private func md5(_ f: URL) throws -> String {
+    func md5(_ f: URL) throws -> String {
         var m = Insecure.MD5()
         let h = try FileHandle(forReadingFrom: f); defer { try? h.close() }
         while true { let c = h.readData(ofLength: 1 << 20); if c.isEmpty { break }; m.update(data: c) }
