@@ -21,7 +21,7 @@ lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -E "node|python" | awk '{print $1
 shot() {   # $1 Ansicht (leer = Start, dort alle Prüfungen gegen die Nachbauten), $2 Dateiname
   xcrun simctl terminate "$U" "$BID" 2>/dev/null || true
   xcrun simctl launch "$U" "$BID" -ampHash "$1" -ampDiag 1 >/dev/null || echo "Start fehlgeschlagen: $1"
-  if [ -z "$1" ]; then sleep 95; else sleep 20; fi
+  if [ -z "$1" ]; then sleep 125; else sleep 20; fi
   xcrun simctl io "$U" screenshot "$OUT/$2.png" >/dev/null 2>&1 || echo "kein Bild: $2"
 }
 shot "" 01-start

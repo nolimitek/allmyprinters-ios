@@ -141,9 +141,29 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
     private func camPipe(_ task: WKURLSchemeTask, _ u: String) {
         let id = ObjectIdentifier(task)
         q.async {
-            guard let url = URL(string: u), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), Cam.privateURL(u) else {
+            guard let url = URL(string: u), ["http", "https", "rtsp", "rtsps"].contains(url.scheme?.lowercased() ?? ""), Cam.privateURL(u) else {
                 Log.write("cam/live abgelehnt: \(u.prefix(80))")
                 self.respond(task, status: 403, mime: "text/plain", cache: "no-store", length: 0); self.finish(task); return
+            }
+            // Bambu X1/H2/P2S: RTSP(S) mit H.264 → hier in FLV umgepackt (App/Rtsp.swift), flv.js spielt es wie den Kobra-X-Strom
+            if url.scheme?.lowercased().hasPrefix("rtsp") == true {
+                Thread.detachNewThread {
+                    var sentHead = false
+                    do {
+                        let r = try Rtsp(u)
+                        defer { r.close() }
+                        self.lock.lock(); self.socks[id] = r.sock; self.lock.unlock()
+                        sentHead = self.respondH(task, status: 200, headers: ["Content-Type": "video/x-flv", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "amp://app"])
+                        while sentHead && self.alive(id) {
+                            let d = try r.next()
+                            DispatchQueue.main.sync { if self.alive(id) { task.didReceive(d) } }
+                        }
+                    } catch { Log.write("cam/live rtsp \(url.host ?? ""): \(sentHead ? "Ende" : "kein Strom") \(error)") }
+                    if !sentHead { self.respond(task, status: 502, mime: "text/plain", cache: "no-store", length: 0) }
+                    self.lock.lock(); self.socks.removeValue(forKey: id); self.lock.unlock()
+                    self.finish(task)
+                }
+                return
             }
             if url.scheme?.lowercased() == "http" {   // roh weiterreichen (URLSession würde multipart in Einzelantworten zerlegen)
                 Thread.detachNewThread {

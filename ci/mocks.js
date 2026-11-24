@@ -96,4 +96,8 @@ http.createServer((req, res) => {
   if (newsN > 1) items.push({ id: 3, at: at(0), t: { de: 'Neu: Version 0.20.0', en: 'New: version 0.20.0' }, b: { de: 'Objekt für Objekt drucken', en: 'Print object by object' } });
   res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ v: 1, items }));
 }).listen(8767, '127.0.0.1');
+// ── Bambu X1/H2: RTSPS-Kamera (H.264, Digest bblp/12345678) auf 18322 (24.11.2026) ──
+let RT = null;
+try { RT = require(M + 'mock_rtsp.js').rtsp({ port: 18322, code: '12345678', tmp: TMP, h264: path.join(__dirname, 'fixtures', 'cam.h264') }); } catch (e) { console.log('RTSP-Nachbau fehlt: ' + e.message); }
+http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(RT ? RT.stats() : null)); }).listen(18323, '127.0.0.1');
 console.log('Nachbauten bereit');

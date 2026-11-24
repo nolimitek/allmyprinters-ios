@@ -154,6 +154,14 @@ enum Diag {
               await t('mse', () => ({ ms: typeof window.MediaSource, mms: typeof window.ManagedMediaSource, poly: !!window.__ampMms,
                 h264: window.MediaSource && MediaSource.isTypeSupported ? MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"') : null,
                 flvjs: typeof window.flvjs, flvOk: window.flvjs ? flvjs.isSupported() : null }));
+              // Bambu X1/H2: RTSPS → FLV in /cam/live (App/Rtsp.swift), zuerst roh (FLV-Kopf + Bytes), dann mit flv.js im <video>
+              await t('rtsp_raw', async () => { const ac = new AbortController(); setTimeout(() => ac.abort(), 6000);
+                const r = await fetch('/cam/live?u=' + encodeURIComponent('rtsps://bblp:12345678@127.0.0.1:18322/streaming/live/1'), { signal: ac.signal });
+                const rd = r.body.getReader(); let n = 0, head = ''; const t0 = Date.now();
+                try { while (Date.now() - t0 < 4000) { const { value, done } = await rd.read(); if (done) break; if (!head) head = String.fromCharCode(...value.slice(0, 3)); n += value.length; } } catch (e) {}
+                try { ac.abort(); } catch (e) {}
+                const st = JSON.parse((await AMP.native('http', { url: 'http://127.0.0.1:18323/' })).text);
+                return { status: r.status, type: r.headers.get('content-type'), head, bytes: n, mock: st }; });
               await t('flv_play', () => new Promise(res => {
                 if (!window.flvjs || !flvjs.isSupported()) { res('flvjs not supported'); return; }
                 const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true;
@@ -163,6 +171,17 @@ enum Diag {
                 const errs = []; p.on(flvjs.Events.ERROR, (a, b, c) => errs.push([a, b, c && c.msg]));
                 p.attachMediaElement(v); p.load(); const pl = v.play(); if (pl) pl.catch(e => errs.push('play ' + e.message));
                 setTimeout(() => { const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, drp: v.disableRemotePlayback, errs };
+                  try { p.destroy(); } catch (e) {} v.remove(); res(o); }, 9000);
+              }));
+              await t('rtsp_play', () => new Promise(res => {
+                if (!window.flvjs || !flvjs.isSupported()) { res('flvjs not supported'); return; }
+                const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true;
+                v.style.cssText = 'position:fixed;left:0;top:200px;width:320px;height:180px;z-index:99999;background:#000';
+                document.body.appendChild(v);
+                const p = flvjs.createPlayer({ type: 'flv', isLive: true, url: '/cam/live?u=' + encodeURIComponent('rtsps://bblp:12345678@127.0.0.1:18322/streaming/live/1') }, { enableStashBuffer: false });
+                const errs = []; p.on(flvjs.Events.ERROR, (a, b, c) => errs.push([a, b, c && c.msg]));
+                p.attachMediaElement(v); p.load(); const pl = v.play(); if (pl) pl.catch(e => errs.push('play ' + e.message));
+                setTimeout(() => { const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, errs };
                   try { p.destroy(); } catch (e) {} v.remove(); res(o); }, 9000);
               }));
             }
