@@ -734,7 +734,7 @@ function drawHistory() {
   for (const h of items) {
     const k = day(h.created_at);
     if (k !== cur_) { flush(); cur_ = k; buf = []; tot = 0; }
-    buf.push(histRow(h));
+    buf.push(ampHistRow(h));
     if (h.grams > 0 && h.kind !== 'weigh' && h.kind !== 'correction') tot += h.grams;
   }
   flush();
@@ -748,7 +748,7 @@ async function viewHistory() {
   hv.items = d.items; hv.more = d.more; hv.kind = ''; hv.q = '';
   const kinds = ['print', 'queue', 'manual', 'weigh', 'correction', 'dry'].filter(k => d.items.some(h => h.kind === k));
   const s = d.sum || { g7: 0, g30: 0, n30: 0 };
-  view.innerHTML = `<h1>${t('history_h')}</h1><p class="lead">${t('history_lead')}</p>
+  view.innerHTML = `<h1>${t('history_h')}</h1><p class="lead amp-hlead">${t('history_lead')}</p>
     <div class="hkpis"><div><span>${t('h_7d')}</span><b>${kg(s.g7)}</b></div><div><span>${t('h_30d')}</span><b>${kg(s.g30)}</b></div><div><span>${t('h_n30')}</span><b>${nf.format(s.n30)}</b></div></div>
     <div class="hbar-f"><div class="chips" id="hchips"><button type="button" class="chip on" data-k="">${t('h_all')}</button>${kinds.map(k => `<button type="button" class="chip" data-k="${k}">${esc(t('kind_' + k))}</button>`).join('')}</div>
       <input class="in" id="hq" type="search" placeholder="${esc(t('h_search_ph'))}" aria-label="${esc(t('h_search_ph'))}"></div>
@@ -1580,7 +1580,7 @@ const bbAlt = () => false ? `<br><small>${esc(S.pc_bb_blocked_alt)} <a href="${a
 // „Gleiche Modellsuche wie auf 3DSEARCH“ als eigener Punkt (User). Links mit utm_source=3dsearch zum Messen.
 const ampL = () => ['de', 'en', 'fr', 'es', 'it', 'nl'].includes(LANG) ? LANG : 'en';
 const ampUrl = (page, c) => `https://allmyprinters.com/${ampL()}/${page}/?utm_source=3dsearch&utm_medium=filament&utm_campaign=${c}`;
-const ampLinks = c => `<a href="${ampUrl('pc', c)}" target="_blank" rel="noopener">${esc(t('amp_c_pc'))}</a> · <a href="${ampUrl('beta', c)}" target="_blank" rel="noopener">${esc(t('amp_c_beta'))}</a>`;
+const ampLinks = c => `<a href="${ampUrl('pc', c)}" target="_blank" rel="noopener">${esc(t('amp_c_pc'))}</a> · <a href="${ampUrl('beta', c)}" target="_blank" rel="noopener">${esc(t('amp_c_beta'))}</a> · <a href="${ampUrl('iphone', c)}" target="_blank" rel="noopener">${esc(t('amp_c_ios'))}</a>`;   // iPhone seit 24.11.2026 (TestFlight-Beta)
 const ampHint = () => '';
 const ampHintWeb = () => `<br><small>${esc(t('amp_h_req'))} ${ampLinks('amp-hint')}</small>`;
 function ampCardHtml() {
@@ -1594,6 +1594,7 @@ function ampCardHtml() {
     <p class="ampc-sp">${esc(t('amp_c_spools'))}</p>
     <div class="ampc-acts"><a class="btn pri" href="${ampUrl('pc', 'amp-card')}" target="_blank" rel="noopener">${esc(t('amp_c_pc'))}</a>
       <a class="btn" href="${ampUrl('beta', 'amp-card')}" target="_blank" rel="noopener">${esc(t('amp_c_beta'))}</a>
+      <a class="btn" href="${ampUrl('iphone', 'amp-card')}" target="_blank" rel="noopener">${esc(t('amp_c_ios'))}</a>
       <a class="ampc-more" href="${ampUrl('features', 'amp-card')}" target="_blank" rel="noopener">${esc(t('amp_c_more'))}</a></div>
     <p class="ampc-sub">${esc(t('amp_c_pc_sub'))}</p></section>`;
 }
@@ -1803,7 +1804,7 @@ function assignDialog(ds) {
     <div class="dlg-b">${oldSp ? `<p class="note warn-note" style="margin:0">${esc(t(mid ? 'assign_empty_mid' : 'assign_empty_p', { s: title(oldSp) }))}</p>` : ''}
       <div class="picked"><span class="sw" style="background:${esc(ds.color || '#888')};width:22px;height:22px"></span><span class="t"><b>${esc(ds.mat || t('slot_empty'))}</b><span>${t('assign_slot_says')}</span></span></div>
       ${pending > 0 ? `<p class="hint" style="margin:0">${t('assign_pending', { n: pending })}</p>` : ''}
-      <button type="button" class="btn pri" id="fanew">+ ${t('assign_new')}</button>
+      <button type="button" class="btn pri" id="fanew">+ ${t('assign_new')}</button>${window.ampAsgScanBtn ? ampAsgScanBtn() : ''}
       ${pickSearchHtml(match.length + other.length)}
       <div id="falist">${curHtml}${match.length ? `<div><div class="fld"><span>${t('assign_match')}</span></div><div class="results spools-pick">${match.map(item).join('')}</div></div>` : ''}
       ${other.length ? `<div><div class="fld"><span>${t('assign_other')}</span></div><div class="results spools-pick">${other.map(item).join('')}</div></div>` : ''}
@@ -1827,6 +1828,7 @@ function assignDialog(ds) {
   bind(dlg);
   pickSearch([...match, ...other], item, bind, pickId);
   $('#fanew').onclick = () => { dlg.close(); editSpool(null, null, { material: ds.mat, color: ds.color, onCreated: ids => assign(ids[0]) }); };
+  if (window.ampAsgScanWire) ampAsgScanWire(pickId, [...match, ...other].map(x => x.s.id), curSp ? curSp.id : null);
   dlg.showModal();
 }
 
@@ -3196,13 +3198,13 @@ async function viewPrint() {
       const ok = s => s.material && s.remain !== 0 && !s.locked;
       p.slots.forEach(s => { if (def === null && ok(s) && /PLA/i.test(s.material)) def = s.index; });
       p.slots.forEach(s => { if (def === null && ok(s)) def = s.index; });
-      html = p.slots.map(s => `<label class="pick${s.material ? '' : ' off'}${s.locked ? ' off' : ''}"><input type="radio" name="slot" value="${s.index}"${s.index === def ? ' checked' : ''}${!s.material || s.locked ? ' disabled' : ''}>
-        <span class="sw lg${s.material ? '' : ' empty'}" style="${s.color ? 'background:' + esc(s.color) : ''}"></span><span class="t"><b>${esc(s.material || t('slot_empty'))}</b><span class="hint">${tf('pc_slot_n', esc(s.label))}</span></span></label>`).join('');
+      html = p.slots.map(s => `<label class="pick${s.material || s.need_mat ? '' : ' off'}${s.locked ? ' off' : ''}"><input type="radio" name="slot" value="${s.index}"${s.index === def ? ' checked' : ''}${!(s.material || s.need_mat) || s.locked ? ' disabled' : ''}>
+        <span class="sw lg${s.material ? '' : ' empty'}" style="${s.color ? 'background:' + esc(s.color) : ''}"></span><span class="t"><b>${esc(s.material || (s.need_mat ? t('amp_slot_need_mat') : t('slot_empty')))}</b><span class="hint">${tf('pc_slot_n', esc(s.label))}</span></span></label>`).join('');
       if (p.provider === 'creality') note = S.psd_note_creality;
       if (p.provider === 'moonraker' && p.ttg) note = S.psd_note_klipper_tool;
       if (p.provider === 'moonraker' && p.tool0 !== null) { const t0 = p.slots.find(s => s.index === p.tool0); note = tf('psd_note_klipper_mmu', t0 ? t0.label : String(p.tool0 + 1)); }
     }
-    $('#pslots').innerHTML = html;
+    $('#pslots').innerHTML = html; if (window.ampSlotMat) ampSlotMat(p, d.materials);
     $('#pnote').hidden = !note; $('#pnote').textContent = note;
     renderProfile(false);
     renderMulti();
@@ -3316,7 +3318,7 @@ async function viewPrint() {
     const p = printer(); if (!p) return '';
     const m = view.querySelector('#pslots select[name=material]'); if (m) return m.value;
     const c = view.querySelector('input[name=slot]:checked'), sl = c && (p.slots || []).find(x => String(x.index) === c.value);
-    return sl ? sl.material || '' : '';
+    return sl ? sl.material || (($('#pslotmat') || {}).disabled === false ? $('#pslotmat').value : '') : '';
   };
   const pxKey = p => [p.key, ($('#pnozzle') || {}).value || '', pxMat(), ($('#pbed') || {}).value || ''].join('|');
   function renderX() {
@@ -3392,7 +3394,7 @@ async function viewPrint() {
       pxCount(); pxSave();
     });
     // Fach, Material oder Platte gewechselt: Temperatur-Platzhalter neu (anderes Filamentprofil)
-    (view.querySelector('#pf') || box).addEventListener('change', e => { if (e.target && e.target.matches && e.target.matches('input[name=slot], #pslots select[name=material], #pbed')) renderX(); });
+    (view.querySelector('#pf') || box).addEventListener('change', e => { if (e.target && e.target.matches && e.target.matches('input[name=slot], #pslots select[name=material], #pbed, #pslotmat')) renderX(); });
     if (typeof ampProfInit === 'function') ampProfInit(box, () => { pxCount(); pxSave(); stale(); });
     $('#pxreset').onclick = () => {
       box.querySelectorAll('[name^=x_]').forEach(el => { el.value = ''; });
@@ -5625,6 +5627,23 @@ async function viewConnect() {
 
 // ── Drucken ────────────────────────────────────────────────────────────────
 const pr = { file: null, meta: null, printer: null, busy: false, err: '', lib: null };   // lib: aus der Bibliothek (Druckbuch)
+// Fertig geslicte 3MF (.gcode.3mf aus Bambu Studio/OrcaSlicer, 24.11.2026, Druckstarts 23.11.: ~20 vergebliche Versuche, so eine Datei in der
+// Druckansicht slicen zu lassen — „can not be parsed“): gehört wie G-Code in „Fertige Datei senden“ (#gcode) und geht unverändert an den
+// Drucker (backend printSend). Erkannt am Namen; in der Druckansicht auch am Inhalt (Metadata/plate_N.gcode, AMPMesh.isSliced).
+const ampIsG3 = n => /\.gcode\.3mf$/i.test(String(n || ''));
+const ampLibIsG3 = f => !!f && f.ext === '3mf' && [f.orig, f.name, (f.name || '') + '.3mf'].some(ampIsG3);
+document.addEventListener('change', async e => {
+  const inp = e.target;
+  if (!inp || inp.id !== 'pfile' || !inp.files || inp.files.length !== 1 || !window.AMPMesh) return;
+  const f = inp.files[0];
+  if (!/\.3mf$/i.test(f.name || '')) return;
+  let sliced = ampIsG3(f.name);
+  if (!sliced) { try { sliced = await AMPMesh.isSliced(f); } catch (er) { sliced = false; } }
+  if (!sliced || inp.files[0] !== f) return;
+  toast(t('amp_g3_moved'));
+  try { const token = await ampStash(f); pr.file = { token, name: f.name, size: f.size }; pr.meta = null; pr.err = ''; pr.lib = null; location.hash = 'gcode'; }
+  catch (er) { fail(er); }
+});
 const ampSize = n => n >= 1048576 ? nf1.format(n / 1048576) + ' MB' : nf.format(Math.round(n / 1024)) + ' KB';
 async function pickFile() {
   try {
@@ -5639,7 +5658,7 @@ async function pickFile() {
 let ampHand = null;
 AMP.on('file', async f => {
   if (await ampWantShare(f)) return;   // gehört zu einem gemerkten Modell (13.11.2026)
-  if (/\.(gcode|gco|g)$/i.test(f.name || '')) { pr.file = f; pr.meta = null; pr.err = ''; pr.lib = null; if (location.hash === '#gcode') viewGcode(); else location.hash = 'gcode'; return; }
+  if (/\.(gcode|gco|g)$/i.test(f.name || '') || ampIsG3(f.name)) { pr.file = f; pr.meta = null; pr.err = ''; pr.lib = null; if (location.hash === '#gcode') viewGcode(); else location.hash = 'gcode'; return; }
   ampHand = f;
   if (location.hash === '#print') viewPrint(); else location.hash = 'print';
 });
@@ -5715,6 +5734,7 @@ async function viewGcode() {
       <div class="t"><b>${esc(pr.file.name)}</b><span class="hint">${esc(ampSize(pr.file.size))}${md.slicer ? ' · ' + esc(md.slicer) : ''}</span>
       <div class="amp-kv">${md.time_s ? `<span><small>${esc(t('amp_time'))}</small><b>${esc(dur(Math.round(md.time_s / 60)))}</b></span>` : ''}
         ${tot ? `<span><small>${esc(t('amp_grams'))}</small><b>${esc(gUse(tot))}</b></span>` : ''}</div></div></div>
+      ${md.g3mf ? `<p class="hint amp-g3">${esc(t('amp_g3_note'))}</p>` : ''}
       <div class="amp-acts" style="margin-top:10px"><button type="button" class="btn sm" id="pother">${esc(t('amp_pick_other'))}</button></div></section>`;
   if (pr.err) h += `<div class="note warn-note">${esc(t('amp_file_bad'))}</div>`;
   if (!ps.length) {
@@ -5847,7 +5867,7 @@ async function viewSettings(group) {
     <section class="card amp-card amp-set">
       <label class="fld"><span>${esc(t('amp_lang'))}</span><select class="in" id="slang">${FM.LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAME[l]}</option>`).join('')}</select></label>
       <div class="fld"><span>${esc(t('amp_theme'))}</span><span class="seg" id="sth">${['system', 'light', 'dark'].map(m => `<button type="button" data-th="${m}" class="${theme === m ? 'on' : ''}">${esc(t('amp_' + m))}</button>`).join('')}</span></div>
-      <div class="fld"><span>${esc(t('amp_time'))}</span><span class="seg" id="stime">${['auto', '24', '12'].map(m => `<button type="button" data-tm="${m}" class="${ampTimeMode() === m ? 'on' : ''}">${esc(t('amp_time_' + m))}</button>`).join('')}</span></div>
+      <div class="fld"><span>${esc(t('amp_time_h'))}</span><span class="seg" id="stime">${['auto', '24', '12'].map(m => `<button type="button" data-tm="${m}" class="${ampTimeMode() === m ? 'on' : ''}">${esc(t('amp_time_' + m))}</button>`).join('')}</span></div>
       <label class="fld"><span>${esc(t('amp_currency'))}</span><select class="in" id="scur">${AMP_CUR.map(c => `<option${c === FM.cur ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
     </section>
     <section class="card amp-card amp-about"><h2>${esc(t('amp_about_h'))}</h2>${verLines}
@@ -6810,9 +6830,11 @@ function ampTubes(prov, p) {
     const mat = empty ? t('amp_tube_empty') : sl.material || (sp && sp.material) || '?';
     const stx = empty ? '' : sl.inuse && going ? t('amp_tube_run') : sp ? (low ? t('amp_tube_low', { g: g(sp.left) }) : g(sp.left)) : sl.locked ? '' : t('amp_tube_assign');
     const scls = sl.inuse && going ? ' run' : !empty && !sp && !sl.locked ? ' asg' : '';
+    // Kachel (24.11.2026): Marke · Farbe der Spule und ein Restbalken (am Handy blendet CSS die Zeile aus)
+    const sub = sp ? [ampBrand(sp.brand), sp.color_name].filter(Boolean).join(' · ') : '';
     return `<button type="button" role="listitem" class="amp-tube${empty ? ' amp-te' : ''}${sl.inuse ? ' inuse' : ''}${sl.inuse && going ? ' run' : ''}${low ? ' low' : ''}${crit ? ' crit' : ''}" data-tube="${esc(String(sl.slot_id))}" data-pid="${esc(p.id)}"
       aria-label="${esc(t('amp_tube_open', { s: label }) + ' · ' + (sl.material || '') + ' · ' + val)}"><span class="amp-tube-g">${face}</span>
-      <span class="amp-tube-l">${esc(label === 'Ext' ? t('slot_ext') : label)}</span><b class="amp-tube-v">${esc(mat)}</b>${stx ? `<span class="amp-tube-s${scls}">${esc(stx)}</span>` : ''}</button>`;
+      <span class="amp-tube-l">${esc(label === 'Ext' ? t('slot_ext') : label)}</span><b class="amp-tube-v">${esc(mat)}</b>${sub ? `<span class="amp-tube-b">${esc(sub)}</span>` : ''}${empty ? '' : `<span class="amp-tube-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>`}${stx ? `<span class="amp-tube-s${scls}">${esc(stx)}</span>` : ''}</button>`;
   }).join('')}</div>`;
 }
 /** Fachkarten (zum Zuordnen) unter den Spulen zum Aufklappen; offen, wenn etwas zu tun ist oder der Nutzer sie offen ließ. */
@@ -7439,6 +7461,65 @@ AMP.on('nfc', async ev => {
     ampNfcUnknown(ev, r);
   } catch (err) { console.error('nfc', err); }
 });
+// ── QR-Code scannen im Dialog „Spule zuordnen“ (24.11.2026, Community #54 Sebastian S.: „beim Wechseln der Spule auch den QR-Code
+// scannen statt nur aus der Liste wählen“) ─────────────────────────────────────────────────────────────────────────────────────
+// Kamera im Dialog selbst (kein zweites Fenster, die Liste bleibt darunter), Erkennung wie openScanner (BarcodeDetector, sonst jsQR),
+// Spule über resolve_qr (unsere Etiketten, Spoolman, „#31“). Gewählt wird über pickId des Dialogs → Rückfrage „aus anderem Fach
+// umsetzen?“ und Zuordnen wie beim Antippen. Nur was die Liste anbietet (sonst Hinweis). Kamera braucht eine sichere Seite (App,
+// allmyprinters.com/web) — direkt im Browser über http://agent gibt es sie nicht, dann fehlt der Knopf. Build_web-Patch in assignDialog.
+const I_QRS = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 8h3v3H8zM13 13h3v3h-3zM13 8h3M8 13v3"/></svg>';
+const ampAsgCam = () => !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+window.ampAsgScanBtn = () => !ampAsgCam() ? '' : `<button type="button" class="btn" id="fascan">${I_QRS} ${esc(t('amp_asg_scan'))}</button>
+  <div class="amp-asg-scan" id="fascanw" hidden><div class="scanbox"><video id="fascv" playsinline muted></video><span class="scanframe"></span></div>
+    <p class="hint" id="fascmsg">${esc(t('scan_hint'))}</p><div class="amp-acts"><button type="button" class="btn sm ghost" id="fascstop">${esc(t('cancel'))}</button></div></div>`;
+window.ampAsgScanWire = (pickId, ids, curId) => {
+  const btn = dlg.querySelector('#fascan'); if (!btn) return;
+  const box = dlg.querySelector('#fascanw'), ok = new Set(ids.map(Number));
+  const msg = m => { const el = dlg.querySelector('#fascmsg'); if (el) el.textContent = m; };
+  let stream = null, on = false;
+  const stop = () => { on = false; if (stream) { stream.getTracks().forEach(tr => tr.stop()); stream = null; } if (box) box.hidden = true; btn.hidden = false; };
+  dlg.addEventListener('close', stop, { once: true });
+  dlg.querySelector('#fascstop').onclick = stop;
+  btn.onclick = async () => {
+    btn.hidden = true; box.hidden = false; msg(t('scan_hint'));
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    catch (e) { msg(t('scan_nocam')); return; }
+    if (!dlg.open || box.hidden) { stop(); return; }
+    const video = dlg.querySelector('#fascv'); video.srcObject = stream; await video.play().catch(() => {});
+    let detect;
+    if ('BarcodeDetector' in window) {
+      const bd = new BarcodeDetector({ formats: ['qr_code'] });
+      detect = async () => { const r = await bd.detect(video).catch(() => []); return r[0] && r[0].rawValue; };
+    } else {
+      if (!window.jsQR) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = FM.jsqr; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }).catch(() => {});
+      if (!window.jsQR) { msg(t('scan_nocam')); return; }
+      const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+      detect = async () => {
+        if (!video.videoWidth) return null;
+        const w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+        cv.width = w; cv.height = h; cx.drawImage(video, 0, 0, w, h);
+        const r = window.jsQR(cx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+        return r && r.data;
+      };
+    }
+    on = true; let last = '';
+    const tick = async () => {
+      if (!on || !dlg.open) return;
+      const code = await detect();
+      if (code && code !== last) {
+        last = code;
+        const r = await api('resolve_qr', null, { code }).catch(() => ({}));
+        const id = r && r.spool ? +r.spool : 0;
+        if (!id) msg(t('scan_unknown'));
+        else if (curId != null && id === +curId) msg(t('amp_nfc_in_slot'));
+        else if (!ok.has(id)) msg(t('amp_asg_not_listed'));
+        else { stop(); pickId(id); return; }
+      }
+      setTimeout(tick, 120);   // ~8 Bilder/s reichen und schonen den Akku
+    };
+    tick();
+  };
+};
 /** Unbekannter Tag: mit vorhandener Spule verknüpfen (Liste mit Suche) oder neue Spule anlegen (OpenSpool-Inhalt vorbelegt). */
 async function ampNfcUnknown(ev, r) {
   if (!st.spools.length) await loadSpools();
@@ -7780,7 +7861,8 @@ function drawLib() {
   const nM = files.filter(f => !f.want && !f.plate).length, nP = files.filter(f => f.plate).length;
   // Neue Anordnung (20.11.2026, Entwurf „Aufgeräumt“): ein Kopf für Handy und PC — Überschrift ist die Bereichsauswahl, daneben
   // Hochladen (am PC dazu Neue Platte / Auf eine Platte), darunter klein Anzahl und Speicher; das Ablegefeld steht am PC unten, am Handy nur als Knopf
-  const acts = `<button type="button" class="btn amp-dtonly" id="amplbnew">${I_PLATE} ${esc(t('amp_ed_new'))}</button>${files.some(f => f.ext === 'stl') ? `<button type="button" class="btn amp-dtonly" id="amplbhdplate">${I_SELECT} ${esc(t('amp_plate_make'))}</button>` : ''}`
+  // Feinschliff 24.11.2026: „Neue Platte“ + „Auf eine Platte“ als EIN Knopf „Platte ▾“ (PC; am Handy über den Editor/Auswählen)
+  const acts = `<details class="smenu amp-lbplm" data-k="lbplm"><summary class="btn">${I_PLATE}<span>${esc(t('amp_ed_plate_pick'))}</span>${I_CHEV}</summary><div class="smenu-l"><button type="button" id="amplbnew">${I_PLATE}<span>${esc(t('amp_ed_new'))}</span></button>${files.some(f => f.ext === 'stl') ? `<button type="button" id="amplbhdplate">${I_SELECT}<span>${esc(t('amp_plate_make'))}</span></button>` : ''}</div></details>`
     + (d.quota > 0 ? `<button type="button" class="btn pri" id="amplbhdadd"${canUp ? '' : ' disabled'}>${I_UPLOAD}<span>${esc(t('amp_lib_up'))}</span></button>` : '');
   const subl = [t('amp_lib_hd_sub', { n: nM }), nP ? t('amp_lib_hd_p', { n: nP }) : '', `${fsize(d.used)} ${free ? t('lib_used') : t('lib_of', { q: ampBig(d.quota) })}`].filter(Boolean).join(' · ');
   let h = `<div class="amp-lbph">${prHead('library', acts)}<p class="amp-phsub">${esc(subl)}${!canUp && !free ? ` · <span class="warn-t">${esc(t('lib_full'))}</span>` : ''}</p></div>`;
@@ -7870,7 +7952,7 @@ function lbChips(n, fitP) {
   if (lb.folder !== '*') c('folder', lbFolderTxt(lb.folder));
   if (lb.tag) c('tag', '#' + lb.tag);
   if (lb.q.trim()) c('q', '„' + lb.q.trim() + '“');
-  return `<div class="amp-lbchips"><b>${esc(n === 1 ? t('amp_lib_n1') : t('amp_lib_n', { n }))}</b>${ch.join('')}${ch.length ? `<button type="button" class="lnk" data-lclr="all">${esc(t('amp_lib_reset'))}</button>` : ''}</div>`;
+  return `<div class="amp-lbchips${ch.length ? '' : ' amp-lbchips0'}"><b>${esc(n === 1 ? t('amp_lib_n1') : t('amp_lib_n', { n }))}</b>${ch.join('')}${ch.length ? `<button type="button" class="lnk" data-lclr="all">${esc(t('amp_lib_reset'))}</button>` : ''}</div>`;
 }
 function lbCard(f) {
   if (f.want) return ampWantCard(f);
@@ -7881,22 +7963,22 @@ function lbCard(f) {
     : f.plate ? `<span class="lbph">${I_PLATE}<small>${esc(t('amp_plate_badge'))}</small></span>`
     : `<span class="lbph">${lbIsGc(f) ? I_GCODE : I_BOX}<small>${esc(f.ext.toUpperCase())}</small></span>`;
   const np = (f.plates || []).filter(p => !p.empty).length, miss = f.plate ? f.parts.filter(p => !p.ok).length : 0;
-  const bdg = [f.plate ? t('amp_plate_badge') : '', !f.plate && np > 1 ? t('lib_plates_n', { n: np }) : '', f.multi ? t('amp_lv_multi') : '',
-    f.gone ? t('amp_lib_gone') : '', miss ? t('amp_plate_missing_n', { n: miss }) : ''].filter(Boolean);
+  // Feinschliff 24.11.2026: höchstens zwei Abzeichen (Dateityp + das wichtigste: fehlt > Platte(n) > Mehrfarbig); Warnungen orange
+  const bw = [f.gone ? t('amp_lib_gone') : '', miss ? t('amp_plate_missing_n', { n: miss }) : ''].filter(Boolean);
+  const bdg = [...bw, f.plate ? t('amp_plate_badge') : '', !f.plate && np > 1 ? t('lib_plates_n', { n: np }) : '', f.multi ? t('amp_lv_multi') : ''].filter(Boolean).slice(0, lbTypeOf(f) ? 1 : 2);
   const dims = f.plate ? null : lbDimsOf(f)[0];
   const meta = f.plate ? t('amp_plate_parts', { n: f.parts.length }) : [f.ext.toUpperCase(), dims ? lbDimTxt(dims) : fsize(f.size), f.gcode && f.gcode.printer ? f.gcode.printer : ''].filter(Boolean).join(' · ');
   const dots = (f.last && f.last.cols) || [];
   // Ordner nur zeigen, wenn die Karte nicht ohnehin in diesem Ordner liegt
-  const fo = f.folder && f.folder !== lb.folder ? `<span class="tag on qproj">${I_FOLDER}${esc(lb.folder !== '*' && lb.folder && f.folder.startsWith(lb.folder + '/') ? f.folder.slice(lb.folder.length + 1) : f.folder)}</span>` : '';
+  const fo = f.folder && f.folder !== lb.folder ? (lb.folder !== '*' && lb.folder && f.folder.startsWith(lb.folder + '/') ? f.folder.slice(lb.folder.length + 1) : f.folder) : '';
   const on = !!(lb.sel && lb.sel.has(f.id));
   const qa = !lb.sel && f.print !== false && ps_ok() && !f.gone
     ? `<span class="amp-lbqa"><button type="button" class="btn sm pri" data-qa="print"><span>${esc(t('lib_print'))}</span></button>${f.ext === 'stl' || (f.ext === '3mf' && !lbIsGc(f)) ? `<button type="button" class="btn sm" data-qa="edit" title="${esc(t('amp_ed_edit'))}" aria-label="${esc(t('amp_ed_edit'))}">${I_PEN}</button>` : ''}</span>` : '';
   return `<article class="lbcard amp-lbc${f.plate ? ' amp-plcard' : ''}${lb.sel ? ' amp-selm' : ''}${on ? ' amp-on' : ''}" data-id="${f.id}">
     <button type="button" class="amp-lbhit" aria-label="${esc(f.name)}"${lb.sel ? ` aria-pressed="${on}"` : ''}></button>${lb.sel ? `<span class="amp-chk" aria-hidden="true">${on ? I_CHECK : ''}</span>` : ''}
-    <span class="lbpic">${pic}${lbTypeOf(f) || bdg.length ? `<span class="amp-lbbdg">${lbTypeOf(f) ? `<span class="amp-lbty amp-lbty-${lbTypeOf(f)}">${esc((LB_TYPES.find(x => x[0] === lbTypeOf(f)) || [])[1])}</span>` : ''}${bdg.map(b => `<span>${esc(b)}</span>`).join('')}</span>` : ''}${qa}</span>
-    <span class="lbt"><b>${esc(f.name)}</b><span class="hint">${esc(meta)}</span>
-      <span class="amp-lbst"><span class="${f.prints ? '' : 'amp-lbnever'}">${esc(lbStatus(f))}</span>${dots.length ? `<span class="amp-dots" aria-hidden="true">${dots.map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span>` : ''}</span>
-      ${fo ? `<span class="amp-lbtags">${fo}</span>` : ''}</span></article>`;
+    <span class="lbpic">${pic}${lbTypeOf(f) || bdg.length ? `<span class="amp-lbbdg">${lbTypeOf(f) ? `<span class="amp-lbty amp-lbty-${lbTypeOf(f)}">${esc((LB_TYPES.find(x => x[0] === lbTypeOf(f)) || [])[1])}</span>` : ''}${bdg.map(b => `<span${bw.includes(b) ? ' class="amp-lbbw"' : ''}>${esc(b)}</span>`).join('')}</span>` : ''}${qa}</span>
+    <span class="lbt"><b>${esc(f.name)}</b><span class="hint">${esc(fo ? meta + ' · ' + fo : meta)}</span>
+      <span class="amp-lbst"><span class="${f.prints ? '' : 'amp-lbnever'}">${esc(lbStatus(f))}</span>${dots.length ? `<span class="amp-dots" aria-hidden="true">${dots.map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span>` : ''}</span></span></article>`;
 }
 /** Drucken aus der Bibliothek (Dialog, Karte, „Weiter drucken“): Platte → alle Teile, G-Code → direkt senden, sonst Druckansicht.
  *  Wie zuletzt: der letzte Drucker ist in der Druckansicht vorgewählt (lb.hand.printer, build_web.py-Patch). o: { btn, lbl, plate, err } */
@@ -7918,7 +8000,7 @@ async function ampLibPrint(f, o = {}) {
       ampPlateGo(items, f, printer);
       return true;
     }
-    if (lbIsGc(f)) {
+    if (lbIsGc(f) || ampLibIsG3(f)) {   // + fertig geslicte 3MF (24.11.2026)
       const r = await api('amp_lib_token', { id: f.id });
       if (r.error || !r.token) throw davFail(r.error || 'lib_upload', r.status);
       pr.file = { token: r.token, name: r.name, size: r.size }; pr.meta = null; pr.err = ''; pr.lib = f.id;
@@ -9516,26 +9598,45 @@ function prHead(active, acts) {
     ${go ? `<div class="ph-acts">${go}</div>` : ''}</div>`;
 }
 /** Druckerkarten nach dem Zeichnen ordnen (läuft vor dem Binden der Knöpfe, drawPrinters → build_web.py). */
+// Feinschliff 24.11.2026 (Leinwand claude.ai/artifact/L4u7b8AvmW7L36AdRobGyA, User: „bau es um“): Stand + Jetzt abfragen in der
+// Kopfzeile, ⋯-Menü (Umbenennen/Adresse/Entfernen) statt drei kleiner Symbole am Namen, Infozeile mit „Lüfter & Licht“ (öffnet
+// Steuern), Fächer als Kacheln, „Zuletzt …“ und eine Knopfzeile Drucken · Kamera · Steuern — am Handy UND am PC. Steuern (Lüfter,
+// Licht, ACE/AMS/CFS) klappt in der Karte auf (vorher am PC eigene rechte Spalte); rechts am PC nur „Bald leer“ + „Zuletzt gedruckt“.
+// Druckt der Drucker, sitzt „Kamera“ mit Pause/Abbrechen in einer Reihe im Druckblock.
 const ampSteer = new Set();   // „Steuern“ offen je Drucker — bleibt beim Neuzeichnen alle 10 s offen
 let ampObOpen = false;
+const I_SYNC = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>';
+/** Anzeige: Markennamen in Großbuchstaben (ANYCUBIC, SUNLU) wie die anderen schreiben — nur Anzeige, die Daten bleiben. */
+const ampBrand = b => { const x = String(b || '').trim(); return /^[A-ZÄÖÜ][A-ZÄÖÜ&.\- ]{3,}$/.test(x) ? x.split(/(\s+|-)/).map(w => w.length > 1 ? w[0] + w.slice(1).toLowerCase() : w).join('') : x; };
+/** „Anycubic PETG“ — Marke + Material (ohne Marke: Name der Spule) */
+const ampSpName = s => s.brand ? `${ampBrand(s.brand)} ${s.material || ''}`.trim() : (s.name || s.material || '');
 function ampPrTidy() {
   const ob = view.querySelector(':scope > section.ob');
   if (ob) ampObSlim(ob);
-  const pc = ampPcMode(), side = [];   // PC: Steuern je Drucker in die rechte Spalte (über „Bald leer“)
+  ampStandHead();
+  const pc = ampPcMode();
   view.dataset.amppc = pc ? '1' : '0';
   view.querySelectorAll(':scope > .pcard:not(.pmini):not(.locked)').forEach(card => {
     const any = card.querySelector('[data-pid]'), pid = any ? any.dataset.pid : '';
     if (!pid) return;
+    ampPrMenu(card, pid);
     const ctl = card.querySelector(':scope > .amp-ctl'), boxes = card.querySelector(':scope > .boxes'), bar = card.querySelector(':scope > .pcam-bar');
     const camb = bar && bar.querySelector('[data-act="cam"]'), pcam = card.querySelector(':scope > .pcam');
-    if (pc) { ampPrPc(card, pid, { ctl, boxes, bar, camb, pcam }, side); return; }
-    if (!ctl && !boxes && !camb) return;
+    const prov = ((card.querySelector('[data-prov]') || {}).dataset || {}).prov || '';
+    const job = card.querySelector(':scope > .job'), jobActs = job && job.querySelector('.actions');
+    if (ctl) ampPrInfo(card, ctl, pid);
     const acts = document.createElement('div');
     acts.className = 'amp-pacts';
-    if (camb) {   // „Live-Bild einschalten“ als kleiner Knopf in der Zeile
-      camb.className = 'btn amp-pa amp-pacam';
+    if (prov === 'moonraker' && ps_ok() && !job) {   // Drucken mit diesem Drucker vorgewählt (pv.printKey über data-pkey, /filament bindet es)
+      const a = document.createElement('a');
+      a.className = 'btn pri amp-pa amp-papr'; a.href = '#print'; a.dataset.pkey = 'moonraker:' + pid;
+      a.innerHTML = `${I_PRINT_S}<span>${esc(t('tab_print'))}</span>`;
+      acts.append(a);
+    }
+    if (camb) {   // „Live-Bild einschalten“ als Knopf; während eines Drucks neben Pause/Abbrechen
+      camb.className = 'btn amp-pa amp-pacam' + (jobActs ? ' sm' : '');
       camb.innerHTML = `${I_CAM}<span>${esc(t('amp_pa_cam'))}</span>`;
-      acts.append(camb); bar.remove();
+      (jobActs || acts).append(camb); bar.remove();
     }
     if (ctl || boxes) {
       const open = ampSteer.has(pid);
@@ -9544,44 +9645,80 @@ function ampPrTidy() {
       b.innerHTML = `${I_SLIDERS}<span>${esc(t('amp_pa_ctl'))}</span>`;
       acts.append(b);
     }
+    if (jobActs) jobActs.classList.add('amp-jacts');
+    // Live-Bild (eingeschaltet) direkt unter dem Druck bzw. über den Fächern
+    if (pcam) {
+      const after = job ? (job.nextElementSibling && job.nextElementSibling.matches('.runout') ? job.nextElementSibling : job) : null;
+      const before = card.querySelector(':scope > .ad-bar') || card.querySelector(':scope > .amp-tubes-h') || card.querySelector(':scope > .amp-tubes') || card.querySelector(':scope > details.amp-slots') || card.querySelector(':scope > .slots');
+      if (after) after.after(pcam); else if (before) before.before(pcam);
+    }
     const anchor = card.querySelector(':scope > details.amp-slots') || card.querySelector(':scope > .slots') || card.querySelector(':scope > .amp-tubes')
       || card.querySelector(':scope > .ad-bar') || card.querySelector(':scope > .job, :scope > .done-now') || card.querySelector(':scope > .pc-live') || card.querySelector(':scope > .pc-top');
-    anchor.after(acts);
+    const last = document.createElement('div'); last.className = 'amp-plast'; last.dataset.plast = pid; last.hidden = true;
+    anchor.after(last);
+    if (acts.childElementCount) last.after(acts);
     if (ctl || boxes) {
       const pan = document.createElement('div');
       pan.className = 'amp-steer'; pan.dataset.steer = pid; pan.hidden = !ampSteer.has(pid);
       if (ctl) pan.append(ctl);
       if (boxes) pan.append(boxes);
-      acts.after(pan);
+      (acts.childElementCount ? acts : last).after(pan);
     }
   });
-  ampPrExtras(side);
+  ampPrLastFill();
+  ampPrExtras();
 }
-/** PC-Ansicht der Drucker (User 20.11.2026: „Lüfter und Licht rechts eigene Spalte über ‚Bald leer‘, Kamera-Knopf über ‚Fächer · ACE‘
- *  unter dem Drucker“): links die Druckerkarten untereinander, rechts je Drucker „Steuern“ (Lüfter, Licht, ACE/AMS/CFS offen), darunter
- *  „Bald leer“ und „Zuletzt gedruckt“. In der Karte sitzt der Kamera-Knopf (bzw. das Live-Bild) direkt unter dem Druck. Handy unverändert. */
+/** PC-Ansicht ab 1001 px: links die Druckerkarten, rechts „Bald leer“ + „Zuletzt gedruckt“ (ampPrExtras). */
 const ampPcMode = () => window.matchMedia('(min-width: 1001px)').matches;
-function ampPrPc(card, pid, o, side) {
-  let cam = o.pcam;
-  if (!cam && o.camb) {
-    o.camb.className = 'btn amp-pa amp-pacam';
-    o.camb.innerHTML = `${I_CAM}<span>${esc(t('amp_pa_cam'))}</span>`;
-    cam = document.createElement('div'); cam.className = 'amp-pacts amp-pccam'; cam.append(o.camb); o.bar.remove();
-  }
-  if (cam) {
-    const job = card.querySelector(':scope > .job, :scope > .done-now');
-    const after = job ? (job.nextElementSibling && job.nextElementSibling.matches('.runout') ? job.nextElementSibling : job) : null;
-    const before = card.querySelector(':scope > .ad-bar') || card.querySelector(':scope > .amp-tubes') || card.querySelector(':scope > details.amp-slots') || card.querySelector(':scope > .slots');
-    if (after) after.after(cam); else if (before) before.before(cam); else card.append(cam);
-  }
-  if (o.ctl || o.boxes) {
-    const name = ((card.querySelector('.pc-n1 b') || {}).textContent || '').trim();
-    const sec = document.createElement('section'); sec.className = 'amp-prxc amp-prctl'; sec.dataset.steer = pid;
-    sec.innerHTML = `<div class="amp-prxh"><h2>${esc(t('amp_pa_ctl'))}</h2><span>${esc(name)}</span></div>`;
-    if (o.ctl) sec.append(o.ctl);
-    if (o.boxes) sec.append(o.boxes);
-    side.push(sec);
-  }
+/** „Stand: gerade eben“ + „Jetzt abfragen“ (eigene Zeile über den Karten) in die Kopfzeile neben die Überschrift. Steht dort etwas
+ *  anderes (Fehler, Hinweise), bleibt die Zeile, wie sie ist. */
+function ampStandHead() {
+  const bar = view.querySelector(':scope > .conn-bar.pr-bar'), ph = view.querySelector(':scope > .ph-row.amp-ph');
+  if (!bar || !ph) return;
+  const sync = bar.querySelector(':scope > [data-sync]'), txt = [...bar.children].find(x => x.tagName === 'SPAN' && !x.classList.contains('grow'));
+  if (!sync || [...bar.children].some(x => x !== sync && x !== txt && !x.classList.contains('grow'))) return;
+  const w = document.createElement('div'); w.className = 'amp-stand';
+  if (txt) w.append(txt);
+  const lbl = sync.textContent.trim();
+  sync.className = 'icon-btn amp-sync'; sync.setAttribute('aria-label', lbl); sync.title = lbl; sync.innerHTML = I_SYNC;
+  w.append(sync);
+  const hdd = ph.querySelector(':scope > details.amp-hdd');
+  if (hdd) hdd.after(w); else ph.prepend(w);
+  bar.remove();
+}
+/** Umbenennen · Adresse ändern · Entfernen hinter ⋯ (dieselben Knöpfe, /filament bindet sie danach; data-k hält das Menü beim Neuzeichnen offen) */
+function ampPrMenu(card, pid) {
+  const n1 = card.querySelector('.pc-n1'), top = card.querySelector(':scope > .pc-top');
+  const bs = n1 ? [...n1.querySelectorAll(':scope > .icon-btn[data-act]')] : [];
+  if (!bs.length || !top) return;
+  const d = document.createElement('details');
+  d.className = 'smenu amp-pmenu'; d.dataset.k = 'pm' + pid;
+  d.innerHTML = `<summary class="icon-btn" title="${esc(t('pr_more'))}" aria-label="${esc(t('pr_more'))}">${I_DOTS}</summary><div class="smenu-l"></div>`;
+  const l = d.querySelector('.smenu-l');
+  bs.forEach(b => { const lbl = b.getAttribute('aria-label') || b.title || ''; b.className = b.dataset.act === 'remove' ? 'bad' : ''; b.removeAttribute('title'); b.type = 'button'; b.textContent = lbl; l.append(b); });
+  top.append(d);
+}
+/** Infozeile: „Lüfter & Licht · aus“ bzw. was läuft (Luftfilter 60 %, Licht an) — Antippen öffnet Steuern. */
+function ampPrInfo(card, ctl, pid) {
+  const live = card.querySelector(':scope > .pc-live'); if (!live) return;
+  const on = [...ctl.querySelectorAll('.amp-ct.on')].map(b => { const n = (b.querySelector('.amp-ct-t b') || {}).textContent || '', v = (b.querySelector('.amp-ct-t small') || {}).textContent || ''; return `${n} ${v}`.trim(); }).filter(Boolean);
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'tchip amp-ctlchip'; b.dataset.ampsteer = pid; b.setAttribute('aria-expanded', String(ampSteer.has(pid)));
+  b.innerHTML = `<small>${esc(t('amp_info_ctl'))}</small><b>${esc(on.length ? on.join(' · ') : t('amp_info_off'))}</b>`;
+  const grow = live.querySelector(':scope > .grow');
+  if (grow) grow.before(b); else live.append(b);
+}
+/** „Zuletzt: Zuckerstangenwichtel · 64 g · heute 17:00“ je Drucker aus den letzten Aufträgen (get('jobs') höchstens jede Minute). */
+function ampPrLastFill() {
+  const jobs = ampRecent.jobs || [];
+  view.querySelectorAll('.amp-plast[data-plast]').forEach(el => {
+    const card = el.closest('.pcard'), name = ((card && card.querySelector('.pc-n1 b')) || {}).textContent || '';
+    const j = jobs.find(x => x.printer && x.printer === name.trim());
+    // läuft ein Druck oder steht „Fertig gerade eben“ da, wäre „Zuletzt …“ doppelt
+    if (!j || (card && card.querySelector(':scope > .job, :scope > .done-now'))) { el.hidden = true; return; }
+    el.innerHTML = `<span>${esc(t('amp_pr_last'))}</span><b>${esc(j.title)}</b><span>${esc([j.grams ? gUse(j.grams) : '', dtime(j.end || j.start)].filter(Boolean).join(' · '))}</span>`;
+    el.hidden = false;
+  });
 }
 /** Einrichtung als schmale Zeile: „Einrichtung · 1 von 4“, vier Striche, nächster Schritt; Antippen klappt die Schritte auf.
  *  Zu bleiben die Knöpfe des aktuellen Schritts sichtbar (Spulen übernehmen, Jetzt verbinden …). */
@@ -9604,7 +9741,7 @@ document.addEventListener('click', e => {
   if (sb) {
     const pid = sb.dataset.ampsteer, open = !ampSteer.has(pid);
     if (open) ampSteer.add(pid); else ampSteer.delete(pid);
-    sb.classList.toggle('on', open); sb.setAttribute('aria-expanded', String(open));
+    document.querySelectorAll(`[data-ampsteer="${CSS.escape(pid)}"]`).forEach(x => { x.classList.toggle('on', open); x.setAttribute('aria-expanded', String(open)); });
     const pan = sb.closest('.pcard') && sb.closest('.pcard').querySelector(`.amp-steer[data-steer="${CSS.escape(pid)}"]`);
     if (pan) pan.hidden = !open;
     return;
@@ -9639,6 +9776,7 @@ window.ampSpoolsTidy = () => {
   if (q && fb) { const w = document.createElement('div'); w.className = 'amp-sq'; q.before(w); w.append(q, fb); }
   const fp = $('#fpanel');
   if (fp) ['#labels', '#scan2'].forEach(id => { const b = $(id); if (b) fp.append(b); });
+  ampSpoolsFein();
   const first = view.querySelector(':scope > .lgrid, :scope > .grid');
   if (first && !view.querySelector(':scope > .group-h')) {
     const act = st.spools.filter(s => !s.archived), sum = act.reduce((a, s) => a + s.left, 0);
@@ -9647,33 +9785,103 @@ window.ampSpoolsTidy = () => {
     first.before(hd);
   }
 };
+/** Feinschliff Spulen (24.11.2026, Leinwand L4u7b8…): Reiter neben die Überschrift, Kennzahlen als EINE Zeile, „Bald leer“ nicht
+ *  dreifach — der Kasten klappt erst über den Knopf „3 fast leer“ auf; Filter auch am PC hinter „Filter“ (Sortierung + Ansicht bleiben
+ *  neben der Suche, Etiketten am PC oben neben „+ Spule“); Markennamen in der Liste einheitlich (ANYCUBIC → Anycubic, nur Anzeige). */
+let ampLowOpen = false;
+function ampSpoolsFein() {
+  const row = view.querySelector(':scope > .amp-sph'), tabs = view.querySelector(':scope > .subtabs');
+  if (row && tabs) { tabs.classList.add('amp-sptabs'); row.querySelector(':scope > h1').after(tabs); }
+  const pc = ampPcMode();
+  const lab = $('#labels'), acts = row && row.querySelector(':scope > .ph-acts');
+  if (pc && lab && acts) { lab.classList.add('amp-splab'); acts.prepend(lab); }
+  // Sortierung + Kacheln/Liste neben die Suche (am PC), der Rest bleibt im Filter
+  const sbar = $('#q') && $('#q').closest('.bar'), fsort = $('#fsort'), lay = view.querySelector('#fpanel .seg.lay');
+  if (pc && sbar) { if (fsort) sbar.append(fsort); if (lay) sbar.append(lay); sbar.classList.add('amp-spbar'); }
+  // Kennzahlen: „Fast leer“ wird zum Knopf, der den Kasten „Bald leer“ zeigt
+  const k = view.querySelector(':scope > .skpis'), warn = k && k.querySelector(':scope > .warn'), low = view.querySelector(':scope > section.lowbox');
+  if (k && warn && low) {
+    const n = (warn.querySelector('b') || {}).textContent || '';
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'amp-lowbtn'; b.setAttribute('aria-expanded', String(ampLowOpen)); b.setAttribute('aria-controls', 'amplow');
+    b.innerHTML = `<span>${esc(t('amp_sp_low_btn', { n }))}</span>${I_CHEV}`;
+    warn.replaceWith(b);
+    low.id = 'amplow'; low.hidden = !ampLowOpen;
+    b.onclick = () => { ampLowOpen = !ampLowOpen; low.hidden = !ampLowOpen; b.setAttribute('aria-expanded', String(ampLowOpen)); };
+  }
+  // Liste: „Anycubic PETG“ + Farbe statt „ANYCUBIC“ + „PETG“
+  view.querySelectorAll('.lgrid .lrow[data-id]').forEach(r => {
+    const sp = st.spools.find(x => String(x.id) === r.dataset.id), tb = r.querySelector('.lr-t b'), sm = r.querySelector('.lr-t small');
+    if (!sp || !sp.brand || !tb) return;
+    tb.textContent = ampSpName(sp);
+    if (sm) sm.textContent = sp.color_name || '';
+  });
+}
+/** Verlauf-Zeile (Feinschliff 24.11.2026, Leinwand L4u7b8…): Titel = was gedruckt wurde (sonst die Spule), darunter Spule · Art ·
+ *  Drucker; Farbpunkt der Spule statt %-Ring. Ersetzt histRow aus /filament nur in der App (build_web.py). */
+function ampHistRow(h) {
+  const sp = st.spools.find(x => x.id === h.spool_id);
+  const hex = /^#?[0-9a-f]{6}$/i.test((sp && sp.color_hex) || h.color_hex || '') ? '#' + String((sp && sp.color_hex) || h.color_hex).replace('#', '') : '#888888';
+  const b0 = sp ? ampSpName(sp) : '', cn = sp && sp.color_name && !b0.toLowerCase().includes(sp.color_name.toLowerCase()) ? sp.color_name : '';
+  const spn = (sp ? [b0, cn].filter(Boolean).join(' ') : [ampBrand(h.brand), h.material].filter(Boolean).join(' ')) || h.name || '#' + h.spool_id;
+  const note = histNote(h), neg = h.grams < 0, head = (h.title || '').trim();
+  const time = new Date(h.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit', ...HC });
+  const kind = head && h.kind === 'print' ? '' : `<span class="tag k-${esc(h.kind)}">${esc(t('kind_' + h.kind))}</span>`;
+  return `<div class="hrow amp-hrow"><span class="amp-hdot" style="background:${esc(hex)}" aria-hidden="true"></span><span class="ht"><a href="#s${h.spool_id}"><b>${esc(head || spn)}</b></a>
+      <span class="hs">${head ? `<span class="amp-hsp">${esc(spn)}</span>` : ''}${kind}${note && note !== head ? `<span class="hn">${esc(note)}</span>` : ''}${h.printer ? `<span class="hp">${I_PRINTER_S}${esc(h.printer)}</span>` : ''}</span></span>
+    <span class="hg"><b class="${neg ? 'pos' : ''}">${+h.grams === 0 ? '–' : (neg ? '+' : '−') + gUse(h.grams)}</b><small>${time}${h.cost ? ' · ' + cur.format(h.cost) : ''}</small></span></div>`;
+}
 /** PC: unter den Druckern „Bald leer“ und „Zuletzt gedruckt“ (Entwurf 1, rechts war viel leerer Platz). Aufträge höchstens jede Minute neu. */
 const ampRecent = { at: 0, jobs: null, busy: false };
 function ampPrxHtml() {
   const low = (st.spools || []).filter(s => !s.archived && isLow(s)).sort((a, b) => a.left - b.left).slice(0, 4), jobs = ampRecent.jobs || [];
   if (!low.length && !jobs.length) return '';
   const lowH = low.length ? `<section class="amp-prxc"><div class="amp-prxh"><h2>${esc(t('low_h'))}</h2><a href="#spools">${esc(t('amp_sp_all_h'))}</a></div>`
-    + low.map(s => `<a class="amp-prxr" href="#s${s.id}"><span class="lr-sw">${spoolIco(s)}</span><span class="amp-prxt"><b>${esc(title(s))}</b><small>${esc(s.slots.length ? s.slots.map(slotTxt).join(', ') : s.location || '')}</small></span><b class="${isCrit(s) ? 'amp-bad' : 'amp-warn'}">${g(s.left)}</b></a>`).join('') + '</section>' : '';
+    + low.map(s => `<a class="amp-prxr" href="#s${s.id}"><span class="lr-sw">${spoolIco(s)}</span><span class="amp-prxt"><b>${esc(ampSpName(s))}</b><small>${esc([s.color_name, s.slots.length ? s.slots.map(slotTxt).join(', ') : s.location || ''].filter(Boolean).join(' · '))}</small></span><b class="${isCrit(s) ? 'amp-bad' : 'amp-warn'}">${g(s.left)}</b></a>`).join('') + '</section>' : '';
   const jobH = jobs.length ? `<section class="amp-prxc"><div class="amp-prxh"><h2>${esc(t('amp_pr_recent_h'))}</h2><a href="#jobs">${esc(t('pr_tab_jobs'))}</a></div>`
-    + jobs.map(j => `<div class="amp-prxr"><span class="amp-prxi${j.status === 3 ? ' fail' : ''}" aria-hidden="true">${j.status === 3 ? '×' : I_CHECK}</span><span class="amp-prxt"><b>${esc(j.title)}</b><small>${esc([j.printer || t('prov_' + j.provider), j.grams ? gUse(j.grams) : ''].filter(Boolean).join(' · '))}</small></span><small class="amp-prxw">${dtime(j.end || j.start)}</small></div>`).join('') + '</section>' : '';
+    + jobs.slice(0, 4).map(j => `<div class="amp-prxr"><span class="amp-prxi${j.status === 3 ? ' fail' : ''}" aria-hidden="true">${j.status === 3 ? '×' : I_CHECK}</span><span class="amp-prxt"><b>${esc(j.title)}</b><small>${esc([j.printer || t('prov_' + j.provider), j.grams ? gUse(j.grams) : ''].filter(Boolean).join(' · '))}</small></span><small class="amp-prxw">${dtime(j.end || j.start)}</small></div>`).join('') + '</section>' : '';
   return lowH + jobH;
 }
-/** PC: Karten links untereinander (.amp-prl), rechts .amp-prx = Steuern je Drucker (.amp-prxs) + Bald leer/Zuletzt gedruckt (.amp-prxl). */
-function ampPrExtras(side) {
+/** PC: Karten links untereinander (.amp-prl), rechts .amp-prx = „Bald leer“ + „Zuletzt gedruckt“ (.amp-prxl). Aufträge höchstens jede
+ *  Minute neu — auch am Handy, für „Zuletzt …“ in der Karte (24.11.2026). */
+function ampPrExtras() {
+  if (!ampRecent.busy && Date.now() - ampRecent.at > 60000) {
+    ampRecent.busy = true; ampRecent.at = Date.now();
+    get('jobs').then(d => {
+      ampRecent.jobs = ((d && d.jobs) || []).filter(j => j.status !== 1).slice(0, 8);
+      const l = view.querySelector('.amp-prxl'); if (l) l.innerHTML = ampPrxHtml();
+      ampPrLastFill();
+    }).catch(() => {}).finally(() => { ampRecent.busy = false; });
+  }
   if (!ampPcMode()) return;
   const cards = [...view.querySelectorAll(':scope > .pcard')]; if (!cards.length) return;
   const wrap = document.createElement('div'); wrap.className = 'amp-prl';
   cards[0].before(wrap); cards.forEach(c => wrap.append(c));
   const box = document.createElement('div'); box.className = 'amp-prx';
-  const sx = document.createElement('div'); sx.className = 'amp-prxs'; (side || []).forEach(x => sx.append(x));
   const lx = document.createElement('div'); lx.className = 'amp-prxl'; lx.innerHTML = ampPrxHtml();
-  box.append(sx, lx); wrap.after(box);
-  if (!ampRecent.busy && Date.now() - ampRecent.at > 60000) {
-    ampRecent.busy = true; ampRecent.at = Date.now();
-    get('jobs').then(d => { ampRecent.jobs = ((d && d.jobs) || []).filter(j => j.status !== 1).slice(0, 4); const l = view.querySelector('.amp-prxl'); if (l) l.innerHTML = ampPrxHtml(); })
-      .catch(() => {}).finally(() => { ampRecent.busy = false; });
-  }
+  box.append(lx); wrap.after(box);
 }
+
+// ── Fach ohne Material (Meldung #33, 24.11.2026): Der Snapmaker U1 meldet bei Spulen ohne RFID-Chip „NONE“, solange am Display kein Typ
+// eingestellt ist. Mit zugeordneter Spule nimmt backend.js slotMat deren Material; ohne Spule ist der Kopf trotzdem wählbar und das Material
+// wählt man hier (Feld slot_mat → sliceForm → printerJson). Aufruf aus renderSlots (build_web.py).
+window.ampSlotMat = function (p, mats) {
+  const old = document.getElementById('pslotmatw'); if (old) old.remove();
+  const box = document.getElementById('pslots');
+  if (!box || !p || p.slot_mode === 'material' || !(p.slots || []).some(s => s.need_mat && !s.locked)) { if (box) box._ampSm = null; return; }
+  box.insertAdjacentHTML('afterend', `<label class="fld amp-slotmat" id="pslotmatw" hidden><span>${esc(t('amp_slot_mat'))}</span>
+    <select class="in" name="slot_mat" id="pslotmat" style="max-width:260px">${(mats || []).map(m => `<option>${esc(m)}</option>`).join('')}</select>
+    <span class="hint">${esc(t('amp_slot_mat_hint'))}</span></label>`);
+  const w = document.getElementById('pslotmatw'), sel = document.getElementById('pslotmat');
+  // Kein Fach mit Material vorgewählt (alle Köpfe „NONE“) → ersten wählbaren Kopf nehmen
+  if (!box.querySelector('input[name=slot]:checked')) { const f = box.querySelector('input[name=slot]:not([disabled])'); if (f) f.checked = true; }
+  box._ampSm = () => {
+    const c = box.querySelector('input[name=slot]:checked'), s = c && p.slots.find(x => String(x.index) === c.value);
+    const on = !!(s && s.need_mat); w.hidden = !on; sel.disabled = !on;   // gesperrt = nicht im Formular
+  };
+  if (!box._ampSmOn) { box._ampSmOn = true; box.addEventListener('change', () => { if (box._ampSm) box._ampSm(); }); }
+  box._ampSm();
+};
 
 
 // ═══ Platte bearbeiten – Modell-Editor (19.11.2026, User: „das ist perfekt bauen wir das als abo option gleich einbauen“) ═══════════

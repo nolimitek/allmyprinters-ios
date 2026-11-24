@@ -1321,7 +1321,7 @@ body.cm-fm .amp-sq > #fbtn { position: absolute; right: 3px; top: 50%; transform
 .amp-sph2 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 18px 4px 8px; }
 #view .amp-sph2 h2 { margin: 0; font-size: 16px; font-weight: 800; }
 .amp-sph2 span { color: var(--muted); font-size: 13px; }
-@media (max-width: 640px) { #view > .skpis { display: none; } }
+/* Kennzahlen am Handy wieder sichtbar, als eine Zeile (Feinschliff 24.11.2026, unten) */
 /* Modellsuche: Wettbewerbe als schmale Zeile, „Gerade beliebt“ als 2er-Raster statt Wischreihe, ein kleiner Merken-Knopf, keine Schlagwörter */
 .amp-cttile { margin-bottom: 18px; padding: 12px 14px; }
 .amp-cttile .amp-ctmini { display: none; }
@@ -1411,3 +1411,130 @@ body.cm-fm .amp-pccam .btn.amp-pa { width: 100%; max-width: none; }
 .amp-seq .note { margin: 0; }
 .amp-seq .note p { margin: 0 0 8px; }
 .amp-seq .amp-acts { margin-top: 2px; }
+
+/* QR-Code scannen im Dialog „Spule zuordnen“ (24.11.2026, Community #54, amp-views ampAsgScanBtn) */
+#fascan { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.amp-asg-scan { margin: 2px 0 6px; }
+.amp-asg-scan .scanbox { max-height: 44vh; }
+.amp-asg-scan .hint { margin: 8px 0 4px; }
+
+/* ═══ Feinschliff 24.11.2026 (Leinwand claude.ai/artifact/L4u7b8AvmW7L36AdRobGyA, User: „bau es um“) ═══════════════════════
+   Drucker: Stand + Aktualisieren in der Kopfzeile, ⋯-Menü, Infozeile „Lüfter & Licht“, Fächer als Kacheln, „Zuletzt …“,
+   Knopfzeile Drucken · Kamera · Steuern (Handy + PC), Druckblock kompakt mit Pause · Abbrechen · Kamera in einer Reihe. */
+.amp-stand { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0 auto 0 12px; color: var(--muted); font-size: 13px; }
+.amp-stand > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+body.cm-fm .amp-stand > .icon-btn.amp-sync { flex: none; width: 40px; height: 40px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--text); display: grid; place-items: center; }
+.amp-sync svg { width: 17px; height: 17px; }
+.amp-sync:disabled svg { animation: spool-turn 1s linear infinite; }
+@media (max-width: 640px) {
+  .amp-stand { margin-left: 6px; }
+  .amp-stand > span { display: none; }   /* Platz für die Überschrift; „Drucken“ gibt es unten in der Leiste und in der Karte */
+  #view:has(> .pcard) > .amp-ph .ph-acts:has(> .amp-phgo) { display: none; }
+}
+.pc-top > .amp-pmenu { margin-left: 4px; align-self: center; }
+body.cm-fm .pc-top > .amp-pmenu > summary.icon-btn { width: 40px; height: 40px; border: 1px solid var(--line-2); border-radius: 12px; }
+.amp-pmenu .smenu-l button.bad { color: var(--bad); }
+body.cm-fm .pc-live > .tchip.amp-ctlchip { border: 0; font: inherit; font-size: 13px; cursor: pointer; }
+.pc-live > .tchip.amp-ctlchip[aria-expanded="true"] { background: var(--accent-sub); color: var(--accent-ink); }
+.amp-plast { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: 14px; padding: 10px 14px; border-radius: 14px; background: var(--panel-2); font-size: 14px; }
+.amp-plast[hidden] { display: none; }
+.amp-plast > span { color: var(--muted); }
+.amp-plast > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+body.cm-fm .amp-pacts .btn.amp-pa.amp-papr { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+@media (min-width: 641px) { .amp-pacts { grid-template-columns: repeat(auto-fit, minmax(0, 170px)); } }
+/* Fächer als Kacheln */
+.amp-tube-bar { display: block; width: 100%; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.amp-tube-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.amp-tube.low .amp-tube-bar > i { background: var(--warn); }
+.amp-tube.crit .amp-tube-bar > i { background: var(--bad); }
+.amp-tube.inuse { border-color: var(--accent); background: var(--accent-sub); }
+.amp-tube.inuse .amp-tube-g { outline: 0; }
+.amp-tube.amp-te { border-style: dashed; }
+@media (min-width: 641px) {
+  .amp-tubes { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .amp-tube { display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-template-areas: "g v" "g s" "b b" "r r"; column-gap: 10px; row-gap: 2px; align-items: center; justify-items: start;
+    padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); text-align: left; }
+  .amp-tube-g { grid-area: g; width: 52px; max-width: 52px; }
+  .amp-tube-v { grid-area: v; margin: 0; max-width: 100%; }
+  .amp-tube-s { grid-area: s; }
+  .amp-tube-b { grid-area: b; margin-top: 6px; font-size: 12.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .amp-tube-bar { grid-area: r; margin-top: 6px; }
+  .amp-tube-l { top: 6px; left: 6px; margin: 0; }
+  .amp-tube.amp-te { grid-template-areas: "g v" "g s"; }
+}
+@media (max-width: 640px) {
+  .amp-tubes { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .amp-tube { padding: 12px 4px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+  .amp-tube-g { width: 100%; max-width: 60px; }
+  .amp-tube-l { top: 4px; left: 4px; margin: 0; }
+  .amp-tube-b, .amp-tube-bar { display: none; }
+}
+/* Druckblock: kleines Bild, Knöpfe in einer Reihe (48 px am Handy) */
+.pcard > .job.stage { align-items: flex-start; gap: 14px; }
+.pcard > .job.stage > .job-art { width: 72px; height: 72px; padding: 6px; }
+.pcard > .job .actions.amp-jacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0 !important; }
+body.cm-fm .pcard > .job .amp-jacts > .btn { height: 44px; justify-content: center; padding: 0 8px; margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
+body.cm-fm .pcard > .job .amp-jacts > .btn svg { width: 16px; height: 16px; flex: none; }
+@media (max-width: 640px) {
+  .pcard > .job.stage { display: grid; grid-template-columns: 56px minmax(0, 1fr); }
+  .pcard > .job.stage > .job-art { width: 56px; height: 56px; padding: 4px; }
+  .pcard > .job .actions.amp-jacts { grid-column: 1 / -1; margin-left: -70px !important; }
+  body.cm-fm .pcard > .job .amp-jacts > .btn { height: 48px; padding: 0 6px; white-space: normal; line-height: 1.15; font-size: 13.5px; text-align: center; }
+}
+/* PC: links Karte (breiter), rechts nur Bald leer + Zuletzt gedruckt; leer → Karten über die ganze Breite */
+@media (min-width: 1001px) {
+  #view:has(> .amp-prl) { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
+  #view:has(> .amp-prx > .amp-prxl:empty) > .amp-prl { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 18px; align-items: start; }
+}
+.amp-prx:has(> .amp-prxl:empty) { display: none; }
+
+/* Spulen (Feinschliff 24.11.2026): Reiter neben der Überschrift, Kennzahlen in einer Karte, „Bald leer“ hinter dem Knopf, Filter einklappbar */
+body.cm-fm .ph-row.amp-ph.amp-sph { flex-wrap: wrap; row-gap: 10px; }
+.amp-sph > .subtabs.amp-sptabs { margin: 0 auto 0 14px; }
+body.cm-fm .amp-sph .ph-acts > .btn.amp-splab { background: var(--panel); color: var(--text); border: 1px solid var(--line-2); }
+@media (max-width: 640px) {
+  .amp-sph > .subtabs.amp-sptabs { order: 3; flex: 1 1 100%; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
+  .amp-sph > .subtabs.amp-sptabs > a { text-align: center; justify-content: center; }
+}
+#view > .skpis { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 18px; margin: 0 0 16px; }
+#view > .skpis > div { background: none; border: 0; box-shadow: none; padding: 0; }
+#view > .skpis > div:not(.sk-fill) { display: flex; flex-direction: column-reverse; }
+.amp-lowbtn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); background: var(--fm-warn-sub); color: var(--warn); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.amp-lowbtn .chev { width: 16px; height: 16px; transition: transform .15s; }
+.amp-lowbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+#view > section.lowbox[hidden] { display: none; }
+@media (max-width: 640px) { #view > .skpis { gap: 8px 18px; padding: 12px 14px; } #view > .skpis b { font-size: 17px; } .amp-lowbtn { margin-left: 0; } }
+/* Filter auch am PC hinter dem Knopf im Suchfeld; Sortierung + Ansicht neben der Suche */
+body.cm-fm .fbtn { display: inline-flex; align-items: center; }
+#view > .fpanel:not(.open) { display: none; }
+#view > .fpanel.open { display: flex; }
+.bar.amp-spbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.bar.amp-spbar > .amp-sq { flex: 1 1 320px; }
+.bar.amp-spbar > #fsort { flex: 0 1 260px; }
+
+/* Bibliothek (Feinschliff 24.11.2026): „Platte ▾“, Dateityp als Chips, ruhigere Karten, Anzahl nur einmal */
+.amp-lbplm { display: none; margin: 0; align-self: center; }
+@media (min-width: 1001px) { .amp-lbplm { display: block; } }
+body.cm-fm .amp-lbplm > summary.btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.amp-lbplm > summary .chev { width: 15px; height: 15px; }
+.amp-lbplm .smenu-l { min-width: 220px; }
+.amp-lbplm .smenu-l button { display: flex; align-items: center; gap: 10px; }
+.amp-lbplm .smenu-l button svg { width: 17px; height: 17px; color: var(--muted); flex: none; }
+.amp-lbchips.amp-lbchips0 { display: none; }
+.amp-lbst .amp-lbnever, html[data-theme="dark"] .amp-lbst .amp-lbnever { color: var(--faint); font-weight: 500; }
+.amp-lbbdg span.amp-lbbw { background: var(--fm-warn-sub); border-color: color-mix(in srgb, var(--warn) 35%, transparent); color: var(--warn); }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbbody { flex-direction: row; flex-wrap: wrap; gap: 6px; padding: 2px 6px 6px; }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow { width: auto; min-height: 36px; padding: 0 12px; gap: 6px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--panel); color: var(--text); }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow > .amp-chkbox, .amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow > span:empty { display: none; }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow > .amp-lbty { background: none; padding: 0; color: inherit; font-size: 14px; letter-spacing: 0; font-weight: 700; }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow[aria-pressed="true"] { background: var(--accent-sub); border-color: var(--accent); color: var(--accent-ink); }
+.amp-lbside .amp-lbsec2[data-sec="types"] .amp-sbrow:has(> b:is(:empty)) { opacity: .6; }
+
+/* Verlauf (Feinschliff 24.11.2026): Zahl groß über der Beschriftung, Farbpunkt, Druckname als Titel */
+#view > .hkpis > div { display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 2px; }
+.amp-hrow > .amp-hdot { width: 30px; height: 30px; border-radius: 50%; flex: none; border: 1px solid rgba(0, 0, 0, .22); box-sizing: border-box; }
+html[data-theme="dark"] .amp-hrow > .amp-hdot { border-color: rgba(255, 255, 255, .22); }
+.amp-hrow .ht > a b { font-size: 15px; }
+.amp-hrow .hs .amp-hsp { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.amp-hrow .hg b { font-size: 15px; font-weight: 800; }
+@media (max-width: 640px) { #view > p.amp-hlead { display: none; } }

@@ -379,6 +379,15 @@
       if (!plates.some(p => !p.empty)) throw new Error('empty');
       return { plates, bed: src.bed };
     },
+    /** Fertig geslicte 3MF (.gcode.3mf aus Bambu Studio/OrcaSlicer, 24.11.2026)? Nur das Inhaltsverzeichnis lesen → schnell. */
+    async isSliced(blob) { const z = await zipOpen(blob); return [...z.entries.keys()].some(k => /^Metadata\/plate_\d+\.gcode$/i.test(k)); },
+    /** Text des G-Codes der ersten Platte (Metadata/plate_N.gcode) oder null, wenn keiner drin ist (dann ist es ein Modell-3MF). */
+    async gcodeOf(blob) {
+      const z = await zipOpen(blob);
+      const ks = [...z.entries.keys()].filter(k => /^Metadata\/plate_\d+\.gcode$/i.test(k)).sort((x, y) => parseInt(x.replace(/\D+/g, ''), 10) - parseInt(y.replace(/\D+/g, ''), 10));
+      if (!ks.length) return null;
+      return z.entries.get(ks[0]).usize > 300 * 1048576 ? '' : ((await z.text(ks[0])) || '');
+    },
     /** Bemalt? (24.11.2026, Vorschlag „Objekt für Objekt“ in amp-views ampSeqCheck): true, sobald ein Dreieck einer .model-Datei eine
      *  Farbe trägt (Bambu paint_color, Prusa mmu_segmentation, Zustand ≠ 0); null = zu groß zum Prüfen. Liest nur Text, baut kein Netz. */
     async painted(blob) {

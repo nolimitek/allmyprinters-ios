@@ -3216,6 +3216,15 @@ function gcodeMeta(head, tail) {
   return md;
 }
 async function fileMeta(file) {
+  // Fertig geslicte 3MF (.gcode.3mf aus Bambu Studio/OrcaSlicer, 24.11.2026 — Druckstarts 23.11.: ~20 vergebliche Slice-Versuche mit so
+  // einer Datei): Zeit, Gramm, Filamente aus dem G-Code darin (Metadata/plate_1.gcode); gesendet wird die Datei unverändert (printSend).
+  if (/\.3mf$/i.test(file.name || '') && window.AMPMesh && AMPMesh.gcodeOf) {
+    try {
+      const blob = await (await _fetch((window.AMP_BASE || '') + '/file?t=' + encodeURIComponent(file.token))).blob();
+      const g = await AMPMesh.gcodeOf(blob);
+      if (g !== null) return Object.assign(gcodeMeta(g.slice(0, 393216), g.slice(-262144)), { g3mf: true });
+    } catch (e) { /* unlesbar → wie bisher */ }
+  }
   const head = (await native('fileRead', { token: file.token, offset: 0, length: 393216 })).text;
   const tail = (await native('fileRead', { token: file.token, tail: true, length: 262144 })).text;
   return gcodeMeta(head, tail);
@@ -3865,13 +3874,16 @@ async function slcPreview(job) {
   const bin = Uint8Array.from(atob(r.b64 || ''), c => c.charCodeAt(0));
   return new Response(bin, { status: r.status, headers: { 'Content-Type': r.type || 'application/octet-stream' } });
 }
+const PROF_REV = 2;
 const profBedStale = pf => !!pf && pf.bed === null && Date.now() - (pf.at || 0) > 3600e3;
 /** Orca-Profil zum Drucker (einmal vom Server, dann gemerkt); eigene Wahl über print_profile. */
 async function profileOf(p) {
   // nozzles (Slicer ≥ 1.0.7): fehlt das Feld in einem älteren gemerkten Profil, einmal neu fragen
   // bed (Slicer ≥ 1.0.10, „passt auf“ in der Bibliothek): fehlt der Schlüssel ganz, einmal neu fragen (ältere Server liefern null → kein Dauerfragen)
   // bed null (alter Slicer): nach einer Stunde neu fragen — sonst blieb „Platte unbekannt“ nach dem Container-Update bis zu 7 Tage (User 19.11.2026, Slicer 1.0.10)
-  if (p.prof && p.prof.at > Date.now() - 7 * 864e5 && (p.prof.chosen || p.prof.model === (p.model || '')) && Array.isArray(p.prof.nozzles) && 'bed' in p.prof && !profBedStale(p.prof)) return p.prof;
+  // rev 2 (24.11.2026, Meldung #33): Slicer erkennt den Kopfwechsel des Snapmaker U1 (switches) — gemerkte Profile einmal neu fragen,
+  // sonst blieben die Köpfe 2–4 beim Slicen bis zu 7 Tage gesperrt
+  if (p.prof && p.prof.rev === PROF_REV && p.prof.at > Date.now() - 7 * 864e5 && (p.prof.chosen || p.prof.model === (p.model || '')) && Array.isArray(p.prof.nozzles) && 'bed' in p.prof && !profBedStale(p.prof)) return p.prof;
   const d = await server('printer_info', p.prof && p.prof.chosen ? { vendor: p.prof.vendor, machine: p.prof.machine }
     : kindOf(p) === 'bambu' && p.model ? { vendor: 'BBL', machine: p.model + ' 0.4 nozzle' } : { model: p.model || '' });
   if (d.error) return p.prof || null;
@@ -3880,15 +3892,27 @@ async function profileOf(p) {
              // (mit [] blieb die Liste nach dem Container-Update bis zu 7 Tage leer, 15.11.2026)
              nozzles: Array.isArray(d.nozzles) ? d.nozzles : null,
              bed: Array.isArray(d.bed) && d.bed.length >= 2 && d.bed.slice(0, 2).every(v => +v > 0) ? d.bed.slice(0, 3).map(v => v == null ? null : +v) : null,
-             chosen: !!(p.prof && p.prof.chosen), model: p.model || '', at: Date.now() };
+             chosen: !!(p.prof && p.prof.chosen), model: p.model || '', at: Date.now(), rev: PROF_REV };
   persist();
   return p.prof;
 }
+/**
+ * Fach belegt, aber ohne Material vom Drucker (Meldung #33, 24.11.2026: Snapmaker U1 meldet bei Spulen ohne RFID-Chip „NONE“,
+ * solange am Display kein Typ eingestellt ist; ebenso AFC/Happy Hare ohne Angabe). Bisher war der Kopf im Slicen-Dialog gesperrt.
+ * Jetzt: Material + Farbe der Spule, die dem Fach in der App zugeordnet ist — sonst das im Dialog gewählte (pick = {index, material}).
+ */
+function slotMat(s, pick) {
+  if (s.material || !s.filled) return { material: s.material || null, color: s.color || null, need: false };
+  const sp = s.spool_id ? db.spools.find(x => x.id === s.spool_id && !x.archived_at) : null;
+  if (sp && sp.material) return { material: String(sp.material).slice(0, 30), color: sp.color_hex || s.color || null, need: false };
+  if (pick && pick.index === s.index && pick.material) return { material: pick.material, color: s.color || null, need: false };
+  return { material: null, color: s.color || null, need: true };
+}
 /** Beschreibung für den Server: Profil + Fächer wie ps_printers() sie braucht. */
-function printerJson(p, e) {
+function printerJson(p, e, pick) {
   return { id: p.id, kind: kindOf(p), name: p.name, model: p.model || '', vendor: p.prof && p.prof.vendor, machine: p.prof && p.prof.machine,
            // filled: belegt ohne Materialangabe (Happy Hare/AFC) — zählt beim Slicer als Mehrfarbeinheit (zweite Prüfung 11.11.2026)
-           slots: ((e && e.slots) || []).map(s => ({ index: s.index, label: s.label, material: s.material || null, color: s.color || null, single: !!s.single, filled: !!s.filled })),
+           slots: ((e && e.slots) || []).map(s => { const m = slotMat(s, pick); return { index: s.index, label: s.label, material: m.material, color: m.color, single: !!s.single, filled: !!s.filled }; }),
            ttg: (e && e.ttg_map) || [] };
 }
 /** Wie print_printers in filament/print_api.php — aus den eigenen Druckern. */
@@ -3909,8 +3933,9 @@ async function slicePrinters() {
       ttg = (e.ttg_map && e.ttg_map.length ? e.ttg_map : e.slots.map(s => s.index)).map(Number);
       if (prof && prof.switches === false) tool0 = ttg[0] ?? 0;
     }
-    const slots = (e.slots || []).filter(s => !s.single).map(s => ({ index: s.index, label: s.label, material: s.material || null, color: s.color || null, remain: null,
-      locked: (tool0 !== null && s.index !== tool0) || (ttg !== null && tool0 === null && !ttg.includes(s.index)) }));
+    // need_mat: belegt, Material unbekannt, keine Spule zugeordnet → im Dialog wählbar, Material daneben (amp-views ampSlotMat, Meldung #33)
+    const slots = (e.slots || []).filter(s => !s.single).map(s => { const m = slotMat(s); return { index: s.index, label: s.label, material: m.material, color: m.color, need_mat: m.need, remain: null,
+      locked: (tool0 !== null && s.index !== tool0) || (ttg !== null && tool0 === null && !ttg.includes(s.index)) }; });
     // „über …“ in der Druckansicht: der echte Weg (Anycubic LAN, Bambu, Elegoo …), nicht pauschal Klipper
     const via = { sdcp: 'elegoo', cc2: 'elegoo', acl: 'acl' }[kindOf(p)] || kindOf(p);
     out.push({ key: 'moonraker:' + p.id, provider: 'moonraker', id: p.id, via, name: p.name, model: p.model || '', online: !!e.online, busy: !!e.busy,
@@ -3938,7 +3963,10 @@ async function sliceForm(fd) {
   if (need) { window.AMP_ev('plan_hint', { f: need }); return { error: 'plan_' + need }; }
   await profileOf(p).catch(() => {});
   fd.set('a', 'slice');
-  fd.set('printer_json', JSON.stringify(printerJson(p, live[p.id] && live[p.id].entry)));
+  // Material für ein Fach, das der Drucker ohne Material meldet und dem keine Spule zugeordnet ist (Meldung #33, ampSlotMat)
+  const sm = String(fd.get('slot_mat') || '').trim(); fd.delete('slot_mat');
+  const pick = /^[\w+ .\/-]{1,30}$/.test(sm) ? { index: +fd.get('slot'), material: sm } : null;
+  fd.set('printer_json', JSON.stringify(printerJson(p, live[p.id] && live[p.id].entry, pick)));
   const { url, own } = slicer();
   if (own) {
     // Felder in Reihenfolge (Namen dürfen sich wiederholen), Dateien erst an den Android-Teil, dann ein Upload
