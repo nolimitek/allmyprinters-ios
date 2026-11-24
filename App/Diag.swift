@@ -103,6 +103,68 @@ enum Diag {
                 const j = JSON.parse(ctl.text); return [r.ok, r.remote, j.reuseOk, j.reuseFails, j.uploads]; });
               await t('cam_bambu', async () => { await AMP.native('cam', { key: 'dbb', urls: ['bambu6000://127.0.0.1:16000?code=12345678'] }); await new Promise(r => setTimeout(r, 3000));
                 const s = await AMP.native('cam_status', { key: 'dbb' }); await AMP.native('cam_stop', { key: 'dbb' }); return s; });
+              // ── 24.11.2026: NAS (WebDAV), eigener Ordner, Neuigkeiten im Hintergrund, H.264-Kamera (FLV über ManagedMediaSource) ──
+              await t('dav', async () => {
+                const c = { user: 'amp', pass: 'geheim' }, B = 'http://127.0.0.1:18990/dav/', D = 'http://127.0.0.1:18990/ddav/', o = {};
+                const s1 = await AMP.native('stash', { b64: btoa('solid w\\nendsolid w\\n'), name: 'w.stl' });
+                o.put = (await AMP.native('dav', { method: 'PUT', url: B + '7-w%C3%BCrfel%20gro%C3%9F.stl', token: s1.token, ...c })).status;
+                o.putText = (await AMP.native('dav', { method: 'PUT', url: B + 'note.txt', text: 'hallo', ...c })).status;
+                const ls = await AMP.native('dav_list', { url: B.slice(0, -1), ...c });
+                o.list = [ls.status, (String(ls.text).match(/<d:response>/g) || []).length, ls.scheme || ''];
+                const g = await AMP.native('dav', { method: 'GET', url: B + '7-w%C3%BCrfel%20gro%C3%9F.stl', name: 'würfel.stl', ...c });
+                o.get = [g.status, g.size, g.token ? (await AMP.native('fileRead', { token: g.token })).text : null];
+                if (g.token) await AMP.native('fileDrop', { token: g.token });
+                o.del = (await AMP.native('dav', { method: 'DELETE', url: B + 'note.txt', ...c })).status;
+                o.missing = (await AMP.native('dav', { method: 'GET', url: B + 'fehlt.stl', ...c })).status;
+                o.wrongPass = (await AMP.native('dav', { method: 'GET', url: B + 'x', user: 'amp', pass: 'falsch' })).status;
+                const d1 = await AMP.native('dav', { method: 'PUT', url: D + 'd%C3%A4%20x.txt', text: 'digest', ...c });
+                o.digest = [d1.status, d1.scheme || ''];
+                o.digestPut = (await AMP.native('dav', { method: 'PUT', url: D + 'd2.stl', token: s1.token, scheme: 'digest', ...c })).status;
+                const dl = await AMP.native('dav_list', { url: D, ...c });
+                o.digestList = [dl.status, dl.scheme || '', (String(dl.text).match(/<d:response>/g) || []).length];
+                await AMP.native('fileDrop', { token: s1.token });
+                o.server = JSON.parse((await AMP.native('http', { url: 'http://127.0.0.1:18990/__dav' })).text);
+                return o; });
+              // Bibliothek auf dem NAS über die Oberfläche (backend.js): verbinden, hochladen, einlesen — die Bibliotheks-Ansicht danach zeigt sie
+              await t('lib_dav', async () => {
+                const r = await AMP.api('amp_lib_dav', { url: 'http://127.0.0.1:18990/dav/bib', user: 'amp', pass: 'geheim' });
+                const s = await AMP.native('stash', { b64: btoa('solid n\\nendsolid n\\n'), name: 'nas.stl' });
+                const up = await AMP.api('lib_upload', { token: s.token, name: 'NAS-Würfel.stl', size: s.size }).catch(e => ({ err: e.message }));
+                await AMP.native('dav', { method: 'PUT', url: 'http://127.0.0.1:18990/dav/bib/vom-PC.gcode', text: 'G28\\n', user: 'amp', pass: 'geheim' });
+                const sc = await AMP.api('lib_scan', { force: true }).catch(e => ({ err: e.message }));
+                const loc = await AMP.api('amp_lib_loc');
+                const list = (await AMP.api('lib_list')).files.map(f => [f.name, f.loc]);
+                return { dav: r, up: up && (up.error || up.err || 'ok'), scan: sc, loc: loc.loc, list }; });
+              await t('lib_dir', async () => {
+                const d = await AMP.native('lib_dir_test');
+                const s = await AMP.native('stash', { b64: btoa('solid d\\nendsolid d\\n'), name: 'd.stl' });
+                const p1 = await AMP.native('lib_put', { token: s.token, key: 'x', name: 'Ordner Würfel.stl', loc: d.uri });
+                const p2 = await AMP.native('lib_put', { token: s.token, key: 'x', name: 'Ordner Würfel.stl', loc: d.uri });
+                const ls = await AMP.native('lib_dir_list', { loc: d.uri });
+                const g = await AMP.native('lib_get', { key: '', doc: p2.doc, name: 'x.stl' });
+                const rd = await AMP.native('fileRead', { token: g.token }); await AMP.native('fileDrop', { token: g.token });
+                await AMP.native('lib_del', { doc: p1.doc, id: '' });
+                const ls2 = await AMP.native('lib_dir_list', { loc: d.uri });
+                const ok = await AMP.native('lib_dir_ok', { uri: d.uri });
+                let gone = null; try { await AMP.native('lib_get', { key: '', doc: p1.doc, name: 'y' }); } catch (e) { gone = e.message + ' ' + JSON.stringify(e.data || null); }
+                await AMP.native('fileDrop', { token: s.token });
+                return { uri: d.uri, p1: p1.doc, p2: p2.doc, list: ls.files.map(f => [f.name, f.size]), get: rd.text, after: ls2.files.map(f => f.name), ok: ok.ok, gone }; });
+              await t('news', () => AMP.native('news_test', {}));
+              await t('nfc', () => AMP.native('nfc_state'));
+              await t('mse', () => ({ ms: typeof window.MediaSource, mms: typeof window.ManagedMediaSource, poly: !!window.__ampMms,
+                h264: window.MediaSource && MediaSource.isTypeSupported ? MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"') : null,
+                flvjs: typeof window.flvjs, flvOk: window.flvjs ? flvjs.isSupported() : null }));
+              await t('flv_play', () => new Promise(res => {
+                if (!window.flvjs || !flvjs.isSupported()) { res('flvjs not supported'); return; }
+                const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true;
+                v.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:180px;z-index:99999;background:#000';
+                document.body.appendChild(v);
+                const p = flvjs.createPlayer({ type: 'flv', isLive: true, url: '/cam/live?u=' + encodeURIComponent('http://127.0.0.1:18088/flv') }, { enableStashBuffer: false });
+                const errs = []; p.on(flvjs.Events.ERROR, (a, b, c) => errs.push([a, b, c && c.msg]));
+                p.attachMediaElement(v); p.load(); const pl = v.play(); if (pl) pl.catch(e => errs.push('play ' + e.message));
+                setTimeout(() => { const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, drp: v.disableRemotePlayback, errs };
+                  try { p.destroy(); } catch (e) {} v.remove(); res(o); }, 9000);
+              }));
             }
             out.errs = (window.__ampErr || []).slice(0, 40);
             return JSON.stringify(out);

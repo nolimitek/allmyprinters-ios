@@ -29,6 +29,7 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "import": present(id, kind: .importText, a); return
         case "export": export(id, a); return
         case "lib_save_as": saveAs(id, a); return
+        case "lib_dir_pick": FolderPicker.shared.pick(self, id); return   // eigener Ordner (App/Lib.swift)
         case "bars":
             vc?.setBars(a["color"] as? String ?? "#ffffff", dark: a["dark"] as? Bool ?? false)
             reply(id, true, [String: Any]()); return
@@ -91,8 +92,19 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
         case "lib_space":
             let v = try? store.dataDir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             return ["free": v?.volumeAvailableCapacityForImportantUsage ?? 0]
-        case "lib_dir_ok": return ["ok": false]
-        case "nfc_state": return ["available": false, "enabled": false]
+        case "lib_dir_ok": return libDirOk(a)
+        case "lib_dir_list": return try libDirList(a)
+        case "lib_dir_test": return try libDirTest()
+        case "dav": return try dav(a)
+        case "dav_list": return try davList(a)
+        case "nfc_state": return Nfc.shared.state()   // NFC-Spulenetiketten (App/Nfc.swift)
+        case "nfc_scan": return Nfc.shared.scan(self)
+        case "nfc_write": return Nfc.shared.arm(self, json: s(a, "json"), force: a["force"] as? Bool ?? false)
+        case "nfc_write_cancel": return Nfc.shared.disarm()
+        case "nfc_settings": return ["ok": true]   // iPhone: kein NFC-Schalter in den Einstellungen
+        case "news_test":   // nur Simulator-Lauf: Neuigkeiten gegen den Nachbau (App/News.swift)
+            guard UserDefaults.standard.bool(forKey: "ampDiag") else { throw BErr("IllegalArgumentException", "unknown method news_test") }
+            return News.diag(s(a, "url", "http://127.0.0.1:8767/news.json"))
         case "agent_state": let u = Agent.url; return ["coupled": u != nil, "url": u ?? ""]
         case "agent_couple": return try agentCouple(a)
         case "agent_migrate": return try agentMigrate(a)
@@ -362,7 +374,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
     // ── Bibliothek: Modelle im App-Speicher (Application Support/library), Vorschaubilder + 3D-Netze daneben ──
     private func libPut(_ a: [String: Any]) throws -> [String: Any] {
         let src = try file(a)
-        guard s(a, "loc", "app") == "app" else { throw BErr("UnsupportedOperationException", "lib_dir") }   // eigener Ordner: später
+        let loc = s(a, "loc", "app")
+        if loc != "app" { return try libPutDir(src, loc, a) }   // eigener Ordner (App/Lib.swift)
         let k0 = try req(a, "key")
         let key = String(k0.replacingOccurrences(of: "[^\\w.\\- ()]", with: "_", options: .regularExpression).prefix(180))
         let dst = store.libDir.appendingPathComponent(key)
@@ -372,6 +385,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
     }
 
     private func libGet(_ a: [String: Any]) throws -> [String: Any] {
+        let doc = s(a, "doc")
+        if !doc.isEmpty && doc != "null" { return try libGetDir(doc, a) }
         let k0 = try req(a, "key")
         let f = store.libDir.appendingPathComponent(k0)
         guard !s(a, "key").contains(".."), store.fm.fileExists(atPath: f.path) else { throw BErr("IllegalStateException", "file_gone") }
@@ -382,8 +397,9 @@ final class Bridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
     }
 
     private func libDel(_ a: [String: Any]) -> [String: Any] {
-        let key = s(a, "key")
-        if !key.isEmpty && !key.contains("..") { try? store.fm.removeItem(at: store.libDir.appendingPathComponent(key)) }
+        let key = s(a, "key"), doc = s(a, "doc")
+        if !doc.isEmpty && doc != "null" { libDelDir(doc) }
+        else if !key.isEmpty && !key.contains("..") { try? store.fm.removeItem(at: store.libDir.appendingPathComponent(key)) }
         let id = Store.digits(s(a, "id"))
         if !id.isEmpty { for d in [store.libThumbs, store.libMeshes] {
             for f in (try? store.fm.contentsOfDirectory(at: d, includingPropertiesForKeys: nil)) ?? [] where f.lastPathComponent.hasPrefix(id + "-") { try? store.fm.removeItem(at: f) }

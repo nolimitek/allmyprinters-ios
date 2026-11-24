@@ -55,6 +55,12 @@ targets:
         NSLocalNetworkUsageDescription: "AllMyPrinters spricht direkt mit deinen 3D-Druckern im Heimnetz."
         NSBonjourServices: [_http._tcp, _octoprint._tcp, _moonraker._tcp]
         NSCameraUsageDescription: "Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten)."
+        # NFC-Spulenetiketten lesen/beschreiben (App/Nfc.swift); ISO-7816-Kennung nötig, damit solche Tags überhaupt gemeldet werden
+        NFCReaderUsageDescription: "Zum Lesen und Beschreiben der NFC-Etiketten deiner Spulen."
+        com.apple.developer.nfc.readersession.iso7816.select-identifiers: [D2760000850101]
+        # Neuigkeiten im Hintergrund (App/News.swift, BGAppRefreshTask)
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.allmyprinters.app.news]
         # Agent-Modus: allmyprinters.com/web braucht einen Service Worker — in WKWebView nur für App-gebundene Domains
         # „app“ = eigene Oberfläche amp://app (sonst sperrt WebKit dort Skripte und Brücke), dazu limitsNavigationsToAppBoundDomains
         WKAppBoundDomains: [app, allmyprinters.com]

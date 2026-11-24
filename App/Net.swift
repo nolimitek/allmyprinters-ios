@@ -21,6 +21,7 @@ final class Net: NSObject, URLSessionDataDelegate {
         var onResp: ((HTTPURLResponse) -> Bool)?
         var onChunk: ((Data) -> Bool)?
         var onDone: ((Error?) -> Void)?
+        var noRedirect = false   // WebDAV: Weiterleitungen nicht folgen (wie instanceFollowRedirects=false auf Android)
         let done = DispatchSemaphore(value: 0)
     }
 
@@ -78,6 +79,10 @@ final class Net: NSObject, URLSessionDataDelegate {
         j.onRecv?(j.got, j.expected)
     }
 
+    func urlSession(_ s: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(job(task)?.noRedirect == true ? nil : request)
+    }
+
     func urlSession(_ s: URLSession, task: URLSessionTask, didSendBodyData sent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
         job(task)?.onSend?(totalBytesSent, totalBytesExpectedToSend)
     }
@@ -117,7 +122,8 @@ final class Net: NSObject, URLSessionDataDelegate {
             p[g(1).lowercased()] = g(2).isEmpty ? g(3) : g(2)
         }
         let md5 = { (s: String) in Insecure.MD5.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined() }
-        let uri = (url.path.isEmpty ? "/" : url.path) + (url.query.map { "?" + $0 } ?? "")
+        // wie in der Anfragezeile (%-kodiert) — Apache/nginx vergleichen uri mit ihr (WebDAV-Dateinamen mit Umlauten/Leerzeichen)
+        let pe = url.path(percentEncoded: true), uri = (pe.isEmpty ? "/" : pe) + (url.query(percentEncoded: true).map { "?" + $0 } ?? "")
         let realm = p["realm"] ?? "", nonce = p["nonce"] ?? ""
         let qop = p["qop"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.first { $0 == "auth" }
         let ha1 = md5("\(user):\(realm):\(pass)"), ha2 = md5("\(method):\(uri)")

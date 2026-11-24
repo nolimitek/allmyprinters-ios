@@ -11,12 +11,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let vc = WebViewController()
         Push.shared.vc = vc
         Push.shared.launched()   // Meldungs-Empfänger setzen, bevor iOS ein angetipptes Push beim Kaltstart zustellt
+        News.register()   // Neuigkeiten im Hintergrund (App/News.swift) — muss vor dem Ende des Starts angemeldet sein
+        News.schedule()
         w.rootViewController = vc
         w.makeKeyAndVisible()
         window = w
         Log.write("start \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") iOS \(UIDevice.current.systemVersion)")
         return true
     }
+
+    func applicationDidEnterBackground(_ application: UIApplication) { News.schedule() }
 
     // Apple-Push (Druck-Meldungen über den Agenten, App/Push.swift)
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) { Push.shared.didRegister(deviceToken) }

@@ -97,17 +97,17 @@ def bundle_id(ident=BUNDLE, name='AllMyPrinters'):
     return j['data']['id'], j['data']['attributes'].get('seedId')
 
 
-def push_capability(bid):
-    """Push Notifications an der App-ID einschalten (sonst fehlt aps-environment im Profil)"""
+def capability(bid, kind, label):
+    """Fähigkeit an der App-ID einschalten (sonst fehlt die Berechtigung im Profil): PUSH_NOTIFICATIONS, NFC_TAG_READING"""
     st, j = call('GET', f'/bundleIds/{bid}/bundleIdCapabilities')
-    if st == 200 and any(c['attributes'].get('capabilityType') == 'PUSH_NOTIFICATIONS' for c in j.get('data', [])):
-        print('Push-Berechtigung: an')
+    if st == 200 and any(c['attributes'].get('capabilityType') == kind for c in j.get('data', [])):
+        print(f'{label}: an')
         return
-    st, j = call('POST', '/bundleIdCapabilities', {'data': {'type': 'bundleIdCapabilities', 'attributes': {'capabilityType': 'PUSH_NOTIFICATIONS'},
+    st, j = call('POST', '/bundleIdCapabilities', {'data': {'type': 'bundleIdCapabilities', 'attributes': {'capabilityType': kind},
                                                            'relationships': {'bundleId': {'data': {'type': 'bundleIds', 'id': bid}}}}})
     if st not in (200, 201):
-        die(f'Push-Berechtigung einschalten {st}: ' + errtext(j))
-    print('Push-Berechtigung eingeschaltet')
+        die(f'{label} einschalten {st}: ' + errtext(j))
+    print(f'{label} eingeschaltet')
 
 
 def app_record():
@@ -193,7 +193,8 @@ def prepare(out):
     if not team:
         die('keine Team-ID (seedId) an der Bundle-ID')
     print(f'Team-ID: {team}')
-    push_capability(bid)
+    capability(bid, 'PUSH_NOTIFICATIONS', 'Push-Berechtigung')
+    capability(bid, 'NFC_TAG_READING', 'NFC-Berechtigung')   # NFC-Spulenetiketten (24.11.2026)
     nid, _ = bundle_id(NSE, 'AllMyPrinters Notify')
     app = app_record()
     if not app:

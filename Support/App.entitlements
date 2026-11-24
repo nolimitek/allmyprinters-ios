@@ -10,5 +10,10 @@
 	<array>
 		<string>$(AppIdentifierPrefix)com.allmyprinters.shared</string>
 	</array>
+	<!-- NFC-Spulenetiketten (App/Nfc.swift, NFCTagReaderSession) -->
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>TAG</string>
+	</array>
 </dict>
 </plist>

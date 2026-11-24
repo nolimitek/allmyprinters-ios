@@ -73,6 +73,25 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
             night: function(){ return !!window.__ampNight; },
             platform: 'ios'
           };
+          // Kameras mit H.264 (Kobra X als FLV, Bambu X1/H2 per RTSP → FLV): flv.js braucht MediaSource — das iPhone hat dafür
+          // ManagedMediaSource (ab iOS 17.1). Gleich behandeln; vor dem Anhängen disableRemotePlayback setzen, sonst öffnet WebKit die Quelle nicht.
+          if (!window.MediaSource && window.ManagedMediaSource) {
+            window.MediaSource = window.ManagedMediaSource; window.__ampMms = true;
+            if (!window.SourceBuffer && window.ManagedSourceBuffer) window.SourceBuffer = window.ManagedSourceBuffer;
+            try {
+              var sd = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+              Object.defineProperty(HTMLMediaElement.prototype, 'src', { configurable: true, enumerable: sd.enumerable, get: sd.get,
+                set: function(v){ try { if (String(v).slice(0, 5) === 'blob:') this.disableRemotePlayback = true; } catch (e) {} sd.set.call(this, v); } });
+            } catch (e) {}
+          }
+          // NFC (iPhone): gelesen wird nur in einer gestarteten Sitzung → wartet „Tag verknüpfen“ (Dialog .amp-nfc-wait, nicht Schreiben),
+          // Sitzung starten (App/Nfc.swift). Schreiben startet sie selbst (nfc_write).
+          try {
+            new MutationObserver(function(){
+              var w = document.querySelector('dialog[open] .dlg-b.amp-nfc-wait:not(.amp-nfcw-done)');
+              if (w && !w.__ampNfc) { w.__ampNfc = 1; window.webkit.messageHandlers.amp.postMessage({ id: 'nfc_scan', m: 'nfc_scan', a: '{}' }); }
+            }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
+          } catch (e) {}
           window.addEventListener('error', function(e){ var s = 'error ' + e.message + ' @' + (e.filename || '') + ':' + (e.lineno || 0); window.__ampErr.push(s); post(s); });
           window.addEventListener('unhandledrejection', function(e){ var r = e.reason; var s = 'rejection ' + (r && (r.stack || r.message) || r); window.__ampErr.push(s); post(s); });
           // Agent-Seite (https): ws:// ins Heimnetz verbietet WKWebView (Mixed Content) → über die App (Agent.swift NativeWS)
