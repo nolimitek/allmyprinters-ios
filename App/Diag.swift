@@ -158,10 +158,13 @@ enum Diag {
               await t('rtsp_raw', async () => { const ac = new AbortController(); setTimeout(() => ac.abort(), 6000);
                 const r = await fetch('/cam/live?u=' + encodeURIComponent('rtsps://bblp:12345678@127.0.0.1:18322/streaming/live/1'), { signal: ac.signal });
                 const rd = r.body.getReader(); let n = 0, head = ''; const t0 = Date.now();
-                try { while (Date.now() - t0 < 4000) { const { value, done } = await rd.read(); if (done) break; if (!head) head = String.fromCharCode(...value.slice(0, 3)); n += value.length; } } catch (e) {}
+                const keep = [];
+                try { while (Date.now() - t0 < 4000) { const { value, done } = await rd.read(); if (done) break; if (!head) head = String.fromCharCode(...value.slice(0, 3)); n += value.length; if (n < 120000) keep.push(value); } } catch (e) {}
+                { const all = new Uint8Array(keep.reduce((a, x) => a + x.length, 0)); let o = 0; for (const x of keep) { all.set(x, o); o += x.length; }
+                  let b = ''; for (let i = 0; i < all.length; i += 0x8000) b += String.fromCharCode.apply(null, all.subarray(i, i + 0x8000)); window.__ampRtspB64 = btoa(b); }
                 try { ac.abort(); } catch (e) {}
                 const st = JSON.parse((await AMP.native('http', { url: 'http://127.0.0.1:18323/' })).text);
-                return { status: r.status, type: r.headers.get('content-type'), head, bytes: n, mock: st }; });
+                return { status: r.status, type: r.headers.get('content-type'), head, bytes: n, mock: st, b64: window.__ampRtspB64 }; });
               await t('flv_play', () => new Promise(res => {
                 if (!window.flvjs || !flvjs.isSupported()) { res('flvjs not supported'); return; }
                 const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true;
@@ -181,7 +184,9 @@ enum Diag {
                 const p = flvjs.createPlayer({ type: 'flv', isLive: true, url: '/cam/live?u=' + encodeURIComponent('rtsps://bblp:12345678@127.0.0.1:18322/streaming/live/1') }, { enableStashBuffer: false });
                 const errs = []; p.on(flvjs.Events.ERROR, (a, b, c) => errs.push([a, b, c && c.msg]));
                 p.attachMediaElement(v); p.load(); const pl = v.play(); if (pl) pl.catch(e => errs.push('play ' + e.message));
-                setTimeout(() => { const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, errs };
+                const ev = []; ['waiting', 'stalled', 'playing', 'pause', 'seeking', 'seeked', 'ended'].forEach(k => v.addEventListener(k, () => ev.push(k + '@' + v.currentTime.toFixed(2))));
+                const prog = []; const pt = setInterval(() => { const b = v.buffered; prog.push([+v.currentTime.toFixed(2), b.length ? +b.start(0).toFixed(2) : null, b.length ? +b.end(b.length - 1).toFixed(2) : null, v.paused]); }, 1500);
+                setTimeout(() => { clearInterval(pt); const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, errs, ev: ev.slice(0, 20), prog };
                   try { p.destroy(); } catch (e) {} v.remove(); res(o); }, 9000);
               }));
             }
