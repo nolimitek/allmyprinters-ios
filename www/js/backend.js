@@ -3933,6 +3933,9 @@ async function sliceForm(fd) {
   const p = pkOf(fd.get('printer'));
   if (!p) return { error: 'no_printer' };
   if (fd.get('a') !== 'print_slice') return { error: 'unsupported' };
+  // Weiche der App ohne Agent (24.11.2026): Hinweis mit Link zur Agent-Anleitung (amp-views ampPlanHint) + Text in der Druckansicht (psd_err_plan_*)
+  const need = aplSliceNeed(fd, slicer().own);
+  if (need) { window.AMP_ev('plan_hint', { f: need }); return { error: 'plan_' + need }; }
   await profileOf(p).catch(() => {});
   fd.set('a', 'slice');
   fd.set('printer_json', JSON.stringify(printerJson(p, live[p.id] && live[p.id].entry)));
@@ -5546,6 +5549,10 @@ async function api(a, body, params) {
   const f = A[a];
   if (!f) { console.warn('AMP: Aktion fehlt', a); fail('unsupported'); }
   const inp = Object.assign({}, params || {}, body || {});
+  if (APL_ON && apl) {   // Weichen der App ohne Agent (24.11.2026, unten): nur was der Plan ausdrücklich ausschaltet
+    const need = aplNeed(a, inp);
+    if (need) { if (need !== 'models') window.AMP_ev('plan_hint', { f: need }); planFail(need); }   // Modellsuche prüfen die Ansichten vorher (auch Vorschläge beim Tippen)
+  }
   if (!['amp_scan', 'amp_probe', 'amp_add', 'amp_print', 'printer_cmd', 'amp_octo_request', 'amp_octo_poll'].includes(a)) return f(inp);
   try {
     const r = await f(inp);
@@ -5559,6 +5566,127 @@ async function api(a, body, params) {
   }
 }
 
+// ── Weichen der App ohne Agent (24.11.2026, User: „so bauen, dass man es aktuell nicht sieht und alles frei kostenlos ist, erst später
+// im Admin umschaltbar“, Plan: memory app-abo-grenzen-plan) ──────────────────────────────────────────────────────────────────
+// Wie der Agent (agent/src/plan.js) holt die App von allmyprinters.com/api/app-plan.php einen signierten Plan
+//   {v:1, k:'app', h, plan: beta|free, f: {funktion: bool}, printers: n|null, min: 'x.y.z'|'', upd: Adresse, iat, exp}
+// (Ed25519, derselbe Schlüssel wie beim Agenten; k:'app' und h = sha256('amp-app|' + Kennung) → ein Agenten-Plan passt hier nicht).
+// Eingestellt wird im Admin → Abo → „App ohne Agent“. Beta (Hauptschalter, Standard an) = alles frei, die App zeigt dann nichts davon.
+// Regeln: Es gilt die neueste geprüfte Antwort. Grenzen bleiben auch nach Ablauf (exp) bestehen, die Mindestversion gilt nur bis exp
+// (eine alte Antwort sperrt die App ohne Internet nie). Nie eine bekommen = alles frei; was der Plan nicht nennt, bleibt frei.
+// Mit Agent läuft diese Datei in der App gar nicht (die App zeigt die Oberfläche des Agenten, dort gilt sein Plan); im Agenten
+// selbst (runtime.js, FM.agent) ist die Weiche aus. Gesendet: eigene Zufallskennung (nur hierfür, NICHT die Gerätekennung des
+// Slicers), Version, Plattform. Der Server speichert nichts. Ohne Ed25519 in der WebView (alte Android-WebView) wird nicht geprüft.
+// Funktionen: models (Modellsuche), slice (Slicen auf unserem Server), own_slicer (eigener Slicer), plates, editor, stats; printers = Zahl.
+const APL_ON = !(window.FM && FM.agent);
+const APL_PUB = 'Nh9LLz8BGO+RIvDfGIVRyOLlcW7daBe+iTnU4M0LrLc=';   // allmyprinters.com private/agent-plan-key.json (wie agent/src/plan.js)
+const APL_EVERY = 6 * 3600e3;
+const aplUrl = () => { try { return localStorage.getItem('amp_plan_url') || 'https://allmyprinters.com/api/app-plan.php'; } catch (e) { return 'https://allmyprinters.com/api/app-plan.php'; } };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const aplBytes = s => {
+  s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); s += '='.repeat((4 - s.length % 4) % 4);
+  const r = atob(s), o = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o;
+};
+let apl = null, aplAt = 0, aplErr = '', aplKey = null, aplNoEd = false, aplHash = null, aplVer = '', aplPlat = 'android', aplSig = '', aplBusy = null, aplReady = null;
+function aplId() {
+  let id = lsGet('amp_pid');
+  if (!/^[A-Za-z0-9_-]{22}$/.test(id || '')) {
+    const b = new Uint8Array(16); crypto.getRandomValues(b);
+    id = btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); lsSet('amp_pid', id);
+  }
+  return id;
+}
+async function aplH() {
+  if (aplHash) return aplHash;
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('amp-app|' + aplId())));
+  return (aplHash = [...d].map(x => x.toString(16).padStart(2, '0')).join(''));
+}
+/** Token „payload.signatur“ prüfen → Plan oder null (falsche Signatur, andere App, Agenten-Plan, kaputt). */
+async function aplCheck(tok) {
+  const [b, s] = String(tok || '').split('.');
+  if (!b || !s) return null;
+  let p; try { p = JSON.parse(new TextDecoder().decode(aplBytes(b))); } catch (e) { return null; }
+  if (!p || p.v !== 1 || p.k !== 'app' || p.h !== (await aplH()).slice(0, 32) || !p.f || typeof p.f !== 'object' || !(+p.iat > 0)) return null;
+  if (!aplKey && !aplNoEd) {
+    try { aplKey = await crypto.subtle.importKey('raw', aplBytes(APL_PUB), { name: 'Ed25519' }, false, ['verify']); }
+    catch (e) { aplNoEd = true; diag({ a: 'plan', err: 'no_ed25519', d: String((e && e.name) || '') }); }
+  }
+  if (aplKey && !(await crypto.subtle.verify({ name: 'Ed25519' }, aplKey, aplBytes(s), new TextEncoder().encode(b)).catch(() => false))) return null;
+  return p;
+}
+const aplNum = v => String(v || '').split(/[.-]/).slice(0, 3).map(n => parseInt(n, 10) || 0);
+const aplVerLt = (a, b) => { const x = aplNum(a), y = aplNum(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
+const planAllows = k => !(APL_ON && apl && apl.f[k] === false);
+const planLimit = () => APL_ON && apl && apl.printers !== null && apl.printers !== undefined && apl.printers !== '' ? Math.max(0, parseInt(apl.printers, 10) || 0) : null;
+function planStatus() {
+  const fresh = !!(apl && +apl.exp * 1000 > Date.now());
+  const min = APL_ON && fresh && apl.min && aplVer && aplVerLt(aplVer, apl.min) ? String(apl.min) : '';
+  return { on: APL_ON, plan: apl ? apl.plan : null, f: apl ? Object.assign({}, apl.f) : {}, printers: planLimit(), min, upd: min ? String(apl.upd || '') : '',
+           version: aplVer, platform: aplPlat, checked: aplAt, error: aplErr };
+}
+const aplSigOf = () => JSON.stringify([apl ? apl.f : null, planLimit(), planStatus().min]);
+function aplChanged() { const s = aplSigOf(); if (s !== aplSig) { aplSig = s; window.AMP_ev('plan', planStatus()); } }
+const planFail = f => { const e = new Error('plan'); e.code = 'plan:' + f; e.feature = f; throw e; };
+/** Welche Weiche eine Aktion braucht (null = frei). Platten/Editor wie der Agent (server.js FEATURE_OF). */
+function aplNeed(a, inp) {
+  if (/^amp_s3d_/.test(a)) return planAllows('models') ? null : 'models';
+  if (a === 'amp_slicer_test') return planAllows('own_slicer') ? null : 'own_slicer';
+  if (a === 'amp_lib_plate_save') {
+    if (!planAllows('plates')) return 'plates';
+    return !planAllows('editor') && Array.isArray(inp.parts) && inp.parts.some(x => x && Array.isArray(x.inst) && x.inst.length) ? 'editor' : null;
+  }
+  if (a === 'amp_add') { const lim = planLimit(); return lim !== null && db.printers.length >= lim ? 'printers' : null; }   // vorhandene Drucker laufen weiter
+  return null;
+}
+/** Slicen (sliceForm): unser Server = slice, eigener = own_slicer. Fertiger G-Code wird nur geprüft, nicht gesliced → immer frei. */
+function aplSliceNeed(fd, own) {
+  if (!APL_ON || !apl) return null;
+  const k = own ? 'own_slicer' : 'slice';
+  if (planAllows(k)) return null;
+  const blobs = [...fd.values()].filter(v => v instanceof Blob);
+  return blobs.length && blobs.every(b => /\.(gcode|bgcode|gco|g)$/i.test(b.name || '')) ? null : k;
+}
+async function aplLoad() {
+  if (!APL_ON || !window.AMPNative) return;
+  try { const i = await native('info', {}); aplVer = String(i.version || ''); aplPlat = i.platform === 'ios' ? 'ios' : 'android'; } catch (e) {}
+  const p = await aplCheck(lsGet('amp_plan')).catch(() => null);
+  if (p) apl = p;
+  aplAt = +lsGet('amp_plan_at') || 0;
+  aplSig = aplSigOf();
+}
+const planReady = () => aplReady || (aplReady = aplLoad().catch(() => {}));
+async function planRefresh() {
+  await planReady();
+  if (!APL_ON || !window.AMPNative) return planStatus();
+  if (aplBusy) return aplBusy;
+  aplBusy = (async () => {
+    try {
+      const v = /^\d{1,3}\.\d{1,3}\.\d{1,4}(-[a-z0-9.]{1,12})?$/.test(aplVer) ? aplVer : '0.0.0';
+      const ac = typeof AbortController === 'function' ? new AbortController() : null;
+      if (ac) setTimeout(() => ac.abort(), 15000);
+      // text/plain: einfache Anfrage ohne Vorab-Anfrage (CORS erlaubt der Server für die App-Herkünfte)
+      const r = await _fetch(aplUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ id: aplId(), v, p: aplPlat }), cache: 'no-store', ...(ac ? { signal: ac.signal } : {}) });
+      const j = await r.json().catch(() => ({}));
+      const p = r.ok && j.ok ? await aplCheck(j.token) : null;
+      if (!p) throw new Error(r.ok ? 'bad_token' : 'http_' + r.status);
+      if (!apl || +p.iat >= +apl.iat) { apl = p; lsSet('amp_plan', j.token); }
+      aplAt = Date.now(); lsSet('amp_plan_at', String(aplAt)); aplErr = '';
+    } catch (e) { aplErr = e && e.name === 'AbortError' ? 'timeout' : String((e && e.message) || 'net').slice(0, 40); }
+    aplBusy = null;
+    aplChanged();
+    return planStatus();
+  })();
+  return aplBusy;
+}
+if (APL_ON && window.AMPNative) {
+  planReady();
+  setTimeout(() => { planRefresh().catch(() => {}); }, 4000);
+  setInterval(() => { planRefresh().catch(() => {}); }, APL_EVERY);
+  on('resume', () => { if (Date.now() - aplAt > 3600e3) planRefresh().catch(() => {}); });
+}
+const plan = { allows: planAllows, limit: planLimit, status: planStatus, refresh: planRefresh, ready: planReady };
+
 // Leisten des Handys in der Farbe der Kopfzeile (hell/dunkel), bei jedem Umschalten
 function bars() {
   const top = document.querySelector('.fmx-top'); if (!top || !window.AMPNative) return;
@@ -5569,5 +5697,5 @@ function bars() {
 new MutationObserver(() => setTimeout(bars, 50)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 document.addEventListener('DOMContentLoaded', () => setTimeout(bars, 50));
 
-window.AMP = { api, form, native, on, boot, gcodeMeta, get db() { return db; } };
+window.AMP = { api, form, native, on, boot, gcodeMeta, plan: APL_ON ? plan : null, get db() { return db; } };
 })();

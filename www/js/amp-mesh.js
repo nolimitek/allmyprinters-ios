@@ -379,5 +379,18 @@
       if (!plates.some(p => !p.empty)) throw new Error('empty');
       return { plates, bed: src.bed };
     },
+    /** Bemalt? (24.11.2026, Vorschlag „Objekt für Objekt“ in amp-views ampSeqCheck): true, sobald ein Dreieck einer .model-Datei eine
+     *  Farbe trägt (Bambu paint_color, Prusa mmu_segmentation, Zustand ≠ 0); null = zu groß zum Prüfen. Liest nur Text, baut kein Netz. */
+    async painted(blob) {
+      const z = await zipOpen(blob);
+      const models = [...z.entries].filter(([k]) => k.toLowerCase().endsWith('.model'));
+      if (models.reduce((a, [, e]) => a + e.usize, 0) > 150 * 1048576) return null;
+      for (const [k] of models) {
+        const t = await z.text(k); if (!t) continue;
+        const re = /\b(?:paint_color|mmu_segmentation|slic3rpe:mmu_segmentation)="([0-9A-Fa-f]+)"/g;
+        let m; while ((m = re.exec(t))) if (paintState(m[1])) return true;
+      }
+      return false;
+    },
   };
 })();

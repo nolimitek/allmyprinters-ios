@@ -3067,7 +3067,7 @@ async function viewPrint() {
     <div class="pplates" id="pplates" hidden></div><div class="pobjs" id="pobjs" hidden></div><input type="hidden" name="skip" id="pskip" value="">
     <div class="pstls" id="pstls" hidden></div><input type="file" id="pstladd" accept=".stl" multiple hidden></section>
   <section class="step"><div class="step-h"><b>3</b>${S.psd_settings}</div>
-    <div class="fld"><span>${S.psd_slot}</span></div><p class="hint pmulti" id="pmulti" hidden></p><div class="pick-grid small" id="pslots"></div><p class="hint" id="pnote" hidden></p>
+    <div class="fld"><span>${S.psd_slot}</span></div><p class="hint pmulti" id="pmulti" hidden></p><div class="pick-grid small" id="pslots"></div><p class="hint" id="pnote" hidden></p><div class="amp-seq" id="pseq" hidden></div>
     <div class="fgrid pfgrid" id="pfgrid" style="margin-top:12px">
       <label class="fld"><span>${S.psd_plate}</span><select class="in" name="bed" id="pbed"><option value="textured">${plates.textured}</option><option value="smooth">${plates.smooth}</option></select></label>
       <label class="fld"><span>${S.psd_supports}</span><select class="in" name="supports" id="psup"><option value="project" hidden>${S.psd_sup_project}</option><option value="off">${S.psd_sup_off}</option><option value="on">${S.psd_sup_on}</option></select></label>
@@ -3260,6 +3260,7 @@ async function viewPrint() {
       : t('psd_stl_files', { n: L.length, mb: fsize(L.reduce((a, x) => a + x.file.size, 0)) });
   }
   function renderStls() {
+    if (window.ampSeqCheck) ampSeqCheck(ps, printer);
     const box = $('#pstls'); if (!box) return;
     const L = ps.stls;
     if (!L || !L.length) { box.hidden = true; box.innerHTML = ''; return; }
@@ -3619,6 +3620,7 @@ async function viewPrint() {
     renderObjs();
   }
   function renderMulti() {
+    if (window.ampSeqCheck) ampSeqCheck(ps, printer);
     const p = printer(), mf = ps.mf, el = $('#pmulti');
     if (!el || !$('#pslice')) return;
     const multi = !!(mf && p && p.multi);
@@ -3785,7 +3787,7 @@ async function viewPrint() {
     if (r.status === 'error') {
       const dims = a => a.filter(Boolean).map(x => nf1.format(x)).join(' × ') + ' mm';
       status($('#pstatus'), r.job_fit ? esc(t('psd_err_fit', { a: r.job_fit[0], n: r.job_fit[1] }))
-        : r.job_bed ? esc(tf('psd_err_bed', dims(r.job_bed.model), dims(r.job_bed.bed))) : tf('psd_err_slice', esc(r.job_error || '?')), false, true);
+        : r.job_bed ? esc(tf('psd_err_bed', dims(r.job_bed.model), dims(r.job_bed.bed))) : ((window.ampSeqErr && ampSeqErr(r.job_error)) || tf('psd_err_slice', esc(r.job_error || '?'))), false, true);
       return;
     }
     $('#pstatus').hidden = true;
@@ -5294,7 +5296,7 @@ async function render() {
     else if (r.v === 'spools') { await loadSpools(); viewSpools(); }
     else if (r.v === 'catalog') await viewCatalog();
     else if (r.v === 'history') await viewHistory();
-    else if (r.v === 'stats') await viewStats();
+    else if (r.v === 'stats') { if (!(await ampAplLocked('stats'))) await viewStats(); }
     else if (r.v === 'community') await viewCommunity();
     else if (r.v === 'settings') await viewSettings(r.group);
     else if (r.v === 'locations') await viewLocations();
@@ -5472,7 +5474,7 @@ function addDialog(d) {
   const msg = (h, err) => { $('#faddmsg').innerHTML = `<div class="note${err ? ' warn-note' : ''}">${h}</div>`; };
   const errTxt = m => esc(m === 'exists' ? t('amp_exists') : m === 'clients' ? t('amp_cc_clients') : m === 'lan' ? t(kind === 'acl' ? 'amp_ac_lan' : 'amp_ff_lan') : m === 'acl_old' ? t('amp_ac_old')
     : m === 'login' ? t(kind === 'prusalink' ? 'amp_pl_wrong' : kind === 'bambu' ? 'amp_bb_wrong' : kind === 'cc2' ? 'amp_cc_wrong' : kind === 'flashforge' ? 'amp_ff_wrong' : kind === 'moonraker' ? 'amp_mr_wrong' : 'amp_op_wrong')
-    : m === 'serial' ? t('amp_bb_need_serial') : m === 'unreach' ? t('amp_unreach', { h: d.host }) : t('err_generic'));
+    : m === 'serial' ? t('amp_bb_need_serial') : m === 'unreach' ? t('amp_unreach', { h: d.host }) : m === 'plan' ? t('err_plan') : t('err_generic'));
   $('#fadd').onsubmit = async e => {
     e.preventDefault();
     const f = new FormData(e.target), btn = e.target.querySelector('.btn.pri'); btn.disabled = true;
@@ -5926,7 +5928,7 @@ async function viewSettings(group) {
       slcSeg('default'); slcBox.hidden = true;
       await api('settings_save', { k: 'slicer', v: { mode: 'default', url: $('#sslcurl').value } }).catch(() => {});
       toast(t('amp_saved'));
-    } else { slcSeg('own'); slcBox.hidden = false; $('#sslcurl').focus(); }
+    } else { if (await ampAplDenied('own_slicer')) return; slcSeg('own'); slcBox.hidden = false; $('#sslcurl').focus(); }
   });
   const slcTest = async () => {
     const btn = $('#sslctest'); btn.disabled = true;
@@ -6876,6 +6878,89 @@ window.ampRenderCal = p => {
   const h = p ? ampCalHtml(p.cal, p.key, true) : '';
   box.innerHTML = h; box.hidden = !h;
   if (h) ampCalWire(box, p.key);
+};
+
+// ── „Objekt für Objekt“ vorschlagen (24.11.2026, User 23.11.: „Ja, merk dir das für morgen“, 24.11.: „Das bauen wir ein“) ────────────────
+// Anlass Druckstarts 23.11.: 2 einfarbige Würfel (rot/weiß) auf einem P1S — Schicht für Schicht 2 h 49 / 36 g, Objekt für Objekt 1 h 16 / 24 g
+// (Orca lässt dabei den Reinigungsturm weg, je Teil nur ein Farbwechsel). Vorschlag nur, wenn der Drucker mehrfarbig kann, mindestens
+// 2 Teile auf der Platte liegen, jedes Teil genau EINE Farbe hat (STL: ein Fach je Datei; 3MF: ein Filament je Objekt samt Teilen und
+// nicht bemalt, AMPMesh.painted) und mindestens zwei Farben vorkommen. Der Knopf setzt die Experten-Einstellung „Druckreihenfolge“
+// und gilt nur für diese Platte (amp_seq_auto: passt eine spätere Platte nicht, geht sie von selbst auf Standard zurück; wer die
+// Einstellung selbst wählt, dem fassen wir sie nie an). Abstand und Höhe (Freihöhe des Druckkopfs) prüft Orca; scheitert es daran,
+// erklärt ampSeqErr das statt der englischen Orca-Meldung (5 Würfel am 23.11.: „An error occurred when auto-arranging object(s)“).
+// Hängt über build_web.py an renderMulti/renderStls (#pseq unter den Fächern); gilt in App und Agent gleich.
+let ampSeqCtx = null, ampSeqT = null, ampSeqBusy = false;
+const ampSeqPaint = new WeakMap();   // Datei → Promise<true|false|null> (bemalt?)
+const ampSeqSel = () => view.querySelector('select[name="x_print_sequence"]');
+const ampSeqAuto = v => {
+  try { if (v === undefined) return localStorage.getItem('amp_seq_auto') === '1'; if (v) localStorage.setItem('amp_seq_auto', '1'); else localStorage.removeItem('amp_seq_auto'); } catch (e) { /* privates Fenster */ }
+  return false;
+};
+function ampSeqSet(v, auto) {
+  const sel = ampSeqSel(); if (!sel) return;
+  ampSeqBusy = true;
+  sel.value = v;
+  sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true }));   // Zähler + Merken wie von Hand
+  ampSeqBusy = false;
+  ampSeqAuto(auto);
+}
+window.ampSeqCheck = (ps, printer) => { ampSeqCtx = { ps, printer }; clearTimeout(ampSeqT); ampSeqT = setTimeout(ampSeqRun, 60); };
+/** Passt die Platte? → { n: Teile, cols: Farben } oder null */
+async function ampSeqInfo(ps, p) {
+  if (!p || !p.multi || !ps || !ps.kind) return null;
+  if (ps.kind === 'stl') {
+    const L = ps.stls || [];
+    if (p.slot_mode === 'material' || L.length < 2) return null;
+    const c = view.querySelector('input[name=slot]:checked'), main = c ? String(c.value) : '';
+    const cols = new Set(L.map(x => x.slot || main).filter(Boolean)), n = L.reduce((a, x) => a + (x.copies || 1), 0);
+    return n >= 2 && cols.size >= 2 ? { n, cols: cols.size } : null;
+  }
+  if (ps.kind !== '3mf' || !ps.pk || !ps.pk.usedOf) return null;
+  const pk = ps.pk, want = +((view.querySelector('input[name=plate]:checked') || {}).value || 1);
+  const pl = pk.plates.find(x => x.n === want) || pk.plates[0];
+  if (!pl || !pl.ids) return null;
+  const skip = ps.skip || new Set(), cols = new Set();
+  let n = 0;
+  for (const id of pl.ids) {
+    const mine = (pl.insts || []).filter(x => x.obj === id), kept = mine.length ? mine.filter(x => !skip.has(x.id)).length : 1;
+    if (!kept) continue;
+    const u = pk.usedOf(new Set([id]));
+    if (u.size !== 1) return null;   // Teil aus mehreren Farben (Unterteile mit eigenem Filament)
+    n += kept; cols.add([...u][0]);
+  }
+  if (n < 2 || cols.size < 2) return null;
+  const f = (view.querySelector('#pfile') || {}).files && view.querySelector('#pfile').files[0];
+  if (!f || !window.AMPMesh || !AMPMesh.painted) return null;
+  if (!ampSeqPaint.has(f)) ampSeqPaint.set(f, AMPMesh.painted(f).catch(() => null));
+  return (await ampSeqPaint.get(f)) === false ? { n, cols: cols.size } : null;   // bemalt oder zu groß zum Prüfen → kein Vorschlag
+}
+async function ampSeqRun() {
+  const box = view.querySelector('#pseq'); if (!box || !ampSeqCtx) return;
+  const { ps } = ampSeqCtx, p = ampSeqCtx.printer();
+  let info = null; try { info = await ampSeqInfo(ps, p); } catch (e) { info = null; }
+  const sel = ampSeqSel();
+  if (!view.contains(box) || !sel) return;
+  const on = sel.value === 'by object';
+  if (!info) {
+    if (on && ampSeqAuto()) ampSeqSet('', false);   // vom Vorschlag gesetzt, diese Platte passt nicht → zurück auf Standard
+    box.hidden = true; box.innerHTML = ''; return;
+  }
+  box.innerHTML = on
+    ? `<div class="note"><p><b>${esc(t('amp_seq_on'))}</b></p><p class="hint">${esc(t('amp_seq_note'))}</p><div class="amp-acts"><button type="button" class="btn sm" data-seq="">${esc(t('amp_seq_off'))}</button></div></div>`
+    : `<div class="note"><p><b>${esc(t('amp_seq_h'))}</b> ${esc(t('amp_seq_p', { n: info.n }))}</p><div class="amp-acts"><button type="button" class="btn sm pri" data-seq="by object">${esc(t('amp_seq_btn'))}</button></div></div>`;
+  box.hidden = false;
+  box.querySelector('[data-seq]').onclick = e => { const v = e.currentTarget.dataset.seq; ampSeqSet(v, v === 'by object'); ampSeqRun(); };
+}
+// Änderungen, die renderMulti/renderStls nicht auslösen: Fach je STL, Anzahl, Hauptfach, Experten-Einstellung von Hand
+document.addEventListener('change', e => {
+  const el = e.target; if (!ampSeqCtx || !el || !el.closest || !view.querySelector('#pseq')) return;
+  if (el.name === 'x_print_sequence' && !ampSeqBusy) ampSeqAuto(false);   // selbst gewählt → nie wieder von selbst zurücksetzen
+  if (el.matches('[data-fs], [data-cp], input[name=slot], input[name=plate], input[data-skip], select[name="x_print_sequence"]')) window.ampSeqCheck(ampSeqCtx.ps, ampSeqCtx.printer);
+});
+/** Slicen gescheitert: bei „Objekt für Objekt“ und Anordnungs-/Kollisionsfehlern von Orca eine verständliche Meldung (sonst ''). */
+window.ampSeqErr = err => {
+  const sel = ampSeqSel();
+  return sel && sel.value === 'by object' && /arrang|collid|too tall|too close|clearance|sequential/i.test(String(err || '')) ? esc(t('amp_seq_err')) : '';
 };
 
 // ── Lüfter und Licht (12.11.2026, User: „so schön drehend und eben ein Lichtschalter“) ──────────────────────────
@@ -7937,13 +8022,87 @@ const ampPlateOk = f => f && f.ext === 'stl' && !f.want && !f.gone && !f.plate;
 // Abo-Weiche „plates“ (User 18.11.: „als Option einbauen für das Abo-Modell“): im Agenten nach Plan (Admin „Abo“, ohne Einstellung nur
 // im Abo, in der Beta frei); die App ohne Agent hat noch keine Weichen (erst nach dem geschlossenen Test, app-abo-grenzen-plan).
 // Der Agent sperrt amp_lib_plate_save selbst; die Oberfläche prüft vorher, damit niemand erst Dateien lädt und dann scheitert.
+// ── App ohne Agent: Weichen (24.11.2026, backend.js planAllows/planStatus, Admin → Abo → „App ohne Agent“) ─────────────────────
+// In der Beta nie zu sehen. Gesperrtes bleibt im Menü sichtbar; Antippen zeigt, dass es mit dem Agenten geht, + Knopf zur
+// Installationsanleitung — ohne Preis, ohne Kaufknopf, ohne „kaufen/Abo/Upgrade“ (Store-Regeln, memory app-abo-grenzen-plan).
+// Im Agenten (AMP.agent) gilt weiter sein eigener Plan (ampFeat unten, Texte agent-i18n).
+const APL_FS = ['models', 'slice', 'own_slicer', 'plates', 'editor', 'stats', 'printers'];
+const aplApp = () => !AMP.agent && !!AMP.plan;
+const aplGuideUrl = () => `https://allmyprinters.com/${['de', 'en', 'fr', 'es', 'it', 'nl'].includes(LANG) ? LANG : 'en'}/agent/install/`;
+const aplP = f => { const n = AMP.plan ? AMP.plan.status().printers : null; return t('amp_apl_' + f + '_p', { n: n == null ? '' : n }); };
+const aplGo = () => `<a class="btn pri amp-apl-go" href="${aplGuideUrl()}" target="_blank" rel="noopener">${esc(t('amp_apl_btn'))}</a>`;
+/** Hinweis als Fenster (gesperrte Aktion: Drucker hinzufügen, Slicen, Platte speichern, eigener Slicer) */
+window.ampPlanHint = f => {
+  if (!APL_FS.includes(f)) return;
+  let d = document.getElementById('amp-apl');
+  if (d && d.open) return;
+  if (!d) { d = document.createElement('dialog'); d.id = 'amp-apl'; d.className = 'dlg amp-apl-dlg'; document.body.appendChild(d); }
+  d.dataset.f = f;
+  d.innerHTML = `<div class="dlg-h"><b>${esc(t('amp_apl_' + f + '_h'))}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
+    <div class="dlg-b amp-apl"><p>${esc(aplP(f))}</p><p class="hint">${esc(t('amp_apl_more'))}</p></div>
+    <div class="dlg-f">${aplGo()}</div>`;
+  d.querySelectorAll('[data-x]').forEach(b => b.onclick = () => d.close());
+  d.querySelector('.amp-apl-go').addEventListener('click', () => setTimeout(() => d.close(), 300));
+  d.showModal();
+};
+/** Hinweis als Seite (gesperrte Ansicht: Modellsuche, Statistik) */
+function ampPlanPage(f) {
+  view.innerHTML = `<section class="card amp-card amp-apl amp-apl-page" data-f="${f}"><h1>${esc(t('amp_apl_' + f + '_h'))}</h1><p>${esc(aplP(f))}</p>
+    <p class="hint">${esc(t('amp_apl_more'))}</p><div class="amp-acts">${aplGo()}</div></section>`;
+}
+/** Ansicht gesperrt? Dann Hinweisseite zeigen und true (nur App ohne Agent) */
+async function ampAplLocked(f) {
+  if (!aplApp()) return false;
+  await AMP.plan.ready();
+  if (AMP.plan.allows(f)) return false;
+  ampPlanPage(f); return true;
+}
+/** Aktion gesperrt? Dann Hinweisfenster und true (nur App ohne Agent) */
+async function ampAplDenied(f) {
+  if (!aplApp()) return false;
+  await AMP.plan.ready();
+  if (AMP.plan.allows(f)) return false;
+  ampPlanHint(f); return true;
+}
+/** Gesperrt: in der App Hinweis auf den Agenten, im Agenten wie bisher „gehört zum Abo“ */
+const ampPlanDeny = f => { if (aplApp()) ampPlanHint(f); else toast(t('err_plan')); };
+/** Mindestversion (Admin → Abo → „App ohne Agent“): ältere App → Seite „Bitte aktualisieren“ mit Store-Knopf und Sicherung. */
+async function ampUpdLock() {
+  if (!aplApp()) return;
+  await AMP.plan.ready();
+  const s = AMP.plan.status();
+  let d = document.getElementById('amp-upd');
+  if (!s.min) { if (d) d.remove(); return; }
+  if (d) return;
+  d = document.createElement('div');
+  d.id = 'amp-upd'; d.className = 'amp-plan-lock'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true');
+  const upd = /^https:\/\/[^\s"<>]+$/i.test(s.upd || '') ? s.upd : '';
+  d.innerHTML = `<div class="amp-plan-lockc"><h2>${esc(t('amp_upd_h'))}</h2><p>${esc(t('amp_upd_p'))}</p><p class="hint">${esc(t('amp_upd_ver', { v: s.version, m: s.min }))}</p>
+    <div class="amp-acts">${upd ? `<button type="button" class="btn pri" id="updgo">${esc(t('amp_upd_btn'))}</button>` : ''}<button type="button" class="btn" id="updexp">${esc(t('amp_export'))}</button></div></div>`;
+  document.body.appendChild(d);
+  if (upd) d.querySelector('#updgo').onclick = () => AMP.native('open', { url: upd }).catch(() => {});
+  d.querySelector('#updexp').onclick = async () => {
+    try { const x = await api('amp_export', {}); const r = await AMP.native('export', { name: 'allmyprinters-' + new Date().toISOString().slice(0, 10) + '.json', text: x.text }); if (r && r.ok) toast(t('amp_saved')); } catch (e) { fail(e); }
+  };
+}
+if (aplApp()) {
+  setTimeout(ampUpdLock, 1200);
+  AMP.on('plan', () => {
+    ampUpdLock();
+    const pg = document.querySelector('#view .amp-apl-page');   // Hinweisseite offen, Funktion inzwischen frei → Ansicht neu zeichnen
+    if (pg && AMP.plan.allows(pg.dataset.f)) render();
+  });
+  AMP.on('plan_hint', d => ampPlanHint(d && d.f));   // backend.js: gesperrte Aktion (Slicen, Drucker hinzufügen, Platte speichern …)
+}
+
 let ampFeatC = null;
 async function ampFeat(k) {
+  if (aplApp()) { await AMP.plan.ready(); return AMP.plan.allows(k); }   // App ohne Agent (24.11.2026)
   if (!AMP.agent || !AMP.remote) return true;
   try { if (!ampFeatC || Date.now() - ampFeatC.at > 60000) ampFeatC = { at: Date.now(), s: await AMP.remote('plan_status') }; } catch (e) { return true; }
   return !(ampFeatC.s && ampFeatC.s.f && ampFeatC.s.f[k] === false);
 }
-const ampPlateAllowed = async () => { if (await ampFeat('plates')) return true; toast(t('err_plan')); return false; };
+const ampPlateAllowed = async () => { if (await ampFeat('plates')) return true; ampPlanDeny('plates'); return false; };
 /** Dateien der Teile holen (wie „Drucken“ einer Datei, mit NAS-Fehlern) → [{ id, name, n, slot, file }] */
 async function ampPlateFetch(parts, prog) {
   const out = [];
@@ -8433,6 +8592,7 @@ function msRecentDel(q) { pref('ms_recent', JSON.stringify(q === null ? [] : msR
 const msFind = id => [ms.hits, ms.trend || [], ms.fresh || [], ms.rel || [], ct.models].map(L => L.find(z => z.id === id)).find(Boolean);
 
 async function viewModels() {
+  if (await ampAplLocked('models')) return;   // App ohne Agent, Weiche „models“ (24.11.2026)
   const g_ = navGen, gen = ms.gen, y = ms.listY;
   ms.listY = null; ms.came = false;
   const need = msStart() ? !ms.trend || Date.now() - ms.trendAt > 900000 : !ms.loaded;
@@ -8892,6 +9052,7 @@ function msGalBind() {
 let msPageN = 0;
 /** Modellseite: erst mit dem, was die Liste schon weiß (Name, Bild), dann Details (alle Bilder, Tags, Beschreibung), dann Ähnliche */
 async function viewModel(id) {
+  if (await ampAplLocked('models')) return;
   const g_ = navGen, tok = ++msPageN;
   const live = () => g_ === navGen && tok === msPageN && !!view.querySelector('.amp-mp');
   const h = msSeen.get(id) || msFind(id) || { id };
@@ -8997,6 +9158,7 @@ async function ctLoad(more) {
   return true;
 }
 async function viewContests() {
+  if (await ampAplLocked('models')) return;
   const g_ = navGen, gen = ++ct.gen, y = ct.listY, key = ct.status + '|' + ct.platform;
   ct.listY = null;
   // Zurück von einem Wettbewerb: Liste ohne Neuladen an derselben Stelle
@@ -9055,6 +9217,7 @@ async function ctModelsLoad(cid, more) {
 }
 /** Ein Wettbewerb: erst mit dem, was die Liste schon weiß, dann Details (Beschreibung, Preise, Link) und eingereichte Modelle */
 async function viewContest(id) {
+  if (await ampAplLocked('models')) return;
   const g_ = navGen, tok = ++ct.dTok, cid = parseInt(id, 10) || 0;
   const live = () => g_ === navGen && tok === ct.dTok && !!view.querySelector('.amp-ctd');
   let c = ct.list.concat(ms.cont ? ms.cont.list : []).find(x => x.id === cid) || null, full = false, err = false, more = false;
@@ -10089,7 +10252,7 @@ async function edBuild3mf(cur, prog) {
 // ── Öffnen ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** Editor öffnen: parts [{ id?, name, file, n, slot, inst? }], plate (Bibliothekseintrag) oder null, printer (Schlüssel) oder null */
 async function ampEdOpen(parts, plate, printer) {
-  if (!(await ampFeat('editor'))) { toast(t('err_plan')); return false; }
+  if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return false; }
   ED.hand = { parts, plate: plate || null, printer: printer || (plate && plate.edp) || null };
   if (dlg.open) dlg.close();
   if (location.hash === '#edit') viewEdit(); else location.hash = 'edit';
@@ -10097,7 +10260,7 @@ async function ampEdOpen(parts, plate, printer) {
 }
 /** Bibliothek → Editor: Dateien holen (mit NAS-Fehlern wie „Drucken“) */
 async function ampEdFromLib(list, plate, o = {}) {
-  if (!(await ampFeat('editor'))) { toast(t('err_plan')); return false; }
+  if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return false; }
   try {
     const items = await ampPlateFetch(list, o.prog);
     return ampEdOpen(items, plate, o.printer);
@@ -10510,7 +10673,7 @@ function edThumb(cur) {
 async function edSaveDlg(cur) {
   if (cur.mode === '3mf') return ed3SaveDlg(cur);
   if (!cur.parts.every(p => p.id)) { toast(t('amp_plate_lib_only')); return; }
-  if (!(await ampFeat('editor'))) { toast(t('err_plan')); return; }
+  if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return; }
   let d; try { d = await api('lib_list'); } catch (e) { fail(e); return; }
   const files = d.files || [], curF = cur.plateId ? files.find(x => x.id === cur.plateId) : null;
   const fo = [...new Set(cur.parts.map(p => (files.find(x => x.id === p.id) || {}).folder || ''))];
@@ -10542,7 +10705,7 @@ async function edSaveDlg(cur) {
 }
 /** „Slicen & drucken“: 3MF bauen, an die Druckansicht (build_web-Patch: edSlot / edMap / libIds) */
 async function edPrint(cur, btn) {
-  if (!(await ampFeat('editor'))) { toast(t('err_plan')); return; }
+  if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return; }
   const chk = edCheck(cur); if (!chk.ok || !cur.pr) { edPanel(cur); return; }
   const b0 = btn.textContent;
   [$('#edgo'), $('#edgo2')].forEach(b => { if (b) b.disabled = true; });
@@ -11004,7 +11167,7 @@ async function ed3Print(cur, btn) {
 }
 /** 3MF: als neue Datei in der Bibliothek speichern (Original bleibt) */
 async function ed3SaveDlg(cur) {
-  if (!(await ampFeat('editor'))) { toast(t('err_plan')); return; }
+  if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return; }
   let d; try { d = await api('lib_list'); } catch (e) { fail(e); return; }
   const files = d.files || [], orig = files.find(x => x.id === cur.src3.libId);
   dlg.innerHTML = `<form method="dialog" class="amp-plsave"><div class="dlg-h"><b>${esc(t('amp_ed_save3'))}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
