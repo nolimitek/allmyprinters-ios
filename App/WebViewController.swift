@@ -2,12 +2,16 @@ import UIKit
 import WebKit
 
 /// Eine WKWebView mit der Oberfläche unter amp://app/www/index.html (wie Android https://appassets…/www/index.html).
-/// Die Seite liegt immer im sicheren Bereich (Statusleiste, Home-Leiste); die Farbe drumherum folgt der Kopfzeile (bars).
+/// Seiten der App (CSS-Variable --amp-edge, amp.css ab 24.11.2026) reichen oben bis an den Rand — die Kopfleiste läuft unter
+/// Statusleiste/Dynamic Island durch und hält selbst Abstand (env(safe-area-inset-top)). Ältere Seiten (Agent ohne diese CSS) bleiben im
+/// sicheren Bereich. Unten immer bis zur Home-Leiste bzw. Tastatur; die Farbe drumherum folgt der Kopfzeile (bars).
 final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
     static let start = "amp://app/www/index.html"
     var web: WKWebView!
     let bridge = Bridge()
     private var darkBar = false
+    private var topSafe: NSLayoutConstraint!   // Seite beginnt unter der Statusleiste
+    private var topEdge: NSLayoutConstraint!   // Seite beginnt am oberen Rand (randlos)
 
     override func loadView() {
         view = UIView()
@@ -43,8 +47,10 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
         web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
         let g = view.safeAreaLayoutGuide
+        topSafe = web.topAnchor.constraint(equalTo: g.topAnchor)
+        topEdge = web.topAnchor.constraint(equalTo: view.topAnchor)
         NSLayoutConstraint.activate([
-            web.topAnchor.constraint(equalTo: g.topAnchor), web.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            topSafe, web.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
             web.leadingAnchor.constraint(equalTo: g.leadingAnchor), web.trailingAnchor.constraint(equalTo: g.trailingAnchor),
         ])
         bridge.web = web
@@ -163,6 +169,19 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
     }
     override var preferredStatusBarStyle: UIStatusBarStyle { darkBar ? .lightContent : .darkContent }
 
+    // ── Randlos oben, wenn die Seite es kann (--amp-edge: 1 in amp.css) ──
+    private func edgeCheck(_ w: WKWebView) {
+        w.evaluateJavaScript("getComputedStyle(document.documentElement).getPropertyValue('--amp-edge').trim()") { [weak self] r, _ in
+            self?.setEdge((r as? String) == "1")
+        }
+    }
+    private func setEdge(_ on: Bool) {
+        guard topEdge.isActive != on else { return }
+        if on { topSafe.isActive = false; topEdge.isActive = true } else { topEdge.isActive = false; topSafe.isActive = true }
+        view.layoutIfNeeded()
+        Log.write("randlos oben: \(on)")
+    }
+
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         guard previous?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
@@ -196,6 +215,7 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
 
     func webView(_ w: WKWebView, didFinish n: WKNavigation!) {
         Log.write("geladen \(w.url?.absoluteString ?? "")")
+        edgeCheck(w)
         if UserDefaults.standard.string(forKey: "ampDiag") == "1" { if w.url?.host == Agent.host { Diag.agent(self) } else { Diag.run(self) } }
     }
 

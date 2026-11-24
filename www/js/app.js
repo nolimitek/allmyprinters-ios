@@ -69,8 +69,8 @@ const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem(
 st.arch = pref('arch') === '1';
 // Spulenliste (19.10.2026, nach Spoolman v0.26): Gruppieren, Sortieren, Kacheln/Liste und die Filter bleiben je Browser gemerkt.
 // Darstellung ohne gemerkte Wahl: ab 25 aktiven Spulen die Liste (große Lager scrollen sonst endlos durch Kacheln).
-const GROUPS = ['loc', 'fil', 'brand', 'mat', 'none'], SORTS = ['slot', 'last', 'left', 'added', 'name'];
-st.group = GROUPS.includes(pref('group')) ? pref('group') : 'loc';
+const GROUPS = ['loc', 'brand', 'mat', 'none'], SORTS = ['slot', 'last', 'left', 'added', 'name'];
+st.group = GROUPS.includes(pref('group')) ? pref('group') : pref('group') === 'fil' ? 'none' : 'loc';
 st.sort = SORTS.includes(pref('sort')) ? pref('sort') : 'slot';
 st.mat = pref('mat') || ''; st.loc = pref('loc') || '';
 st.open = new Set();   // aufgeklappte Gruppen gleicher unbenutzter Spulen
@@ -170,12 +170,12 @@ const SORT_FN = {
 const GROUP_OF = {
   loc: s => [s.location || '', s.location || t('no_location')],
   fil: s => [[title(s), s.material, s.color_name].join('|').toLowerCase(), [title(s), sub(s)].filter(Boolean).join(' · ')],
-  brand: s => [s.brand || '', s.brand || t('no_brand')],
+  brand: s => [(s.brand || '').trim().toLowerCase(), s.brand || t('no_brand')],
   mat: s => [s.material || '', s.material ? matName(s.material) : t('mat_unknown')],
   none: () => ['', ''],
 };
 // Gleiche unbenutzte Spulen (gleiches Filament, Gewicht und Ort, in keinem Drucker) → ein Eintrag „3× unbenutzt · je 1 kg“
-const twinKey = s => !s.archived && s.used === 0 && !s.slots.length ? [s.brand, s.material, s.color_name, s.color, s.total, s.location || ''].join('|') : null;
+const twinKey = s => !s.archived && (s.brand || s.material || s.color_name) ? [s.brand, s.material, s.color_name, s.color].map(x => String(x || '').trim().toLowerCase()).join('|') : null;
 function twinItems(ss) {
   const by = new Map();
   ss.forEach(s => { const k = twinKey(s); if (k) { if (!by.has(k)) by.set(k, []); by.get(k).push(s); } });
@@ -212,7 +212,7 @@ function spoolRow(s, nest) {
     <span class="lr-g">${g(s.left)}</span></button>`;
 }
 /** Doppel-Gruppe als Karte bzw. Zeile; aufgeklappt folgen die einzelnen Spulen. */
-function twinItem(it, cards) {
+function twinItem_3ds(it, cards) {
   const s = it.twin[0], n = it.twin.length, open = st.open.has(it.key), txt = t('twins', { n, w: kg(s.total) });
   const head = cards
     ? `<button class="spool twin${open ? ' open' : ''}" data-twin="${esc(it.key)}" aria-expanded="${open}">${ampSpool(s)}<span class="t"><b>${esc(title(s))}</b><span class="s">${esc(sub(s))}</span>
@@ -531,7 +531,7 @@ async function editSpool(s, preset, opts = {}) {
         <label class="fld"><span>${t('f_brand')}</span><input class="in" name="brand" maxlength="100" value="${esc(val('brand'))}"></label>
         <label class="fld"><span>${t('f_material')}</span><input class="in" name="material" list="matlist" maxlength="20" value="${esc(s ? s.material : (c.material || opts.material || 'PLA'))}"></label>
         <label class="fld"><span>${t('f_color_name')}</span><input class="in" name="color_name" maxlength="50" value="${esc(val('color_name'))}"></label>
-        <label class="fld"><span>${t('f_color')}</span><input class="in" name="color" type="color" value="${esc(s ? s.color : (c.color || opts.color || '#f26a12'))}" style="padding:4px"></label>
+        <label class="fld"><span>${t('f_color')}</span><input class="in" name="color" type="color" value="${esc(s ? s.color : (c.color || opts.color || '#f26a12'))}" style="padding:4px"></label>${window.ampColor2 ? ampColor2(s) : ''}
       </div>
       <datalist id="matlist">${mats.slice(0, 60).map(m => `<option value="${esc(m)}">`).join('')}</datalist>
       <datalist id="loclist">${st.locations.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
@@ -9696,6 +9696,12 @@ function ampPrMenu(card, pid) {
   d.innerHTML = `<summary class="icon-btn" title="${esc(t('pr_more'))}" aria-label="${esc(t('pr_more'))}">${I_DOTS}</summary><div class="smenu-l"></div>`;
   const l = d.querySelector('.smenu-l');
   bs.forEach(b => { const lbl = b.getAttribute('aria-label') || b.title || ''; b.className = b.dataset.act === 'remove' ? 'bad' : ''; b.removeAttribute('title'); b.type = 'button'; b.textContent = lbl; l.append(b); });
+  // Dateien am Drucker (Klipper, Community #57) — vor „Entfernen“
+  const pr = ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid));
+  if (pr && pr.files) {
+    const f = document.createElement('button'); f.type = 'button'; f.dataset.amppf = pid; f.textContent = t('amp_dpf_menu');
+    const rm = l.querySelector('.bad'); if (rm) rm.before(f); else l.append(f);
+  }
   top.append(d);
 }
 /** Infozeile: „Lüfter & Licht · aus“ bzw. was läuft (Luftfilter 60 %, Licht an) — Antippen öffnet Steuern. */
@@ -9809,13 +9815,55 @@ function ampSpoolsFein() {
     low.id = 'amplow'; low.hidden = !ampLowOpen;
     b.onclick = () => { ampLowOpen = !ampLowOpen; low.hidden = !ampLowOpen; b.setAttribute('aria-expanded', String(ampLowOpen)); };
   }
-  // Liste: „Anycubic PETG“ + Farbe statt „ANYCUBIC“ + „PETG“
-  view.querySelectorAll('.lgrid .lrow[data-id]').forEach(r => {
+  // Liste: „Anycubic PETG“ + Farbe statt „ANYCUBIC“ + „PETG“ (Zeilen im aufgeklappten Filament-Stapel zeigen #Nr, siehe ampStackRow)
+  view.querySelectorAll('.lgrid .lrow[data-id]:not(.nest)').forEach(r => {
     const sp = st.spools.find(x => String(x.id) === r.dataset.id), tb = r.querySelector('.lr-t b'), sm = r.querySelector('.lr-t small');
     if (!sp || !sp.brand || !tb) return;
     tb.textContent = ampSpName(sp);
     if (sm) sm.textContent = sp.color_name || '';
   });
+  // Kacheln genauso: „Geeetech PLA“ / „Green · #4“ (wie die Stapel-Karte daneben)
+  view.querySelectorAll('.grid .spool[data-id]').forEach(c => {
+    const sp = st.spools.find(x => String(x.id) === c.dataset.id), tb = c.querySelector('.t > b'), sm = c.querySelector('.t > .s');
+    if (!sp || !sp.brand || !tb) return;
+    tb.textContent = ampSpName(sp);
+    if (sm) sm.textContent = [sp.color_name, spoolNo(sp)].filter(Boolean).join(' · ');
+  });
+  // Hersteller-Überschrift „Geeetech“ statt „GEEETECH“
+  if (st.group === 'brand') view.querySelectorAll(':scope > .group-h > b').forEach(b => { b.textContent = ampBrand(b.textContent); });
+}
+/** Filament-Stapel (Community #58, 24.11.2026, Sebastian S.): alle aktiven Spulen desselben Filaments (twinKey per build_web: Hersteller,
+ *  Material, Farbe) als EINE aufklappbare Zeile bzw. Karte — Name + Farbe, „3 Spulen“, Summe und Füllbalken aller Spulen; eingelegte
+ *  („im Drucker …“) und fast leere stehen schon zugeklappt als Hinweis dran. Aufgeklappt jede Spule mit #Nr, Zustand/Ort und Gewicht.
+ *  Ersetzt twinItem aus /filament („2× unbenutzt · je 1 kg“, nur gleiche unbenutzte Spulen). */
+function twinItem(it, cards) {
+  const ss = it.twin, s = ss[0], n = ss.length, open = st.open.has(it.key);
+  const left = ss.reduce((a, x) => a + x.left, 0), tot = ss.reduce((a, x) => a + (x.total || 0), 0), pct = tot ? Math.max(0, Math.min(100, left / tot * 100)) : 0;
+  const name = s.brand ? ampSpName(s) : title(s), cn = s.brand ? (s.color_name || '') : sub(s);
+  const lows = ss.filter(isLow), crit = ss.some(isCrit);
+  const tags = `<span class="tag amp-stn">${esc(t('n_spools', { n }))}</span>`
+    + ss.flatMap(x => x.slots).map(sl => `<span class="tag on">${esc(slotTxt(sl))}</span>`).join('')
+    + (lows.length ? `<span class="tag ${crit ? 'crit' : 'warn'}">${esc((lows.length > 1 ? lows.length + '× ' : '') + t(crit ? 'low_crit' : 'low'))}</span>` : '');
+  const col = ringColor(s.colors && s.colors.length > 1 ? s.colors[0] : s.color);
+  const head = cards
+    ? `<button class="spool twin amp-stack${open ? ' open' : ''}" data-twin="${esc(it.key)}" aria-expanded="${open}">${ampSpool({ ...s, pct: Math.round(pct) })}<span class="t"><b>${esc(name)}</b><span class="s">${esc(cn)}</span>
+        <span class="x"><span class="tag num left">${kg(left)}</span>${tags}${I_CHEV}</span></span></button>`
+    : `<button class="lrow twin amp-stack${open ? ' open' : ''}" data-twin="${esc(it.key)}" aria-expanded="${open}"><span class="lr-sw">${spoolIco(s)}</span>
+        <span class="lr-t"><b>${esc(name)}</b><small>${esc(cn)}</small></span>
+        <span class="lr-m">${tags}${I_CHEV}</span>
+        <span class="lr-bar" title="${Math.round(pct)} %"><i style="width:${pct.toFixed(1)}%;background:${esc(col)}"></i></span><span class="lr-g">${kg(left)}</span></button>`;
+  return head + (open ? ss.map(x => cards ? spoolCard(x) : ampStackRow(x)).join('') : '');
+}
+/** Eine Spule im aufgeklappten Stapel: #Nr groß (Name steht im Stapel), darunter zuletzt benutzt bzw. „unbenutzt“ + Lagerort. */
+function ampStackRow(s) {
+  const when = s.last_used_at ? ago(s.last_used_at) : s.used ? '' : t('unused_s');
+  const info = [when, s.slots.length ? '' : s.location].filter(Boolean).join(' · ');
+  return `<button class="lrow nest${!s.archived && isLow(s) ? ' low' + (isCrit(s) ? ' crit' : '') : ''}" data-id="${s.id}">
+    <span class="lr-sw">${spoolIco(s)}</span>
+    <span class="lr-t"><b>${esc(spoolNo(s))}</b><small>${esc(info)}</small></span>
+    <span class="lr-m">${spoolTags(s)}</span>
+    <span class="lr-bar" title="${s.pct} %"><i style="width:${s.pct}%;background:${esc(ringColor(s.colors && s.colors.length > 1 ? s.colors[0] : s.color))}"></i></span>
+    <span class="lr-g">${g(s.left)}</span></button>`;
 }
 /** Verlauf-Zeile (Feinschliff 24.11.2026, Leinwand L4u7b8…): Titel = was gedruckt wurde (sonst die Spule), darunter Spule · Art ·
  *  Drucker; Farbpunkt der Spule statt %-Ring. Ersetzt histRow aus /filament nur in der App (build_web.py). */
@@ -9881,6 +9929,61 @@ window.ampSlotMat = function (p, mats) {
   };
   if (!box._ampSmOn) { box._ampSmOn = true; box.addEventListener('change', () => { if (box._ampSm) box._ampSm(); }); }
   box._ampSm();
+};
+
+
+// ── Dateien am Drucker (24.11.2026, Community #57 Sebastian S.): G-Code, der schon auf dem Klipper-Drucker liegt, ansehen und starten.
+// backend print_pfiles / print_pfile_start; Menüpunkt im ⋯ der Druckerkarte (ampPrMenu). Reicht die Spule nicht → Hinweis + „Trotzdem drucken“.
+const ampPfTitle = n => String(n || '').replace(/\.(gcode|gco|g)$/i, '').replace(/_/g, ' ');
+const ampPfDate = sec => sec ? new Date(sec * 1000).toISOString().slice(0, 19).replace('T', ' ') : '';
+async function ampPfDlg(pid) {
+  const pr = ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid)) || {};
+  dlg.innerHTML = `<form method="dialog" class="amp-pf"><div class="dlg-h"><b>${esc(t('amp_dpf_h'))}${pr.name ? `<small class="amp-pf-sub">${esc(pr.name)}</small>` : ''}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
+    <div class="dlg-b"><div id="amppfl">${spin(t('amp_dpf_load'))}</div></div></form>`;
+  dlg.querySelector('[data-x]').onclick = () => dlg.close();
+  if (!dlg.open) dlg.showModal();
+  const box = document.getElementById('amppfl');
+  let r;
+  try { r = await api('print_pfiles', { printer: pid }); }
+  catch (er) { box.innerHTML = `<p class="hint bad">${esc(er.message === 'offline' ? t('amp_dpf_offline') : t('amp_dpf_err'))}</p>`; return; }
+  if (!r.files.length) { box.innerHTML = `<p class="hint">${esc(t('amp_dpf_empty'))}</p>`; return; }
+  box.innerHTML = (r.busy ? `<p class="amp-pf-busy">${esc(t('amp_dpf_busy'))}</p>` : '') + `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r" data-i="${i}">
+      <span class="amp-pf-img">${f.img ? `<img src="${esc(f.img)}" alt="" loading="lazy">` : I_PRINT_S}</span>
+      <span class="amp-pf-t"><b>${esc(ampPfTitle(f.name))}</b><small>${[f.time ? hm(f.time) : '', f.g ? nf.format(f.g) + ' g' : '', f.colors > 1 ? t('amp_dpf_colors', { n: f.colors }) : '', f.modified ? ago(ampPfDate(f.modified)) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <button type="button" class="btn sm pri" data-pfgo="${i}"${r.busy ? ' disabled' : ''}>${esc(t('amp_dpf_start'))}</button>
+      <div class="amp-pf-msg" hidden></div></li>`).join('')}</ul>` + (r.total > r.files.length ? `<p class="hint">${esc(t('amp_dpf_more', { n: r.files.length }))}</p>` : '');
+  box.onclick = async e => {
+    const b = e.target.closest('[data-pfgo]'); if (!b) return;
+    const f = r.files[+b.dataset.pfgo], row = b.closest('.amp-pf-r'), msg = row.querySelector('.amp-pf-msg');
+    box.querySelectorAll('[data-pfgo]').forEach(x => { x.disabled = true; });
+    msg.hidden = false; msg.innerHTML = spin(t('amp_dpf_starting'));
+    try {
+      const x = await api('print_pfile_start', { printer: pid, path: f.path, force: b.dataset.force === '1' });
+      if (x.short && x.short.length) {
+        msg.innerHTML = `<ul class="amp-pf-short">${x.short.map(s => `<li class="warn-t">${esc(t('pf_short', { slot: tf('pc_slot_n', s.slot), need: nf.format(s.need), left: nf.format(s.left), spool: s.spool }))}</li>`).join('')}</ul>`;
+        box.querySelectorAll('[data-pfgo]').forEach(y => { y.disabled = false; });
+        b.dataset.force = '1'; b.textContent = t('amp_dpf_anyway');
+        return;
+      }
+      dlg.close(); toast(t('amp_dpf_started')); pv.data = null;
+      if (location.hash === '#printers' || location.hash === '') viewPrinters(); else location.hash = 'printers';
+    } catch (er) {
+      const m = er.message || '';
+      msg.innerHTML = `<span class="bad">${esc(m === 'printer_busy' ? t('amp_dpf_busy') : m === 'offline' ? t('amp_dpf_offline') : t('amp_dpf_start_err', { e: m }))}</span>`;
+      box.querySelectorAll('[data-pfgo]').forEach(y => { y.disabled = !!r.busy; });
+    }
+  };
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-amppf]'); if (!b) return;
+  const d = b.closest('details'); if (d) d.open = false;
+  ampPfDlg(b.dataset.amppf);
+});
+// Zweite Farbe beim manuellen Anlegen einer Spule (Community #56): Feld im Formular (build_web.py, Spulen-Dialog), Häkchen schaltet die Farbe frei
+window.ampColor2 = s => {
+  const c2 = s && !s.fm_filament_id && s.colors && s.colors.length > 1 ? s.colors[1] : '';
+  return `<label class="fld amp-c2"><span>${esc(t('amp_color2'))}</span><span class="amp-c2w"><input type="checkbox" name="color2_on" value="1"${c2 ? ' checked' : ''} aria-label="${esc(t('amp_color2'))}"
+    onchange="this.nextElementSibling.disabled=!this.checked"><input class="in" name="color2" type="color" value="${esc(c2 || '#ffffff')}" style="padding:4px"${c2 ? '' : ' disabled'}></span></label>`;
 };
 
 

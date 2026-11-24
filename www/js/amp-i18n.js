@@ -1,6 +1,8 @@
 /* AllMyPrinters — eigene Texte (6 Sprachen) und Überschreibungen der /filament-Texte, die nach 3DSEARCH-Server klingen. */
 window.AMP_I18N_X = {
   de: {
+    amp_dpf_offline: "Der Drucker antwortet nicht.",
+    amp_dpf_menu: "Dateien am Drucker", amp_dpf_h: "Dateien am Drucker", amp_dpf_load: "Dateien werden geladen …", amp_dpf_empty: "Auf dem Drucker liegen keine G-Code-Dateien.", amp_dpf_start: "Drucken", amp_dpf_busy: "Der Drucker druckt gerade – starten geht, sobald er fertig ist.", amp_dpf_started: "Druck gestartet", amp_dpf_anyway: "Trotzdem drucken", amp_dpf_more: "Es werden die neuesten {n} Dateien angezeigt.", amp_dpf_err: "Die Dateien konnten nicht geladen werden.", amp_dpf_start_err: "Start fehlgeschlagen: {e}", amp_dpf_starting: "Wird gestartet …", amp_dpf_colors: "{n} Farben", amp_color2: "Zweite Farbe",
     amp_slot_need_mat: "Material wählen", amp_slot_mat: "Material in diesem Fach", amp_slot_mat_hint: "Der Drucker meldet für dieses Fach kein Material, und in der App ist ihm keine Spule zugeordnet.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} fast leer",
@@ -246,6 +248,8 @@ window.AMP_I18N_X = {
     amp_ms_back: "Zurück", amp_ms_prev: "Vorheriges Bild", amp_ms_next: "Nächstes Bild", amp_ms_imgs: "{n} Bilder", amp_ms_desc: "Beschreibung",
   },
   en: {
+    amp_dpf_offline: "The printer isn’t responding.",
+    amp_dpf_menu: "Files on the printer", amp_dpf_h: "Files on the printer", amp_dpf_load: "Loading files …", amp_dpf_empty: "There are no G-code files on the printer.", amp_dpf_start: "Print", amp_dpf_busy: "The printer is busy – you can start a file once it has finished.", amp_dpf_started: "Print started", amp_dpf_anyway: "Print anyway", amp_dpf_more: "Showing the {n} newest files.", amp_dpf_err: "Couldn’t load the files.", amp_dpf_start_err: "Couldn’t start: {e}", amp_dpf_starting: "Starting …", amp_dpf_colors: "{n} colors", amp_color2: "Second color",
     amp_slot_need_mat: "Choose material", amp_slot_mat: "Material in this slot", amp_slot_mat_hint: "The printer reports no material for this slot, and no spool is assigned to it in the app.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} almost empty",
@@ -491,6 +495,8 @@ window.AMP_I18N_X = {
     amp_ms_back: "Back", amp_ms_prev: "Previous image", amp_ms_next: "Next image", amp_ms_imgs: "{n} images", amp_ms_desc: "Description",
   },
   fr: {
+    amp_dpf_offline: "L’imprimante ne répond pas.",
+    amp_dpf_menu: "Fichiers sur l’imprimante", amp_dpf_h: "Fichiers sur l’imprimante", amp_dpf_load: "Chargement des fichiers …", amp_dpf_empty: "Aucun fichier G-code sur l’imprimante.", amp_dpf_start: "Imprimer", amp_dpf_busy: "L’imprimante est occupée – vous pourrez lancer un fichier dès qu’elle aura terminé.", amp_dpf_started: "Impression lancée", amp_dpf_anyway: "Imprimer quand même", amp_dpf_more: "Les {n} fichiers les plus récents sont affichés.", amp_dpf_err: "Impossible de charger les fichiers.", amp_dpf_start_err: "Échec du lancement : {e}", amp_dpf_starting: "Démarrage …", amp_dpf_colors: "{n} couleurs", amp_color2: "Deuxième couleur",
     amp_slot_need_mat: "Choisir le matériau", amp_slot_mat: "Matériau dans cet emplacement", amp_slot_mat_hint: "L’imprimante n’indique aucun matériau pour cet emplacement et aucune bobine ne lui est attribuée dans l’app.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} presque vides",
@@ -736,6 +742,8 @@ window.AMP_I18N_X = {
     amp_ms_back: "Retour", amp_ms_prev: "Image précédente", amp_ms_next: "Image suivante", amp_ms_imgs: "{n} images", amp_ms_desc: "Description",
   },
   es: {
+    amp_dpf_offline: "La impresora no responde.",
+    amp_dpf_menu: "Archivos en la impresora", amp_dpf_h: "Archivos en la impresora", amp_dpf_load: "Cargando archivos …", amp_dpf_empty: "No hay archivos G-code en la impresora.", amp_dpf_start: "Imprimir", amp_dpf_busy: "La impresora está ocupada: podrás iniciar un archivo cuando termine.", amp_dpf_started: "Impresión iniciada", amp_dpf_anyway: "Imprimir de todos modos", amp_dpf_more: "Se muestran los {n} archivos más recientes.", amp_dpf_err: "No se pudieron cargar los archivos.", amp_dpf_start_err: "No se pudo iniciar: {e}", amp_dpf_starting: "Iniciando …", amp_dpf_colors: "{n} colores", amp_color2: "Segundo color",
     amp_slot_need_mat: "Elegir material", amp_slot_mat: "Material en esta ranura", amp_slot_mat_hint: "La impresora no indica material para esta ranura y no tiene ninguna bobina asignada en la app.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} casi vacías",
@@ -981,6 +989,8 @@ window.AMP_I18N_X = {
     amp_ms_back: "Atrás", amp_ms_prev: "Imagen anterior", amp_ms_next: "Imagen siguiente", amp_ms_imgs: "{n} imágenes", amp_ms_desc: "Descripción",
   },
   it: {
+    amp_dpf_offline: "La stampante non risponde.",
+    amp_dpf_menu: "File sulla stampante", amp_dpf_h: "File sulla stampante", amp_dpf_load: "Caricamento dei file …", amp_dpf_empty: "Non ci sono file G-code sulla stampante.", amp_dpf_start: "Stampa", amp_dpf_busy: "La stampante è occupata: potrai avviare un file appena avrà finito.", amp_dpf_started: "Stampa avviata", amp_dpf_anyway: "Stampa comunque", amp_dpf_more: "Vengono mostrati i {n} file più recenti.", amp_dpf_err: "Impossibile caricare i file.", amp_dpf_start_err: "Avvio non riuscito: {e}", amp_dpf_starting: "Avvio …", amp_dpf_colors: "{n} colori", amp_color2: "Secondo colore",
     amp_slot_need_mat: "Scegli materiale", amp_slot_mat: "Materiale in questo slot", amp_slot_mat_hint: "La stampante non indica alcun materiale per questo slot e nell’app non gli è assegnata nessuna bobina.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} quasi vuote",
@@ -1226,6 +1236,8 @@ window.AMP_I18N_X = {
     amp_ms_back: "Indietro", amp_ms_prev: "Immagine precedente", amp_ms_next: "Immagine successiva", amp_ms_imgs: "{n} immagini", amp_ms_desc: "Descrizione",
   },
   nl: {
+    amp_dpf_offline: "De printer reageert niet.",
+    amp_dpf_menu: "Bestanden op de printer", amp_dpf_h: "Bestanden op de printer", amp_dpf_load: "Bestanden laden …", amp_dpf_empty: "Er staan geen G-code-bestanden op de printer.", amp_dpf_start: "Printen", amp_dpf_busy: "De printer is bezig – je kunt een bestand starten zodra hij klaar is.", amp_dpf_started: "Print gestart", amp_dpf_anyway: "Toch printen", amp_dpf_more: "De {n} nieuwste bestanden worden getoond.", amp_dpf_err: "De bestanden konden niet worden geladen.", amp_dpf_start_err: "Starten mislukt: {e}", amp_dpf_starting: "Starten …", amp_dpf_colors: "{n} kleuren", amp_color2: "Tweede kleur",
     amp_slot_need_mat: "Materiaal kiezen", amp_slot_mat: "Materiaal in dit vak", amp_slot_mat_hint: "De printer meldt geen materiaal voor dit vak en in de app is er geen spoel aan gekoppeld.",
     // Feinschliff 24.11.2026: Spulen — Knopf öffnet „Bald leer“
     amp_sp_low_btn: "{n} bijna leeg",

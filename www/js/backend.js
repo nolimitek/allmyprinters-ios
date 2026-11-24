@@ -93,6 +93,18 @@ const singleHead = pid => { const e = live[pid] && live[pid].entry; return !e ||
 /** Plan des Slicer-Servers → Fächer wie beim Abbuchen in printSend. */
 const slicePlanItems = (pid, plan) => { const one = singleHead(pid); return (plan || []).map(pl => ({ slot: one || pl.slot < 0 ? 0 : +pl.slot, g: +pl.g })); };
 /** Gramm je Werkzeug aus dem G-Code → Fächer wie in printSend (Zuordnung map, sonst ttg_map, sonst gleiche Nummer). */
+/** Klipper-Drucker für „Dateien am Drucker“ (andere Arten: unsupported) */
+function pfPrinter(id) {
+  const p = db.printers.find(x => x.id === id) || fail('not_found');
+  if (kindOf(p) !== 'moonraker') fail('unsupported');
+  return p;
+}
+/** Gramm je Werkzeug aus Moonraker-Metadaten (U1: filament_weight, Orca-Patch: filament_weights, sonst Summe) */
+function pfWeights(md) {
+  const fwl = Array.isArray(md.filament_weights) ? md.filament_weights : Array.isArray(md.filament_weight) ? md.filament_weight : null;
+  if (fwl && fwl.some(x => +x > 0)) return fwl.map(Number);
+  return +md.filament_weight_total > 0 ? [+md.filament_weight_total] : null;
+}
 function gcodeItems(pid, weights, map) {
   const one = singleHead(pid), e = live[pid] && live[pid].entry, ttg = (e && e.ttg_map) || [];
   return (Array.isArray(weights) ? weights : []).map((w, tI) => ({ slot: one ? 0 : (map && map[tI] != null ? +map[tI] : (ttg[tI] ?? tI)), g: +w }));
@@ -443,7 +455,8 @@ async function spoolSave(inp) {
     material: String(fil ? fil.material : material).slice(0, 20),
     color_name: fil ? String(fil.name).slice(0, 50) : str(inp.color_name, 50),
     color_hex: fil && fil.color ? fil.color : hex(inp.color),
-    color_hexes: fil && fil.colors ? fil.colors.map(c => c.slice(1)).join(',') : null,
+    // zweite Farbe beim manuellen Anlegen (24.11.2026, Community #56): wie die Mehrfarb-Angabe aus dem Katalog
+    color_hexes: fil && fil.colors ? fil.colors.map(c => c.slice(1)).join(',') : (!fil && inp.color2_on && hex(inp.color2) && hex(inp.color) ? [hex(inp.color), hex(inp.color2)].map(c => c.slice(1)).join(',') : null),
     weight_total: total, weight_used: total - left, price_per_kg: ppk,
     location: str(inp.location, 60), lot_nr: str(inp.lot_nr, 60), notes: str(inp.notes, 255),
     empty_spool_g: int(inp.empty_spool_g, 0, 2000) ?? (fil ? (fil.spool_weight_g || fil.vendor_spool || null) : null),
@@ -1154,7 +1167,7 @@ async function mrSync(p, force) {
   const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
   const entry = { id: p.id, name: p.name, model: p.model || null, online: false, busy: false, locked: false, img: p.img || null, img_own: !!p.img, cal: calOf(p),
                   temps: null, stats: null, slots: [], boxes: [], orphans: [], job: null, last: null, cam: false,
-                  agent: { backend: 'moonraker', klippy: null, klippy_msg: '', silent: false }, host: p.host + ':' + (p.port || 7125),
+                  agent: { backend: 'moonraker', klippy: null, klippy_msg: '', silent: false }, host: p.host + ':' + (p.port || 7125), files: true,
                   cam: true, cam_ok: true };   // Live-Bild bleibt im Heimnetz → keine Freigabe wie auf 3DSEARCH nötig
   let pinfo;
   try { pinfo = await mrGet(p, '/printer/info', 3500); }
@@ -5116,6 +5129,52 @@ const A = {
   },
   async print_send(inp) { return sliceSend(inp); },
   /** Reicht die Spule? für eine fertige G-Code-Datei (Druckansicht #gcode): Gramm je Werkzeug → Fach wie beim Abbuchen in printSend */
+  // ── Dateien am Drucker (24.11.2026, Community #57 Sebastian S.: „auf die schon hochgeladenen Dateien zugreifen, um sie direkt zu
+  // starten“). Nur Klipper/Moonraker: /server/files/list (gcodes), neueste zuerst; Zeit, Gramm und Vorschaubild aus den Metadaten
+  // (meta(), Bild über die Brücke) für die ersten 30. Start wie SEND.moonraker ohne Upload, vorher „Reicht die Spule?“.
+  async print_pfiles(inp) {
+    const p = pfPrinter(inp.printer), L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+    let list, st;
+    try { [list, st] = await Promise.all([mrGet(p, '/server/files/list?' + qs({ root: 'gcodes' }), 8000), mrGet(p, '/printer/objects/query?print_stats', 4000).catch(() => null)]); }
+    catch (e) { fail(e.message === 'unauthorized' ? 'unauthorized' : 'offline'); }
+    const all = (Array.isArray(list) ? list : []).filter(f => f && typeof f.path === 'string' && /\.(gcode|gco|g)$/i.test(f.path) && !/(^|\/)\./.test(f.path))
+      .sort((a, b) => (+b.modified || 0) - (+a.modified || 0));
+    const files = all.slice(0, 100), top = files.slice(0, 30);
+    for (let i = 0; i < top.length; i += 4) await Promise.all(top.slice(i, i + 4).map(f => meta(p, L, f.path).catch(() => ({}))));
+    // Vorschaubilder kommen über die Brücke nach — kurz warten
+    const want = top.filter(f => ((L.meta[f.path] || {}).thumbnails || []).length);
+    for (let i = 0; i < 12 && want.some(f => !L.thumbs[f.path]); i++) await new Promise(z => setTimeout(z, 250));
+    const s = (((st || {}).status || {}).print_stats || {}).state || '';
+    return { busy: s === 'printing' || s === 'paused', total: all.length,
+             files: files.map(f => { const md = L.meta[f.path] || null, w = md ? pfWeights(md) : null;
+               return { path: f.path, name: f.path.split('/').pop(), size: +f.size || 0, modified: Math.round(+f.modified || 0),
+                        time: md && +md.estimated_time > 0 ? Math.round(+md.estimated_time) : null, g: w ? Math.round(w.reduce((a, b) => a + b, 0) * 10) / 10 : null,
+                        colors: w ? w.filter(x => x > 0).length : null, img: L.thumbs[f.path] || null }; }) };
+  },
+  async print_pfile_start(inp) {
+    const p = pfPrinter(inp.printer), path = String(inp.path || '');
+    if (!path || path.length > 500 || /(^|\/)\.\.(\/|$)/.test(path)) fail('not_found');
+    const st = await mrGet(p, '/printer/objects/query?print_stats', 5000).catch(() => fail('offline'));
+    const s = ((st.status || {}).print_stats || {}).state;
+    if (s === 'printing' || s === 'paused') fail('printer_busy');
+    if (!inp.force) {
+      const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+      const w = pfWeights(await meta(p, L, path));
+      const short = w ? shortList(p.id, gcodeItems(p.id, w, null)) : [];
+      if (short.length) return { short };
+    }
+    try { await mrPost(p, '/printer/print/start?' + qs({ filename: path }), {}, 20000); }
+    catch (e) {
+      if (/^http_404/.test(e.message)) fail('file_missing');
+      if (/^http_/.test(e.message)) throw e;
+      // spät antwortender Moonraker (große Datei) — wie SEND.moonraker kurz nachsehen
+      let ok = false;
+      for (let i = 0; i < 6 && !ok; i++) { await new Promise(z => setTimeout(z, 3000)); try { const q = await mrGet(p, '/printer/objects/query?print_stats', 4000); ok = (((q.status || {}).print_stats || {}).state) === 'printing'; } catch (e2) {} }
+      if (!ok) fail('start_timeout');
+    }
+    diag({ a: 'pfile_start', p: 'moonraker', m: p.model || '', err: '', d: path.split('/').pop().slice(0, 60) });
+    return { ok: true };
+  },
   async print_short(inp) {
     const p = db.printers.find(x => x.id === inp.printer);
     return { short: p ? shortList(p.id, gcodeItems(p.id, inp.weights, inp.map)) : [] };
