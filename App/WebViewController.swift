@@ -76,7 +76,14 @@ final class WebViewController: UIViewController, WKUIDelegate, WKNavigationDeleg
           // Kameras mit H.264 (Kobra X als FLV, Bambu X1/H2 per RTSP → FLV): flv.js braucht MediaSource — das iPhone hat dafür
           // ManagedMediaSource (ab iOS 17.1). Gleich behandeln; vor dem Anhängen disableRemotePlayback setzen, sonst öffnet WebKit die Quelle nicht.
           if (!window.MediaSource && window.ManagedMediaSource) {
-            window.MediaSource = window.ManagedMediaSource; window.__ampMms = true;
+            // Live ohne Metadaten (Bambu RTSP → FLV): WebKit nähme die Dauer des ersten Bildes (0,1 s), meldet „ended“ und hält an —
+            // darum beim Öffnen Dauer = unendlich (Live), flv.js setzt bei Dateien mit Metadaten später die echte Dauer
+            var MMS = window.ManagedMediaSource;
+            var AmpMS = function(){ var ms = new MMS(); ms.addEventListener('sourceopen', function(){ try { if (!isFinite(ms.duration)) ms.duration = Infinity; } catch (e) {} }); return ms; };
+            AmpMS.isTypeSupported = function(t){ return MMS.isTypeSupported(t); }; AmpMS.prototype = MMS.prototype;
+            window.MediaSource = AmpMS; window.__ampMms = true;
+            // Sicherheitsnetz: „ended“, obwohl noch Bilder im Puffer liegen → weiterspielen
+            document.addEventListener('ended', function(e){ var v = e.target; try { if (v && v.buffered && v.buffered.length && v.buffered.end(v.buffered.length - 1) > v.currentTime + 0.5 && String(v.src).slice(0, 5) === 'blob:') v.play().catch(function(){}); } catch (x) {} }, true);
             if (!window.SourceBuffer && window.ManagedSourceBuffer) window.SourceBuffer = window.ManagedSourceBuffer;
             try {
               var sd = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
