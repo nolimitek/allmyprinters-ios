@@ -54,7 +54,8 @@ final class Rtsp {
         // Erste m=video-Spur: Steueradresse, H.264-Parametersätze (sprop-parameter-sets)
         var inVideo = false, found = false
         var control: String?
-        for raw in String(decoding: r.body, as: UTF8.self).split(separator: "\n") {
+        // components statt split: „\r\n“ ist in Swift EIN Zeichen, split("\n") trennt SDP-Zeilen sonst gar nicht
+        for raw in String(decoding: r.body, as: UTF8.self).components(separatedBy: .newlines) {
             let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.hasPrefix("m=") { if found { break }; inVideo = line.hasPrefix("m=video"); if inVideo { found = true }; continue }
             if !inVideo { continue }
