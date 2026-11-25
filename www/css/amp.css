@@ -1569,3 +1569,6 @@ html[data-theme="dark"] .amp-hrow > .amp-hdot { border-color: rgba(255, 255, 255
 dialog.dlg { top: env(safe-area-inset-top, 0px); max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px)); }
 .pcam.amp-full { padding-top: env(safe-area-inset-top, 0px); }
 #bmDrop { top: calc(8px + env(safe-area-inset-top, 0px)); }
+
+.amp-scan0 p { margin: 0 0 8px; }
+.amp-scan0 p:last-of-type { margin-bottom: 0; }

@@ -5578,6 +5578,9 @@ async function ampCloudPick(id, devices) {
   };
   if (!dlg.open) dlg.showModal();
 }
+/** Eigene iOS-App (nicht Agent-Modus: dort beantwortet der Agent native('info') und sucht selbst im Netz). */
+let ampIosP = null;
+const ampIsIOS = () => ampIosP || (ampIosP = AMP.native('info', {}).then(i => !!i && i.platform === 'ios').catch(() => false));
 async function viewConnect() {
   view.innerHTML = prHead('connect') + `
     <section class="card amp-card"><h2>${esc(t('amp_add_h'))}</h2><p class="hint">${esc(t('amp_add_lead'))}</p>${ampHelpLinks('')}
@@ -5601,7 +5604,12 @@ async function viewConnect() {
       if (!$('#ares')) return;
       if (!d.net || !d.net.ip) res.innerHTML = `<div class="note warn-note">${esc(t('amp_scan_nowifi'))}</div>`;
       else if (!d.hosts.length && d.blocked) res.innerHTML = ampBlockedNote('', d.win, d.blocked);
-      else if (!d.hosts.length) res.innerHTML = `<div class="note">${esc(t('amp_scan_none'))}${ampHelpLinks('')}</div>`;
+      else if (!d.hosts.length) {
+        // Leere Suche (Meldung #34, 24.11.2026: Kobra S1 am iPhone „0 found“): am iPhone blockt iOS ohne Erlaubnis „Lokales Netzwerk“
+        // jede Verbindung ins Heimnetz. Kein eigener Anycubic-Hinweis (User 25.11.: steht schon unter „Was braucht mein Drucker“)
+        const ios = await ampIsIOS(); if (!$('#ares')) return;
+        res.innerHTML = `<div class="note amp-scan0"><p>${esc(t('amp_scan_none'))}</p>${ios ? `<p>${esc(t('amp_scan_ios'))}</p>` : ''}${ampHelpLinks('')}</div>`;
+      }
       else draw(res, d.hosts);
     } catch (e) { res.innerHTML = `<div class="note warn-note">${esc(t('err_generic'))}</div>`; }
     if ($('#ascan')) { b.disabled = false; b.textContent = t('amp_scan_btn'); }
