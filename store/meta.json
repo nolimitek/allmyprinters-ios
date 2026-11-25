@@ -1,0 +1,101 @@
+{
+ "name": "AllMyPrinters",
+ "version": "0.22.0",
+ "build": "9",
+ "copyright": "2026 Christian Hietzker",
+ "category": [
+  "UTILITIES",
+  "PRODUCTIVITY"
+ ],
+ "age": {
+  "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+  "gamblingSimulated": "NONE",
+  "horrorOrFearThemes": "NONE",
+  "matureOrSuggestiveThemes": "NONE",
+  "medicalOrTreatmentInformation": "NONE",
+  "profanityOrCrudeHumor": "NONE",
+  "sexualContentGraphicAndNudity": "NONE",
+  "sexualContentOrNudity": "NONE",
+  "violenceCartoonOrFantasy": "NONE",
+  "violenceRealistic": "NONE",
+  "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+  "gunsOrOtherWeapons": "NONE",
+  "contests": "NONE",
+  "gambling": false,
+  "unrestrictedWebAccess": false,
+  "lootBox": false,
+  "messagingAndChat": false,
+  "parentalControls": false,
+  "ageAssurance": false,
+  "userGeneratedContent": false,
+  "healthOrWellnessTopics": false,
+  "advertising": false,
+  "datingAndRelationships": false,
+  "sharedLocation": false,
+  "socialMedia": false,
+  "socialMediaAgeRestricted": false
+ },
+ "review": {
+  "first": "Christian",
+  "last": "Hietzker",
+  "email": "info@3dsearch.net",
+  "phone": "",
+  "notes": "AllMyPrinters controls 3D printers on the user's own home network (LAN). No account or login is needed, and there are no in-app purchases and no ads.\n\nWITHOUT A PRINTER you can try:\n- Models tab: search 3D models, open a model, save it to the library.\n- Spools tab: add a filament spool with \"+\", edit it, show its QR label.\n- Library: import an STL, 3MF or G-code file from the Files app.\n- Settings.\n\nWITH A PRINTER on the same Wi-Fi: Printers tab > Add printer > Search (this uses the Local Network permission) or enter the printer's IP address. Supported: Bambu Lab (LAN mode), Prusa (PrusaLink), Anycubic, Elegoo, Creality, Flashforge, Klipper/Moonraker, OctoPrint. A printer can then be watched (status, camera), controlled (pause/stop) and sent files to print.\n\nPERMISSIONS\n- Local Network: to find and talk to the printers at home.\n- Camera: only to scan QR codes (pairing with the agent, spool labels).\n- NFC: to read and write the NFC tags on filament spools.\n- Notifications (optional): print alerts come from the optional AllMyPrinters agent that the user runs on their own PC, Docker or Home Assistant.\n\nMODEL SEARCH: results come from 3DSEARCH (3dsearch.net), our own search engine for public 3D model pages; adult content is filtered out. Opening a model's original page happens in Safari.\n\nSLICING: when the user slices an STL/3MF, the file is sent to our slicing server (allmyprinters.com) or to the user's own slicer, and the resulting G-code goes straight to the printer."
+ },
+ "locales": {
+  "en-US": {
+   "subtitle": "3D printer & filament manager",
+   "promo": "All your 3D printers in one app: live status, camera, slicing and filament spools – directly on your home network, no manufacturer cloud needed.",
+   "keywords": "3d printer,3d printing,filament,spool,slicer,gcode,stl,3mf,printer monitor,nfc,camera,models",
+   "description": "AllMyPrinters brings all your 3D printers into one app – directly on your home network, without a manufacturer cloud.\n\nPRINTERS\n• Every printer at a glance: status, progress, time left, temperatures and the loaded filament\n• Live camera, pause, resume and stop, print speed, fans and light\n• Start prints from the app and browse the files stored on the printer\n• Works with printers from Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, plus Klipper/Moonraker and OctoPrint\n\nPRINT\n• Open STL, 3MF or G-code files and send them to your printer\n• Slice on our server or with your own slicer, map the colors of multicolor models to your filament slots and check the preview before printing\n• Keep your models in your own library – on the iPhone, in a folder such as iCloud Drive, or on your NAS\n\nFILAMENT\n• Track every spool: material, color, remaining weight, location and price\n• Used filament is deducted automatically after each print\n• Spools in multi-material units (AMS, ACE, MMU) are assigned automatically\n• Read and write NFC tags (OpenSpool) and print QR labels for your spools\n• Get a heads-up before a spool runs low\n\nMODELS\n• Search millions of 3D models from the big model platforms, filter by platform, category and price\n• Save models for later and follow current design contests\n\nHISTORY\n• Print history and filament usage statistics\n\nAGENT (OPTIONAL)\nRun the AllMyPrinters agent on a PC, in Docker or as a Home Assistant app to watch your printers around the clock: push notifications when a print finishes or fails, access from anywhere, and filament tracking even while the app is closed.\n\nPRIVACY\nNo account, no ads, no tracking. Your printers, spools and library stay on your device – files only leave it when you slice them on our server.\n\nAllMyPrinters is an independent app and is not affiliated with the printer manufacturers mentioned.",
+   "privacy": "https://allmyprinters.com/en/app-privacy/",
+   "support": "https://allmyprinters.com/en/community/",
+   "marketing": "https://allmyprinters.com/en/"
+  },
+  "de-DE": {
+   "subtitle": "3D-Drucker & Filament im Griff",
+   "promo": "Alle 3D-Drucker in einer App: Status live, Kamera, Slicen und Filamentspulen – direkt im Heimnetz, ohne Hersteller-Cloud.",
+   "keywords": "3D-Drucker,3D-Druck,Filament,Spule,Slicer,G-Code,STL,3MF,Druckerüberwachung,NFC,Kamera,Modelle",
+   "description": "AllMyPrinters bringt alle deine 3D-Drucker in eine App – direkt im Heimnetz, ohne Hersteller-Cloud.\n\nDRUCKER\n• Alle Drucker auf einen Blick: Status, Fortschritt, Restzeit, Temperaturen und das eingelegte Filament\n• Kamera live, Pause, Fortsetzen und Abbrechen, Druckgeschwindigkeit, Lüfter und Licht\n• Drucke aus der App starten und die Dateien auf dem Drucker durchsehen\n• Für Drucker von Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, dazu Klipper/Moonraker und OctoPrint\n\nDRUCKEN\n• STL-, 3MF- oder G-Code-Dateien öffnen und an den Drucker schicken\n• Auf unserem Server oder mit deinem eigenen Slicer slicen, die Farben mehrfarbiger Modelle den Filamentfächern zuordnen und die Vorschau vor dem Druck prüfen\n• Deine Modelle in der eigenen Bibliothek – auf dem iPhone, in einem Ordner wie iCloud Drive oder auf deinem NAS\n\nFILAMENT\n• Jede Spule im Blick: Material, Farbe, Restgewicht, Lagerort und Preis\n• Verbrauchtes Filament wird nach jedem Druck automatisch abgebucht\n• Spulen in Mehrfarb-Einheiten (AMS, ACE, MMU) werden automatisch zugeordnet\n• NFC-Etiketten (OpenSpool) lesen und beschreiben, QR-Etiketten für deine Spulen drucken\n• Hinweis, bevor eine Spule zur Neige geht\n\nMODELLE\n• Millionen 3D-Modelle der großen Modellplattformen durchsuchen, nach Plattform, Bereich und Preis filtern\n• Modelle für später merken und laufende Design-Wettbewerbe verfolgen\n\nVERLAUF\n• Druckverlauf und Statistik zum Filamentverbrauch\n\nAGENT (OPTIONAL)\nMit dem AllMyPrinters-Agenten auf einem PC, in Docker oder als Home-Assistant-App hast du deine Drucker rund um die Uhr im Blick: Mitteilung, wenn ein Druck fertig ist oder scheitert, Zugriff von unterwegs und Filament-Abbuchung auch bei geschlossener App.\n\nDATENSCHUTZ\nKein Konto, keine Werbung, kein Tracking. Drucker, Spulen und Bibliothek bleiben auf deinem Gerät – Dateien verlassen es nur, wenn du sie auf unserem Server slicen lässt.\n\nAllMyPrinters ist eine unabhängige App und steht in keiner Verbindung zu den genannten Druckerherstellern.",
+   "privacy": "https://allmyprinters.com/de/app-privacy/",
+   "support": "https://allmyprinters.com/de/community/",
+   "marketing": "https://allmyprinters.com/de/"
+  },
+  "fr-FR": {
+   "subtitle": "Imprimantes 3D et filament",
+   "promo": "Toutes tes imprimantes 3D dans une app : état en direct, caméra, découpe et bobines de filament – directement sur ton réseau local, sans cloud du fabricant.",
+   "keywords": "imprimante 3d,impression 3d,filament,bobine,slicer,gcode,stl,3mf,surveillance,nfc,caméra,modèles",
+   "description": "AllMyPrinters réunit toutes tes imprimantes 3D dans une seule app – directement sur ton réseau local, sans cloud du fabricant.\n\nIMPRIMANTES\n• Toutes les imprimantes d’un coup d’œil : état, progression, temps restant, températures et filament chargé\n• Caméra en direct, pause, reprise et arrêt, vitesse d’impression, ventilateurs et éclairage\n• Lance des impressions depuis l’app et parcours les fichiers stockés sur l’imprimante\n• Compatible avec les imprimantes Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, ainsi que Klipper/Moonraker et OctoPrint\n\nIMPRIMER\n• Ouvre des fichiers STL, 3MF ou G-code et envoie-les à ton imprimante\n• Découpe sur notre serveur ou avec ton propre slicer, associe les couleurs des modèles multicolores à tes emplacements de filament et vérifie l’aperçu avant d’imprimer\n• Range tes modèles dans ta propre bibliothèque – sur l’iPhone, dans un dossier comme iCloud Drive ou sur ton NAS\n\nFILAMENT\n• Suis chaque bobine : matière, couleur, poids restant, emplacement et prix\n• Le filament utilisé est déduit automatiquement après chaque impression\n• Les bobines des unités multi-matériaux (AMS, ACE, MMU) sont attribuées automatiquement\n• Lis et écris des tags NFC (OpenSpool) et imprime des étiquettes QR pour tes bobines\n• Sois prévenu avant qu’une bobine ne soit vide\n\nMODÈLES\n• Cherche parmi des millions de modèles 3D des grandes plateformes, filtre par plateforme, catégorie et prix\n• Garde des modèles pour plus tard et suis les concours de design en cours\n\nHISTORIQUE\n• Historique des impressions et statistiques de consommation de filament\n\nAGENT (FACULTATIF)\nAvec l’agent AllMyPrinters sur un PC, dans Docker ou comme app Home Assistant, tu surveilles tes imprimantes 24 h/24 : notifications quand une impression se termine ou échoue, accès de partout et suivi du filament même quand l’app est fermée.\n\nCONFIDENTIALITÉ\nPas de compte, pas de publicité, pas de suivi. Tes imprimantes, bobines et ta bibliothèque restent sur ton appareil – les fichiers ne le quittent que si tu les fais découper sur notre serveur.\n\nAllMyPrinters est une app indépendante, sans lien avec les fabricants d’imprimantes cités.",
+   "privacy": "https://allmyprinters.com/fr/app-privacy/",
+   "support": "https://allmyprinters.com/fr/community/",
+   "marketing": "https://allmyprinters.com/fr/"
+  },
+  "es-ES": {
+   "subtitle": "Impresoras 3D y filamento",
+   "promo": "Todas tus impresoras 3D en una app: estado en directo, cámara, laminado y bobinas de filamento, directamente en tu red doméstica, sin la nube del fabricante.",
+   "keywords": "impresora 3d,impresión 3d,filamento,bobina,laminador,gcode,stl,3mf,monitor,nfc,cámara,modelos",
+   "description": "AllMyPrinters reúne todas tus impresoras 3D en una sola app, directamente en tu red doméstica y sin la nube del fabricante.\n\nIMPRESORAS\n• Todas las impresoras de un vistazo: estado, progreso, tiempo restante, temperaturas y filamento cargado\n• Cámara en directo, pausar, reanudar y detener, velocidad de impresión, ventiladores y luz\n• Inicia impresiones desde la app y consulta los archivos guardados en la impresora\n• Compatible con impresoras de Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, además de Klipper/Moonraker y OctoPrint\n\nIMPRIMIR\n• Abre archivos STL, 3MF o G-code y envíalos a tu impresora\n• Lamina en nuestro servidor o con tu propio laminador, asigna los colores de modelos multicolor a tus ranuras de filamento y revisa la vista previa antes de imprimir\n• Guarda tus modelos en tu propia biblioteca: en el iPhone, en una carpeta como iCloud Drive o en tu NAS\n\nFILAMENTO\n• Controla cada bobina: material, color, peso restante, ubicación y precio\n• El filamento usado se descuenta automáticamente tras cada impresión\n• Las bobinas de las unidades multimaterial (AMS, ACE, MMU) se asignan automáticamente\n• Lee y escribe etiquetas NFC (OpenSpool) e imprime etiquetas QR para tus bobinas\n• Recibe un aviso antes de que una bobina se acabe\n\nMODELOS\n• Busca entre millones de modelos 3D de las grandes plataformas y filtra por plataforma, categoría y precio\n• Guarda modelos para más tarde y sigue los concursos de diseño en curso\n\nHISTORIAL\n• Historial de impresiones y estadísticas de consumo de filamento\n\nAGENTE (OPCIONAL)\nCon el agente de AllMyPrinters en un PC, en Docker o como app de Home Assistant vigilas tus impresoras día y noche: notificaciones cuando una impresión termina o falla, acceso desde cualquier lugar y control del filamento incluso con la app cerrada.\n\nPRIVACIDAD\nSin cuenta, sin anuncios, sin rastreo. Tus impresoras, bobinas y biblioteca se quedan en tu dispositivo; los archivos solo salen de él si los laminas en nuestro servidor.\n\nAllMyPrinters es una app independiente y no está vinculada a los fabricantes de impresoras mencionados.",
+   "privacy": "https://allmyprinters.com/es/app-privacy/",
+   "support": "https://allmyprinters.com/es/community/",
+   "marketing": "https://allmyprinters.com/es/"
+  },
+  "it": {
+   "subtitle": "Stampanti 3D e filamento",
+   "promo": "Tutte le tue stampanti 3D in un’unica app: stato in diretta, camera, slicing e bobine di filamento – direttamente nella rete di casa, senza cloud del produttore.",
+   "keywords": "stampante 3d,stampa 3d,filamento,bobina,slicer,gcode,stl,3mf,monitoraggio,nfc,camera,modelli",
+   "description": "AllMyPrinters riunisce tutte le tue stampanti 3D in un’unica app – direttamente nella rete di casa, senza cloud del produttore.\n\nSTAMPANTI\n• Tutte le stampanti a colpo d’occhio: stato, avanzamento, tempo residuo, temperature e filamento caricato\n• Camera in diretta, pausa, ripresa e arresto, velocità di stampa, ventole e luce\n• Avvia stampe dall’app e sfoglia i file salvati sulla stampante\n• Funziona con stampanti Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, oltre a Klipper/Moonraker e OctoPrint\n\nSTAMPA\n• Apri file STL, 3MF o G-code e inviali alla tua stampante\n• Esegui lo slicing sul nostro server o con il tuo slicer, abbina i colori dei modelli multicolore agli slot del filamento e controlla l’anteprima prima di stampare\n• Tieni i tuoi modelli nella tua libreria – sull’iPhone, in una cartella come iCloud Drive o sul tuo NAS\n\nFILAMENTO\n• Tieni d’occhio ogni bobina: materiale, colore, peso residuo, posizione e prezzo\n• Il filamento usato viene scalato automaticamente dopo ogni stampa\n• Le bobine nelle unità multimateriale (AMS, ACE, MMU) vengono assegnate automaticamente\n• Leggi e scrivi tag NFC (OpenSpool) e stampa etichette QR per le tue bobine\n• Ricevi un avviso prima che una bobina finisca\n\nMODELLI\n• Cerca tra milioni di modelli 3D delle grandi piattaforme, filtra per piattaforma, categoria e prezzo\n• Salva modelli per dopo e segui i concorsi di design in corso\n\nCRONOLOGIA\n• Cronologia delle stampe e statistiche sul consumo di filamento\n\nAGENTE (FACOLTATIVO)\nCon l’agente AllMyPrinters su un PC, in Docker o come app di Home Assistant controlli le tue stampanti 24 ore su 24: notifiche quando una stampa finisce o fallisce, accesso ovunque e conteggio del filamento anche ad app chiusa.\n\nPRIVACY\nNessun account, nessuna pubblicità, nessun tracciamento. Stampanti, bobine e libreria restano sul tuo dispositivo – i file lo lasciano solo se li fai elaborare sul nostro server.\n\nAllMyPrinters è un’app indipendente e non è affiliata ai produttori di stampanti citati.",
+   "privacy": "https://allmyprinters.com/it/app-privacy/",
+   "support": "https://allmyprinters.com/it/community/",
+   "marketing": "https://allmyprinters.com/it/"
+  },
+  "nl-NL": {
+   "subtitle": "3D-printers en filament",
+   "promo": "Al je 3D-printers in één app: live status, camera, slicen en filamentspoelen – rechtstreeks in je thuisnetwerk, zonder cloud van de fabrikant.",
+   "keywords": "3d-printer,3d-printen,filament,spoel,slicer,gcode,stl,3mf,printerbewaking,nfc,camera,modellen",
+   "description": "AllMyPrinters brengt al je 3D-printers samen in één app – rechtstreeks in je thuisnetwerk, zonder cloud van de fabrikant.\n\nPRINTERS\n• Alle printers in één oogopslag: status, voortgang, resterende tijd, temperaturen en het geladen filament\n• Live camera, pauzeren, hervatten en stoppen, printsnelheid, ventilatoren en licht\n• Start prints vanuit de app en bekijk de bestanden op de printer\n• Werkt met printers van Bambu Lab, Prusa, Anycubic, Elegoo, Creality, Flashforge, Snapmaker, QIDI, Voron, plus Klipper/Moonraker en OctoPrint\n\nPRINTEN\n• Open STL-, 3MF- of G-code-bestanden en stuur ze naar je printer\n• Slice op onze server of met je eigen slicer, koppel de kleuren van meerkleurige modellen aan je filamentvakken en controleer het voorbeeld voor het printen\n• Bewaar je modellen in je eigen bibliotheek – op de iPhone, in een map zoals iCloud Drive of op je NAS\n\nFILAMENT\n• Houd elke spoel bij: materiaal, kleur, restgewicht, locatie en prijs\n• Verbruikt filament wordt na elke print automatisch afgeboekt\n• Spoelen in multi-material-units (AMS, ACE, MMU) worden automatisch toegewezen\n• Lees en beschrijf NFC-tags (OpenSpool) en print QR-labels voor je spoelen\n• Krijg een seintje voordat een spoel bijna leeg is\n\nMODELLEN\n• Doorzoek miljoenen 3D-modellen van de grote modelplatforms, filter op platform, categorie en prijs\n• Bewaar modellen voor later en volg lopende ontwerpwedstrijden\n\nGESCHIEDENIS\n• Printgeschiedenis en statistieken over filamentverbruik\n\nAGENT (OPTIONEEL)\nMet de AllMyPrinters-agent op een pc, in Docker of als Home Assistant-app houd je je printers dag en nacht in de gaten: meldingen als een print klaar is of mislukt, toegang van overal en filament bijhouden, ook als de app gesloten is.\n\nPRIVACY\nGeen account, geen advertenties, geen tracking. Je printers, spoelen en bibliotheek blijven op je apparaat – bestanden verlaten het alleen als je ze op onze server laat slicen.\n\nAllMyPrinters is een onafhankelijke app en is niet verbonden aan de genoemde printerfabrikanten.",
+   "privacy": "https://allmyprinters.com/nl/app-privacy/",
+   "support": "https://allmyprinters.com/nl/community/",
+   "marketing": "https://allmyprinters.com/nl/"
+  }
+ }
+}
