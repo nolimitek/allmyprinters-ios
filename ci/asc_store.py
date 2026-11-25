@@ -219,8 +219,22 @@ def apply(meta, shots_dir):
             attrs = {k: v for k, v in meta['age'].items() if k in known}
             skipped = sorted(set(meta['age']) - set(known)); missing = sorted(k for k, v in known.items() if v is None and k not in meta['age'])
             print(f'     Altersfreigabe: {len(attrs)} Felder, unbekannt {skipped}, offen {missing}', flush=True)
-            st, j = req('PATCH', f"/ageRatingDeclarations/{a['data']['id']}", {'data': {'type': 'ageRatingDeclarations', 'id': a['data']['id'], 'attributes': attrs}})
+            aid = a['data']['id']
+            patch = lambda at: req('PATCH', f'/ageRatingDeclarations/{aid}', {'data': {'type': 'ageRatingDeclarations', 'id': aid, 'attributes': at}})
+            st, j = patch(attrs)
+            if st != 200:
+                # neue Fragen (2025/26) haben teils andere Typen → einzeln, bei Fehler die andere Form (False ↔ 'NONE')
+                print(f'     Altersfreigabe gesamt: {st} {etext(j)} → einzeln', flush=True)
+                for k, v in attrs.items():
+                    s1, j1 = patch({k: v})
+                    if s1 != 200:
+                        alt = 'NONE' if v is False else False if v == 'NONE' else None
+                        s2, j2 = patch({k: alt}) if alt is not None else (s1, j1)
+                        ok(f'Altersfreigabe {k}={alt!r} (statt {v!r})', s2, j2) if alt is not None else ok(f'Altersfreigabe {k}', s1, j1)
+                st, j = 200, {}
             ok('Altersfreigabe', st, j)
+            st, a2 = req('GET', f"/apps/{APP_ID}/appInfos")
+            print('     Altersstufe jetzt: ' + json.dumps([x['attributes'].get('appStoreAgeRating') for x in a2.get('data', [])]), flush=True)
         else:
             ok('Altersfreigabe lesen', st, a)
     else:
@@ -268,6 +282,9 @@ def apply(meta, shots_dir):
     ok('Hinweise für die Prüfung', st, j)
     # 8 Preis: kostenlos (nur wenn noch kein Preisplan da ist)
     st, j = req('GET', f'/apps/{APP_ID}/appPriceSchedule')
+    if st == 200:   # Apple liefert den Plan auch ohne Preise (id = App) — erst Preise zählen
+        st, m = req('GET', f"/appPriceSchedules/{j['data']['id']}/manualPrices?limit=1")
+        st = 200 if st == 200 and m.get('data') else 404
     if st != 200:
         pts, e = get_all(f'/apps/{APP_ID}/appPricePoints?filter[territory]=USA&limit=200')
         free = next((p['id'] for p in pts or [] if str(p['attributes'].get('customerPrice')) in ('0', '0.0', '0.00')), None)

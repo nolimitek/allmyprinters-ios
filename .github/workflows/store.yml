@@ -17,6 +17,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - name: Erreichbarkeit 3DSEARCH (Modellsuche) von einem Rechenzentrum aus
+        run: |
+          mkdir -p store-out
+          for u in "https://3dsearch.net/api/v1/models/trending?per_page=1&safe=1" "https://allmyprinters.com/api/app-plan.php"; do
+            curl -s -o /dev/null -m 20 -w "%{http_code} %{remote_ip} %{time_total}s $u\n" -A "AllMyPrinters/1 CFNetwork/3896.200.61 Darwin/27.2.0" "$u" || echo "curl-Fehler $? $u"
+          done | tee store-out/erreichbar.txt
       - name: App Store Connect
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
