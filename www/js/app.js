@@ -2991,11 +2991,11 @@ const PX_SEL = {
   print_sequence: ['by layer', 'by object'],
   sparse_infill_pattern: ['grid', 'gyroid', 'honeycomb', 'cubic', 'adaptivecubic', 'triangles', 'tri-hexagon', 'rectilinear', 'line', 'lightning', 'crosshatch', '3dhoneycomb'],
   seam_position: ['aligned', 'nearest', 'back', 'random'], ironing_type: ['no ironing', 'top', 'topmost', 'solid'], fuzzy_skin: ['none', 'external', 'all'],
-  support_type: ['tree(auto)', 'organic', 'normal(auto)'], support_on_build_plate_only: ['1', '0'],
+  support_type: ['tree(auto)', 'organic', 'normal(auto)'], support_on_build_plate_only: ['1', '0'], enable_prime_tower: ['1', '0'],
   brim_type: ['auto_brim', 'outer_only', 'inner_only', 'outer_and_inner', 'brim_ears', 'no_brim'],
 };
 const PX_GROUPS = [
-  ['plate', ['scale', 'orient', 'rot', 'print_sequence', 'pause']],
+  ['plate', ['scale', 'orient', 'rot', 'print_sequence', 'enable_prime_tower', 'pause']],
   ['quality', ['layer_height', 'wall_loops', 'top_shell_layers', 'bottom_shell_layers', 'sparse_infill_density', 'sparse_infill_pattern', 'seam_position', 'ironing_type', 'fuzzy_skin']],
   ['support', ['support_type', 'support_threshold_angle', 'support_on_build_plate_only', 'support_top_z_distance', 'support_bottom_z_distance', 'support_object_xy_distance', 'support_interface_top_layers']],
   ['adhesion', ['brim_type', 'brim_width', 'skirt_loops']],
@@ -5804,9 +5804,9 @@ async function viewGcode() {
       const tx = $('#pptxt'); if (tx) tx.textContent = pc >= 100 && start ? t('amp_starting') : t('amp_uploading', { p: pc });
     });
     try {
-      const lv = $('#plvl'), cv = $('#pcal_vib'), cf = $('#pcal_flow');
+      const lv = $('#plvl'), cv = $('#pcal_vib'), cf = $('#pcal_flow'), ctl = $('#pcal_tl');
       const r = await api('amp_print', { printer: pr.printer, file: pr.file, meta: pr.meta, start, lib: pr.lib, ...(lv ? { level: !!lv.checked } : {}),
-        ...(cv && cv.checked ? { vib: true } : {}), ...(cf && cf.checked ? { flow: true } : {}), ...(plateOk ? { plate_ok: true } : {}) });
+        ...(cv && cv.checked ? { vib: true } : {}), ...(cf && cf.checked ? { flow: true } : {}), ...(ctl && ctl.checked ? { tl: true } : {}), ...(plateOk ? { plate_ok: true } : {}) });
       toast(t(r.started ? 'amp_started' : 'amp_uploaded'));
       pr.file = null; pr.meta = null; pr.lib = null; pv.data = null;
       location.hash = 'printers';
@@ -6561,8 +6561,10 @@ function camPlay(pid, list) {
     img.alt = t('cam_alt', { n: pid });
     cam.el[pid] = img;
     const loop = async () => {
-      let prev = null, miss = 0;
+      let prev = null, miss = 0, wakeAt = Date.now();
       while (cam.el[pid] === img) {
+        // Snapmaker U1 (Originalfirmware): Kamera alle 10 s wecken, solange das Bild offen ist — sonst schläft sie ein (backend u1CamWake, 25.11.2026)
+        if (s.wake && Date.now() - wakeAt > 10000) { wakeAt = Date.now(); api('amp_cam_wake', { printer: pid }).catch(() => {}); }
         try {
           const r = await fetch((window.AMP_BASE || '') + '/cam/frame?k=' + encodeURIComponent(pid) + '&n=' + (++camN), { cache: 'no-store' });
           if (r.status !== 200) {
@@ -6889,7 +6891,7 @@ document.addEventListener('click', e => {
 // (backend form()), G-Code-Ansicht: amp_print vib/flow.
 const ampCalGet = (k, key) => { try { return localStorage.getItem('psd_' + k + '_' + key) === '1'; } catch (e) { return false; } };
 function ampCalHtml(cal, key, form) {
-  const ks = ['vib', 'flow'].filter(k => cal && cal[k]);
+  const ks = ['vib', 'flow', 'tl'].filter(k => cal && cal[k]);   // tl = Zeitraffer (Snapmaker U1, 25.11.2026)
   if (!ks.length) return '';
   return `<div class="amp-cal">${ks.map(k => `<label class="chk row"><input type="checkbox" id="pcal_${k}" data-cal="${k}"${ampCalGet(k, key) ? ' checked' : ''}> <span>${esc(t('amp_cal_' + k))}</span></label>`
     + (form ? `<input type="hidden" name="${k}" id="pcalv_${k}" value="${ampCalGet(k, key) ? '1' : '0'}">` : '')).join('')}<p class="hint">${esc(t('amp_cal_note'))}</p></div>`;

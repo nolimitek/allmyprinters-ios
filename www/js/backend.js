@@ -740,14 +740,14 @@ const PF_E = {
 const PF_N = { layer_height: [0.04, 0.6], wall_loops: [1, 20, 1], top_shell_layers: [0, 50, 1], bottom_shell_layers: [0, 50, 1], sparse_infill_density: [0, 100, 1],
   support_threshold_angle: [0, 90, 1], support_top_z_distance: [0, 1], support_bottom_z_distance: [0, 1], support_object_xy_distance: [0, 5],
   support_interface_top_layers: [0, 10, 1], brim_width: [0, 30], skirt_loops: [0, 10, 1] };
-const PF_KEYS = [...Object.keys(PF_N), ...Object.keys(PF_E), 'support_on_build_plate_only'];
+const PF_KEYS = [...Object.keys(PF_N), ...Object.keys(PF_E), 'support_on_build_plate_only', 'enable_prime_tower'];   // Reinigungsturm seit 25.11.2026
 const PF_META = /^(name|inherits|from|version|type|setting_id|is_custom_defined|instantiation|print_settings_id|base_id|user_id|updated_time|description|compatible_printers.*|compatible_prints.*|print_compatible_printers|filament_settings_id|printer_settings_id|printer_model|default_print_profile)$/;
 /** Ein Wert → Formularwert (wie im Expertenfeld) oder null, wenn außerhalb der Grenzen / unbekannt */
 function pfVal(k, v) {
   if (Array.isArray(v)) v = v[0];
   v = String(v ?? '').trim();
   if (v === '' || v === 'nil') return null;
-  if (k === 'support_on_build_plate_only') return v === '1' || v === 'true' ? '1' : v === '0' || v === 'false' ? '0' : null;
+  if (k === 'support_on_build_plate_only' || k === 'enable_prime_tower') return v === '1' || v === 'true' ? '1' : v === '0' || v === 'false' ? '0' : null;
   if (PF_E[k]) return PF_E[k].includes(v) ? v : null;
   const r = PF_N[k]; if (!r) return null;
   const n = parseFloat(v.replace('%', '').replace(',', '.'));
@@ -1142,6 +1142,9 @@ async function probeMoonraker(host, port) {
       ace = lst.includes('mmu');
       const q = lst.includes('virtual_sdcard') ? await mrGet(p, '/printer/objects/query?virtual_sdcard=printer_settings_id', 2500) : null;
       model = modelFrom(pinfo.hostname, q && q.status && q.status.virtual_sdcard && q.status.virtual_sdcard.printer_settings_id);
+      // Snapmaker U1: Rechnername ist immer „lava“, ein Profilname steht nicht immer drin → wie mrSync an print_task_config erkennen
+      // (25.11.2026, Chris' U1 wurde bei der Suche als „lava“ angezeigt)
+      if (!model && lst.includes('print_task_config') && (lst.includes('extruder1') || lst.includes('toolhead'))) model = 'Snapmaker U1';
     } catch (e) { model = modelFrom(pinfo.hostname, null); }
     const hn = pinfo.hostname && pinfo.hostname !== 'localhost' && !/^kobra[-_]/i.test(pinfo.hostname) ? pinfo.hostname : '';
     return { host, port, kind: 'moonraker', hostname: hn, mrhost: pinfo.hostname || '', model, ace, klippy: pinfo.state || info.klippy_state || null, rinkhals: /^kobra[-_]/i.test(pinfo.hostname || ''),
@@ -1165,7 +1168,7 @@ function slotRow(pid, index) {
 
 async function mrSync(p, force) {
   const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
-  const entry = { id: p.id, name: p.name, model: p.model || null, online: false, busy: false, locked: false, img: p.img || null, img_own: !!p.img, cal: calOf(p),
+  const entry = { id: p.id, name: p.name, model: p.model || null, online: false, busy: false, locked: false, img: p.img || null, img_own: !!p.img, cal: calOf(p), lvl: lvlOf(p),
                   temps: null, stats: null, slots: [], boxes: [], orphans: [], job: null, last: null, cam: false,
                   agent: { backend: 'moonraker', klippy: null, klippy_msg: '', silent: false }, host: p.host + ':' + (p.port || 7125), files: true,
                   cam: true, cam_ok: true };   // Live-Bild bleibt im Heimnetz → keine Freigabe wie auf 3DSEARCH nötig
@@ -1201,6 +1204,9 @@ async function mrSync(p, force) {
                             || (/^output_pin [\w-]+$/.test(o) && LIGHT_RE.test(o.slice(11))));
     // U1 (Original-Firmware): Material/Farbe je Kopf in print_task_config → Modell „Snapmaker U1“
     if (!p.model && lst.includes('print_task_config') && (lst.includes('extruder1') || lst.includes('toolhead'))) { p.model = 'Snapmaker U1'; entry.model = p.model; persist(); }
+    // Bis 25.11.2026 übernahm die Suche beim U1 den Rechnernamen „lava“ (hat jeder U1) als Druckernamen → einmal auf den Modellnamen.
+    // Nur wenn der Name noch genau der Rechnername ist (selbst vergebene Namen bleiben).
+    if (p.model === 'Snapmaker U1' && p.name === 'lava' && pinfo.hostname === 'lava') { p.name = p.model; entry.name = p.name; persist(); }
   }
   const st = (await mrGet(p, '/printer/objects/query?' + qs(Object.fromEntries(L.objects.map(o => [o, MR_ATTRS[o.split(' ')[0]] || (/^extruder\d+$/.test(o) ? 'temperature,target' : null)]))))).status || {};
   const ps = st.print_stats || {}, vs = st.virtual_sdcard || {}, ds = st.display_status || {};
@@ -1571,6 +1577,9 @@ async function mrCamCands(p, mrPort) {
     const w = await mrGet({ host: p.host, port: mrPort, key: kindOf(p) === 'moonraker' ? p.key : undefined }, '/server/webcams/list', 3000);
     for (const c of w.webcams || []) {
       if (c.enabled === false) continue;
+      // Snapmaker U1 Extended (paxx12 v4l2-mpp stream-http): meldet WebRTC (/webcam/webrtc) + Einzelbild /webcam/snapshot.jpg, liefert daneben
+      // aber echtes MJPEG unter /webcam/stream.mjpg — flüssiger als Einzelbilder (25.11.2026, an Chris' U1 im Browser geprüft). Zuerst probieren.
+      if (/\/snapshot\.jpg$/i.test(String(c.snapshot_url || '').split('?')[0])) for (const u of fix(String(c.snapshot_url).split('?')[0].replace(/snapshot\.jpg$/i, 'stream.mjpg'))) cand.push({ kind: 'mjpeg', url: u, name: c.name || '' });
       for (const u of fix(c.stream_url)) cand.push({ kind: 'mjpeg', url: u, name: c.name || '' });
       for (const u of fix(c.snapshot_url)) cand.push({ kind: 'snap', url: u, name: c.name || '' });
     }
@@ -1669,7 +1678,7 @@ async function camSources(p, force) {
   if (kindOf(p) === 'flashforge') { const u = (live[p.id] || {}).ffCam; return [{ kind: 'mjpeg', url: u && /^http:\/\//.test(u) && !(p.ports && p.ports.cam) ? u : `http://${p.host}:${(p.ports && p.ports.cam) || 8080}/?action=stream` }]; }
   // CC2: MJPEG auf Port 8080 (jeder Pfad), ohne Anmeldung; meist nur 1 Zuschauer gleichzeitig
   if (kindOf(p) === 'cc2') return [{ kind: 'mjpeg', url: `http://${p.host}:${ccPort(p, 'cam', 8080)}/?action=stream` }];
-  if (L.cams && !force && Date.now() - L.camsAt < 300000) return L.cams;
+  if (L.cams && !force && Date.now() - L.camsAt < 300000) { if (L.cams.some(c => c.wake)) await u1CamWake(p, true); return L.cams; }   // U1: auch beim Wiederöffnen wecken
   const base = `http://${p.host}`;
   const fix = v => {
     v = String(v || '').trim(); if (!v) return null;
@@ -1686,7 +1695,8 @@ async function camSources(p, force) {
     L.cams = BBL_CAM6000.test(p.model || '') || (p.ports && p.ports.cam) ? [j6000] : p.model || (p.ports && p.ports.rtsp) ? [rtsp] : [rtsp, j6000];
     L.camsAt = Date.now(); return L.cams;
   }
-  const cand = kindOf(p) === 'octoprint' ? [] : [{ kind: 'flv', url: `${base}:18088/flv` }];
+  // Anycubic gkcam (:18088) nicht beim Snapmaker U1 fragen (gibt es dort nicht; im Test antwortete dort der Anycubic-Nachbau, 25.11.2026)
+  const cand = kindOf(p) === 'octoprint' || isU1(p) ? [] : [{ kind: 'flv', url: `${base}:18088/flv` }];
   if (kindOf(p) === 'octoprint') {
     try {
       const w = (await dj(p, 'GET', '/api/settings')).webcam || {};
@@ -1696,10 +1706,54 @@ async function camSources(p, force) {
   } else cand.push(...await mrCamCands(p, p.port || 7125));
   for (const f of kindOf(p) === 'octoprint' ? [base + '/webcam/?action=stream', base + ':8080/?action=stream'] : []) cand.push({ kind: 'mjpeg', url: f });
   for (const f of kindOf(p) === 'octoprint' ? [base + '/webcam/?action=snapshot', base + ':8080/?action=snapshot'] : []) cand.push({ kind: 'snap', url: f });
-  const { ok, res } = await camProbe(cand);
+  let { ok, res } = await camProbe(cand);
+  // Snapmaker U1 mit Originalfirmware: Moonraker meldet keine Kamera → aufwecken und Einzelbild nehmen (Extended-Firmware meldet ihre Kamera,
+  // dann bleibt es beim normalen Weg oben)
+  if (!ok.length && isU1(p)) {
+    await u1CamWake(p, true);
+    const r2 = await camProbe([{ kind: 'snap', url: `http://${p.host}:${p.port || 7125}/server/files/camera/monitor.jpg`, wake: true, retry: true }]);
+    ok = r2.ok; res = res.concat(r2.res);
+  }
   if (!ok.length) diag({ a: 'cam', p: kindOf(p), m: p.model || '', err: 'none', d: res.join(' ') });
   L.cams = ok; L.camsAt = Date.now();
   return L.cams;
+}
+
+// ── Snapmaker U1 mit Originalfirmware: Kamera aufwecken (25.11.2026, Chris' U1) ──────────────────────────────────────────────────
+// Moonraker kennt dort keine Kamera (Fluidd zeigt auch keine), die Snapmaker-App weckt sie mit camera.start_monitor {domain: lan}. Danach legt
+// der U1 etwa 1 Bild/s unter /server/files/camera/monitor.jpg ab — im Heimnetz abrufbar (an Chris' U1 geprüft). Den Befehl nimmt Moonraker
+// NUR über den Websocket an (HTTP /server/jsonrpc → „Method not found for transport HTTP“, ebenfalls geprüft).
+// Ohne Wiederholung schläft die Kamera ein → die Ansicht ruft amp_cam_wake alle 10 s, solange sie das Bild zeigt (wie SimplyPrint).
+// Kein camera.stop_monitor beim Schließen: könnte das Bild in der Snapmaker-App abbrechen; die Kamera schläft von selbst wieder ein.
+// Websocket über die Live-Art 'sdcp' (ws://IP:Port/websocket, gibt es auf Android, iPhone und im Agenten) und gleich wieder zu — offen
+// bliebe der SDCP-Text „ping“ alle 10 s, den Moonraker als Parse-Fehler protokollieren würde.
+const isU1 = p => kindOf(p) === 'moonraker' && p.model === 'Snapmaker U1';
+/**
+ * Snapmaker U1: Druckoptionen vor dem Start (25.11.2026, User: „Druckbett nivellieren usw. fehlt mir“). Die Firmware nimmt sie nur per
+ * SET_PRINT_PREFERENCES und nur VOR dem Start (Snapmaker u1-klipper print_task_config.py, sonst Fehler 16), Vorgabe ab Werk überall aus;
+ * die Zeilen SET_PRINT_AUTO_BED_LEVELING/SET_TIME_LAPSE_CAMERA im Orca-Profil kennt sie nicht (Prüfung 09.10.2026, memory
+ * bett-nivellieren-druckstart). Immer alle vier Werte, damit nichts von einem früheren Druck (Snapmaker-App) stehen bleibt.
+ * Scheitert der Befehl (andere Firmware), startet der Druck trotzdem — Eintrag im Protokoll.
+ */
+async function u1Prefs(p, o) {
+  const script = 'SET_PRINT_PREFERENCES BED_LEVEL=' + (o.level === false ? 0 : 1) + ' FLOW_CALIBRATE=' + (o.flow ? 1 : 0)
+    + ' SHAPER_CALIBRATE=' + (o.vib ? 1 : 0) + ' TIME_LAPSE_CAMERA=' + (o.tl ? 1 : 0);
+  try { await mrPost(p, '/printer/gcode/script', { script }, 10000); }
+  catch (e) { diag({ a: 'u1_prefs', p: 'moonraker', m: p.model || '', err: String(e.message || 'err').slice(0, 30), d: String(e.msg || '').slice(0, 120) }); }
+}
+async function u1CamWake(p, first) {
+  const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+  if (!first && Date.now() - (L.u1WakeAt || 0) < 5000) return true;   // mehrere Ansichten gleichzeitig (Agent: Handy + PC)
+  L.u1WakeAt = Date.now();
+  const key = 'mrc_' + p.id;
+  try {
+    await native('live_open', { kind: 'sdcp', key, host: p.host, port: +(p.port || 7125) });
+    for (let i = 0; i < 15; i++) { const st = await native('live_state', { key }).catch(() => ({})); if (st.connected) break; await new Promise(z => setTimeout(z, 200)); }
+    await native('live_send', { key, payload: JSON.stringify({ jsonrpc: '2.0', id: 30003, method: 'camera.start_monitor', params: { domain: 'lan', interval: 0 } }) });
+    await new Promise(z => setTimeout(z, first ? 1500 : 300));   // erstes Mal: dem U1 Zeit fürs erste Bild geben
+    return true;
+  } catch (e) { diag({ a: 'cam_wake', p: 'moonraker', m: p.model || '', err: String(e.message || 'err').slice(0, 40) }); return false; }
+  finally { native('live_close', { key }).catch(() => {}); }
 }
 
 // ── OctoPrint und PrusaLink (wie die Treiber des 3DSEARCH-Agenten) ──────────
@@ -1723,12 +1777,13 @@ async function dj(p, method, path, body, timeout = 6000) {
 // Kalibrieren vor dem Druck (21.11.2026, User: „Vibrationstest vor dem Druck … mit Flusskalibrierung“): nur, was der Startbefehl belegt kann —
 // Anycubic LAN task_settings.vibration_compensation/flow_calibration (kobra-connect mqtt-commands.md), Bambu project_file vibration_cali/
 // flow_cali (+ extrude_cali_flag), Flashforge AD5X/Creator 5 flowCalibration (ff-5mp-api AD5X-/Creator5-Parameter; 5M/5M Pro nicht belegt).
-const calOf = p => { const k = kindOf(p); return k === 'acl' || k === 'bambu' ? { vib: true, flow: true } : k === 'flashforge' && /AD5X|Creator 5/i.test(p.model || '') ? { vib: false, flow: true } : null; };
+// Snapmaker U1 (25.11.2026): SET_PRINT_PREFERENCES vor dem Start (u1Prefs) — Vibrationsausgleich, Flusskalibrierung, dazu Zeitraffer (tl)
+const calOf = p => { const k = kindOf(p); return k === 'acl' || k === 'bambu' ? { vib: true, flow: true } : k === 'flashforge' && /AD5X|Creator 5/i.test(p.model || '') ? { vib: false, flow: true } : isU1(p) ? { vib: true, flow: true, tl: true } : null; };
 // Häkchen „Bett vor dem Druck nivellieren“ (Startbefehl trägt die Wahl): Anycubic LAN auto_leveling (17.11.2026), Elegoo CC2 printer_check (21.11.2026)
 // Hinweis „Flashforge noch in der Testphase“ (22.11.2026, User). Creator 5 / 5 Pro seit 0.19.5 ohne: am echten C5 Pro bestätigt
 // (#30/#31, 22.11.2026: Kopf 1, anderer Kopf, zweifarbig, ohne Nivellieren). AD5X, 5M und die übrigen behalten ihn (kein bestätigter Druck).
 const ffBeta = p => kindOf(p) === 'flashforge' && !/creator\s*5/i.test(p.model || '');
-const lvlOf = p => ['acl', 'cc2', 'flashforge'].includes(kindOf(p));   // Flashforge seit 0.19.4 (22.11.2026): levelingBeforePrint stand fest auf an, der Creator 5 Pro nivellierte vor jedem Druck
+const lvlOf = p => ['acl', 'cc2', 'flashforge'].includes(kindOf(p)) || isU1(p);   // U1 seit 25.11.2026 (BED_LEVEL in u1Prefs)   // Flashforge seit 0.19.4 (22.11.2026): levelingBeforePrint stand fest auf an, der Creator 5 Pro nivellierte vor jedem Druck
 function baseEntry(p, backend) {
   return { id: p.id, name: p.name, model: p.model || null, online: false, busy: false, locked: false, img: p.img || null, img_own: !!p.img, cal: calOf(p), lvl: lvlOf(p),
            temps: null, stats: null, slots: [], boxes: [], orphans: [], job: null, last: null, cam: true, cam_ok: true,
@@ -3244,7 +3299,7 @@ async function fileMeta(file) {
 }
 /** Hochladen + Starten je Treiber → Dateiname auf dem Drucker. */
 const SEND = {
-  async moonraker(p, file, name, start) {
+  async moonraker(p, file, name, start, plan, opts) {
     if (start) {
       const st = await mrGet(p, '/printer/objects/query?print_stats');
       const s = ((st.status || {}).print_stats || {}).state;
@@ -3256,6 +3311,7 @@ const SEND = {
     let fname = name;
     try { const r = JSON.parse(up.text); fname = (r.result || r).item ? (r.result || r).item.path : name; } catch (e) {}
     if (!start) return fname;
+    if (isU1(p)) await u1Prefs(p, opts || {});
     try { await mrPost(p, '/printer/print/start?' + qs({ filename: fname }), {}, 20000); }
     catch (e) {
       // Moonraker antwortet nach großen Dateien manchmal spät (prüft sie erst) — der Druck läuft dann trotzdem (Kobra S1, 30 MB).
@@ -3770,7 +3826,7 @@ async function printSend(inp, onProgress) {
   const t0 = Date.now();
   let fname;
   try { fname = await (SEND[kindOf(p)] || SEND.moonraker)(p, file, name, !!inp.start, inp.plan || (inp.meta && inp.meta.weights ? inp.meta.weights.map((g, t) => ({ slot: t, tool: t, g })) : []),
-                                                        { level: typeof inp.level === 'boolean' ? inp.level : null, vib: inp.vib === true, flow: inp.flow === true }); }
+                                                        { level: typeof inp.level === 'boolean' ? inp.level : null, vib: inp.vib === true, flow: inp.flow === true, tl: inp.tl === true }); }
   catch (e) { diag({ a: 'send', p: kindOf(p), m: p.model || '', err: e.code || e.message || 'error', d: String(e.detail || e.msg || (e.data && e.data.msg) || '').slice(0, 160) }); throw e; }   // #84: Sendefehler standen nicht im Protokoll; #25: Text des Android-Teils mit
   finally { if (keep) clearInterval(keep); }
   if (img) await jtPut(p.id, fname || name, img).catch(() => {});
@@ -4097,7 +4153,7 @@ async function sliceSend(inp) {
   } : null;
   try {
     const r = await printSend({ printer: p.id, file: { token: dl.token, name: dl.name, size: dl.size, plate_png: j.thumb_png || null, full3mf: fullGet }, start: !!inp.start, plan: j.plan || [],
-                                thumb: j.thumb || null, level: (sj[inp.job] || {}).level, vib: (sj[inp.job] || {}).vib === true, flow: (sj[inp.job] || {}).flow === true, plate_ok: !!inp.plate_ok });
+                                thumb: j.thumb || null, level: (sj[inp.job] || {}).level, vib: (sj[inp.job] || {}).vib === true, flow: (sj[inp.job] || {}).flow === true, tl: (sj[inp.job] || {}).tl === true, plate_ok: !!inp.plate_ok });
     sj[inp.job] = { ...(sj[inp.job] || {}), [inp.start ? 'sent' : 'uploaded']: now() };
     if (inp.start && (sj[inp.job].lib || sj[inp.job].plate)) libLink([].concat(sj[inp.job].lib || [], sj[inp.job].plate || []), r.started ? r.job : null, p.name);
     persist();
@@ -5234,6 +5290,11 @@ const A = {
     if (p && kindOf(p) === 'sdcp') await sdSend(p, 386, { Enable: 0 }).catch(() => {});
     return { ok: true };
   },
+  /** Snapmaker U1 (Originalfirmware): Kamera wach halten, solange die Ansicht das Bild zeigt (alle 10 s, siehe u1CamWake). */
+  async amp_cam_wake(inp) {
+    const p = db.printers.find(x => x.id === inp.printer) || fail('not_found');
+    return { ok: isU1(p) ? await u1CamWake(p, false) : false };
+  },
   async printer_cam_ok() { return { ok: true }; },
   // ── Neu in der App: Drucker suchen/hinzufügen, Drucken, Sicherung ──
   async amp_net() { return native('net'); },
@@ -5247,7 +5308,15 @@ const A = {
     const cc2 = native('udp', { send: { host: bc, port: 52700, data: '{"id":0,"method":7000}' }, ms: 2500 }).catch(() => ({ packets: [] }));   // Elegoo CC2
     const ffs = native('udp', { sends: [{ host: '225.0.0.9', port: 19000, b64: FF_DISCO }, { host: bc, port: 48899, b64: FF_DISCO }], ms: 2500 }).catch(() => ({ packets: [] }));   // Flashforge
     const r = await native('scan', { ip: n.ip, ports: [7125, 80, 5000, 7126, 7127, 18910], timeout: 450 });
-    const found = bambuFound((await ssdp).packets || []).concat(sdcpFound((await sdcp).packets || []), cc2Found((await cc2).packets || []), ffFound((await ffs).packets || []));
+    // Zweiter Durchgang nur für Klipper (7125) mit 1,5 s statt 450 ms (25.11.2026, Chris' Snapmaker U1 während eines Drucks: erst die
+    // zweite Suche fand ihn, von Hand per IP sofort). Beim ersten Anklopfen muss sich das Gerät erst im WLAN melden — ein beschäftigter
+    // oder stromsparender Drucker braucht dafür länger als 450 ms. Danach kennt das Handy ihn. Kostet ~6 s (254 Adressen, 64 gleichzeitig).
+    if (!r.blocked) {
+      const r2 = await native('scan', { ip: n.ip, ports: [7125], timeout: 1500 }).catch(() => ({ hosts: [] }));
+      const seen = new Set((r.hosts || []).map(h => h.host + ':' + h.port));
+      for (const h of r2.hosts || []) if (!seen.has(h.host + ':' + h.port)) { seen.add(h.host + ':' + h.port); (r.hosts = r.hosts || []).push(h); }
+    }
+    const found =bambuFound((await ssdp).packets || []).concat(sdcpFound((await sdcp).packets || []), cc2Found((await cc2).packets || []), ffFound((await ffs).packets || []));
     await Promise.all((r.hosts || []).map(async h => { const d = h.port === 18910 ? await acInfo(h.host, 18910) : await probe(h.host, h.port); if (d) found.push(d); }));
     // KX-Bridge/KIAUH: je weiterer Drucker ein eigener Port → nach dem höchsten gefundenen Moonraker-Port weiterfragen,
     // bis zur ersten Lücke, höchstens 8 (wie der 3DSEARCH-Agent 0.5.4)
@@ -5618,11 +5687,11 @@ async function form(fd) {
     const lib = libs.length > 1 ? libs : libs[0] || null;
     const plate = +fd.get('amp_plate') || null; fd.delete('amp_plate');
     // vib/flow: Häkchen „Vibrationsausgleich“ / „Flusskalibrierung“ vor dem Druck (21.11.2026, amp-views ampRenderCal) — nur fürs Senden, nicht an den Slicer
-    const vib = fd.get('vib') === '1', flow = fd.get('flow') === '1'; fd.delete('vib'); fd.delete('flow');
+    const vib = fd.get('vib') === '1', flow = fd.get('flow') === '1', tl = fd.get('tl') === '1'; fd.delete('vib'); fd.delete('flow'); fd.delete('tl');   // tl: Zeitraffer (U1, 25.11.2026)
     const r = await sliceForm(fd);
     // level: Häkchen „Bett vor dem Druck nivellieren“ ('1'/'0', leer = Drucker hat keins) — geht beim Senden in den Startbefehl
     const lvl = fd.get('level') === '0' ? false : fd.get('level') === '1' ? true : null;
-    if (r.ok && r.job) { (db.slicejobs = db.slicejobs || {})[r.job] = { printer: (pkOf(fd.get('printer')) || {}).id, at: now(), ...(lib ? { lib } : {}), ...(plate ? { plate } : {}), ...(lvl !== null ? { level: lvl } : {}), ...(vib ? { vib } : {}), ...(flow ? { flow } : {}) }; persist(); }
+    if (r.ok && r.job) { (db.slicejobs = db.slicejobs || {})[r.job] = { printer: (pkOf(fd.get('printer')) || {}).id, at: now(), ...(lib ? { lib } : {}), ...(plate ? { plate } : {}), ...(lvl !== null ? { level: lvl } : {}), ...(vib ? { vib } : {}), ...(flow ? { flow } : {}), ...(tl ? { tl } : {}) }; persist(); }
     return r;
   }
   if (fd.get('a') === 'printer_photo') {
