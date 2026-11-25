@@ -47,7 +47,9 @@ jobs:
             /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$APP/Info.plist";
             echo "Extensions: $(ls "$APP/PlugIns" 2>/dev/null | tr '\n' ' ')";
             /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPrincipalClass' "$APP/PlugIns/AllMyPrintersNotify.appex/Info.plist" 2>&1;
-            ls "$APP" | grep -c lproj; } | tee ci-out/release.txt
+            ls "$APP" | grep -c lproj;
+            for l in de en fr; do echo "$l: $(plutil -convert json -o - "$APP/$l.lproj/InfoPlist.strings" 2>&1 | head -c 400)"; done;
+            /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$APP/Info.plist"; } | tee ci-out/release.txt
       - name: Ergebnisse → Zweig ci
         if: always()
         env:

@@ -1,0 +1,46 @@
+# App-Store-Eintrag (Texte, Bildschirmfotos, Altersfreigabe, Prüfer-Hinweise, Preis) über die App-Store-Connect-API — ohne Mac.
+# Start: Zweig store schieben; store/MODE = inspect (nur lesen) oder apply. Bilder liegen nur im Zweig store (store/screens/…), nicht in main.
+# Reicht nie zur Prüfung ein. Ergebnis (ohne Geheimnisse) im Zweig ci-store.
+name: store
+on:
+  push:
+    branches: [store]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: store
+  cancel-in-progress: false
+jobs:
+  asc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          K: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p store-out
+          [ -n "$K" ] || { echo "Secret ASC_KEY_P8 fehlt" | tee store-out/log.txt; exit 1; }
+          printf '%s\n' "$K" > "$RUNNER_TEMP/key.p8"; chmod 600 "$RUNNER_TEMP/key.p8"
+          export ASC_KEY_PATH="$RUNNER_TEMP/key.p8"
+          MODE=$(cat store/MODE 2>/dev/null | tr -d ' \n' || true); [ -n "$MODE" ] || MODE=inspect
+          echo "Modus: $MODE" | tee store-out/log.txt
+          python3 ci/asc_store.py "$MODE" store-out 2>&1 | tee -a store-out/log.txt; exit ${PIPESTATUS[0]}
+      - name: Aufräumen
+        if: always()
+        run: rm -f "$RUNNER_TEMP/key.p8"
+      - name: Ergebnis → Zweig ci-store
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: ${{ job.status }}
+        run: |
+          mkdir -p store-out
+          printf '%s\n' "commit ${GITHUB_SHA}" "lauf ${GITHUB_RUN_ID}" "status ${STATUS}" "zeit $(date -u +%FT%TZ)" > store-out/LAUF.txt
+          cd store-out && git init -q -b ci-store && git add -A \
+            && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "store ${GITHUB_RUN_ID} ${GITHUB_SHA}" \
+            && git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-store

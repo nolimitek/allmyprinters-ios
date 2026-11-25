@@ -899,7 +899,7 @@ body .amp-msf .amp-msgo2 { display: none; }
   #mstrend:not(.amp-all) > .lbcard:nth-child(n+5) { display: none; }
 }
 /* Karten wie 3DSEARCH */
-.amp-mcard .lbpic { aspect-ratio: 4 / 3; }
+.amp-mcard .lbpic, .amp-msgrid .amp-skel .lbpic { aspect-ratio: 4 / 3; width: 100%; }   /* width: ältere WebViews (124) machten den Bildbereich bis zum Laden 0 px breit → Karten sprangen, Rücksprung landete zu weit oben (25.11.2026) */
 .amp-mcard .amp-mopen { flex: 1 1 auto; }
 .amp-mcard .lbt { flex: 1 1 auto; }
 .amp-msrc { top: 8px; bottom: auto; }

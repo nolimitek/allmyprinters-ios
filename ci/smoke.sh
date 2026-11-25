@@ -37,6 +37,32 @@ xcrun simctl terminate "$U" "$BID" 2>/dev/null || true
 xcrun simctl launch "$U" "$BID" -ampAgentURL "https://allmyprinters.com/web/" -ampDiag 1 >/dev/null || echo "Start Agent-Seite fehlgeschlagen"
 sleep 30
 xcrun simctl io "$U" screenshot "$OUT/07-agent.png" >/dev/null 2>&1 || echo "kein Bild: 07-agent"
+# iPad (25.11.2026, App Store: die App ist auch fürs iPad freigeschaltet, Apple prüft dort ebenfalls) — Drucker, Modellsuche, Einstellungen quer und hoch
+P=$(xcrun simctl list devices available -j | python3 -c "
+import json,sys,re
+d=json.load(sys.stdin); best=None
+for rt,devs in d['devices'].items():
+  if '.iOS-' not in rt: continue
+  v=tuple(int(x) for x in rt.split('.iOS-')[-1].split('-') if x.isdigit())
+  for x in devs:
+    if x['name'].startswith('iPad'):
+      k=(v,'13-inch' in x['name'] or '12.9' in x['name'],'Pro' in x['name'],x['name'])
+      if best is None or k>best[0]: best=(k,x['udid'],x['name'])
+print(best[1] if best else ''); sys.stderr.write((best[2] if best else 'kein iPad')+'\\n')" 2>>"$OUT/simulator.txt")
+if [ -n "$P" ]; then
+  tail -1 "$OUT/simulator.txt"
+  xcrun simctl boot "$P" 2>/dev/null || true
+  xcrun simctl bootstatus "$P" -b >/dev/null
+  xcrun simctl install "$P" "$APP"
+  for v in printers models settings; do
+    xcrun simctl terminate "$P" "$BID" 2>/dev/null || true
+    xcrun simctl launch "$P" "$BID" -ampHash "$v" >/dev/null || echo "iPad-Start fehlgeschlagen: $v"
+    sleep 20
+    xcrun simctl io "$P" screenshot "$OUT/08-ipad-$v.png" >/dev/null 2>&1 || echo "kein Bild: iPad $v"
+  done
+  xcrun simctl spawn "$P" log show --last 5m --style compact --predicate 'process == "AllMyPrinters"' 2>/dev/null | grep -i -E "terminat|crash|exception" | head -20 > "$OUT/ipad-fehler.txt" || true
+  xcrun simctl shutdown "$P" 2>/dev/null || true
+fi
 D=$(xcrun simctl get_app_container "$U" "$BID" data 2>/dev/null)
 [ -n "$D" ] && cp "$D"/Documents/*.json "$D"/Documents/*.log "$OUT/" 2>/dev/null
 xcrun simctl spawn "$U" log show --last 20m --style compact --predicate 'subsystem == "com.allmyprinters.app" OR process == "AllMyPrinters"' > "$OUT/system.log" 2>/dev/null || true

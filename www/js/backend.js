@@ -4698,7 +4698,9 @@ const A = {
     const group = /^[a-z]{2,12}$/.test(String(inp.group || '')) ? String(inp.group) : '';
     const sort = ['first_seen', 'likes', 'makes'].includes(inp.sort) ? inp.sort : '';
     const designer = str(inp.designer, 80) || '';   // „Mehr von diesem Designer“ (14.11.2026), exakter Name
-    const d = await s3dGet('search', { q: str(inp.q, 120) || '', page: Math.max(1, +inp.page || 1), per_page: 24, source: srcs.join(','), is_free: price, group, sort, designer });
+    // safe=1 (25.11.2026, App Store): auch die Suche mit Suchbegriff ohne Erwachseneninhalte (Tags + Namen) und ohne Sketchfab,
+    // wie Startseite/Vorschläge/Ähnliche — sonst Altersfreigabe 18+ bzw. Ablehnung bei Apple (Richtlinie 1.1.4)
+    const d = await s3dGet('search', { q: str(inp.q, 120) || '', page: Math.max(1, +inp.page || 1), per_page: 24, source: srcs.join(','), is_free: price, group, sort, designer, safe: 1 });
     if (d.error || !Array.isArray(d.hits)) return { error: d.error || 'net' };
     return { hits: d.hits.map(s3dHitLib), page: +d.page || 1, pages: +d.pages || 1, found: +d.found || 0 };
   },
@@ -5579,6 +5581,7 @@ const A = {
   async amp_report(inp) {
     const text = String(inp.text || '').trim().slice(0, 4000);
     if (text.length < 5) fail('text');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(inp.email || '').trim())) fail('email');   // Pflicht seit 25.11.2026 (sonst keine Antwort möglich)
     let src = 'app'; try { if ((await native('info', {})).agent) src = 'agent'; } catch (e) {}
     const body = { text, email: String(inp.email || '').trim().slice(0, 200), lang: db.settings.lang || '', src, ...(await diagReport(inp.inc || {}, inp.printer || '')) };
     const r = await fetch(REPORT, { method: 'POST', headers: { 'Content-Type': 'application/json', ...sliceHdr() }, body: JSON.stringify(body) }).catch(() => null);

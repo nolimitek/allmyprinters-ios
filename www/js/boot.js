@@ -8,6 +8,9 @@
   // Texte, die „3DSEARCH“ als Absender nennen, sprechen in der App von ihr selbst
   for (const k in base) if (typeof base[k] === 'string' && base[k].includes('3DSEARCH')) base[k] = base[k].replace(/3DSEARCH/g, 'AllMyPrinters');
   const S = Object.assign(base, window.AMP_I18N_X.en, window.AMP_I18N_X[lang]);
+  // Eigene iOS-App (25.11.2026): Texte ohne „Android/Google“ (amp-i18n.js AMP_I18N_IOS); AMPNative setzt der iOS-Shim vor dem Laden
+  let ios = false; try { ios = !!(window.AMPNative && AMPNative.platform === 'ios'); } catch (e) {}
+  if (ios && window.AMP_I18N_IOS) Object.assign(S, window.AMP_I18N_IOS.en, window.AMP_I18N_IOS[lang]);
   let cur = 'EUR';
   try { cur = localStorage.getItem('amp_cur') || (lang === 'en' && /US/.test(navigator.language) ? 'USD' : 'EUR'); } catch (e) {}
   window.FM = { S, lang, low: 100, can_print: true, lib: true, community: false, cur, aff: { brands: {}, def: '' }, fbk: '', rfi: null, jsqr: 'vendor/jsqr.min.js', embed: false, app: true, LANGS };

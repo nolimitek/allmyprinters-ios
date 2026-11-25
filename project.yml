@@ -48,15 +48,16 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIViewControllerBasedStatusBarAppearance: true
+        # Berechtigungsfragen: Grundtext Englisch, übersetzt in Support/Localizable/<sprache>.lproj/InfoPlist.strings (25.11.2026)
         # Drucker im Heimnetz sprechen HTTP ohne TLS
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: "AllMyPrinters spricht direkt mit deinen 3D-Druckern im Heimnetz."
+        NSLocalNetworkUsageDescription: "AllMyPrinters talks directly to your 3D printers on your home network."
         NSBonjourServices: [_http._tcp, _octoprint._tcp, _moonraker._tcp]
-        NSCameraUsageDescription: "Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten)."
+        NSCameraUsageDescription: "To scan QR codes (pairing with the agent, spool labels)."
         # NFC-Spulenetiketten lesen/beschreiben (App/Nfc.swift); ISO-7816-Kennung nötig, damit solche Tags überhaupt gemeldet werden
-        NFCReaderUsageDescription: "Zum Lesen und Beschreiben der NFC-Etiketten deiner Spulen."
+        NFCReaderUsageDescription: "To read and write the NFC tags on your filament spools."
         com.apple.developer.nfc.readersession.iso7816.select-identifiers: [D2760000850101]
         # Neuigkeiten im Hintergrund (App/News.swift, BGAppRefreshTask)
         UIBackgroundModes: [fetch]

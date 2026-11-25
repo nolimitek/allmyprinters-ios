@@ -1,0 +1,4 @@
+/* Berechtigungsfragen von iOS (25.11.2026, App Store) — Grundtext Englisch in project.yml */
+"NSLocalNetworkUsageDescription" = "AllMyPrinters se comunica directamente con tus impresoras 3D en tu red doméstica.";
+"NSCameraUsageDescription" = "Para escanear códigos QR (vincular el agente, etiquetas de bobinas).";
+"NFCReaderUsageDescription" = "Para leer y escribir las etiquetas NFC de tus bobinas de filamento.";

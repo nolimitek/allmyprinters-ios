@@ -7108,6 +7108,7 @@ async function viewGuide(sec) {
 }
 
 // ── Problem melden ────────────────────────────────────────────────────────
+const AMP_MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 async function ampReport(pid) {
   const list = (AMP.db && AMP.db.printers) || [];
   dlg.innerHTML = `<form method="dialog" id="frep" class="amp-rep"><div class="dlg-h"><b>${esc(t('amp_rep_h'))}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
@@ -7122,7 +7123,7 @@ async function ampReport(pid) {
         <label><input type="checkbox" name="log" checked> ${esc(t('amp_rep_inc_log'))}</label>
         <p class="hint">${esc(t('amp_rep_never'))} <button type="button" class="linkbtn" id="repprev">${esc(t('amp_rep_preview'))}</button></p>
         <pre class="amp-rep-pre" id="reppre" hidden></pre></fieldset>
-      <label class="fld"><span>${esc(t('amp_rep_email'))}</span><input class="in" name="email" type="email" maxlength="200" autocomplete="email"></label>
+      <label class="fld"><span>${esc(t('amp_rep_email'))}</span><input class="in" name="email" type="email" maxlength="200" autocomplete="email" aria-required="true" value="${esc(pref('rep_mail') || '')}"></label>
       <p class="hint">${esc(t('amp_rep_note'))}</p><p class="hint amp-rep-cm">${esc(t('amp_rep_cm'))} <a href="https://allmyprinters.com/${LANG}/community/" target="_blank" rel="noopener">${esc(t('amp_cm_link'))}</a></p><div id="repmsg"></div></div>
     <div class="dlg-f"><button type="button" class="btn ghost" data-x>${esc(t('cancel'))}</button><button class="btn pri">${esc(t('amp_rep_send'))}</button></div></form>`;
   dlg.querySelectorAll('[data-x]').forEach(b => b.onclick = () => dlg.close());
@@ -7140,13 +7141,17 @@ async function ampReport(pid) {
     const btn = fm.querySelector('.btn.pri'), text = fm.text.value.trim();
     const msg = (k, bad) => { $('#repmsg').innerHTML = `<div class="note${bad ? ' warn-note' : ''}">${esc(t(k))}</div>`; };
     if (text.length < 5) return msg('amp_rep_err_text', true);
+    // Mail ist Pflicht (25.11.2026, User: „Mailadresse Pflicht, damit wir antworten können“ — Meldungen ohne Mail blieben unbeantwortbar)
+    const email = fm.email.value.trim();
+    if (!AMP_MAIL_RE.test(email)) { msg('amp_rep_err_mail', true); fm.email.focus(); return; }
     btn.disabled = true; btn.innerHTML = spin(t('amp_rep_send'));
     try {
-      await api('amp_report', { text, email: fm.email.value.trim(), printer: fm.printer.value === '-' ? '' : fm.printer.value, inc: inc() });
+      await api('amp_report', { text, email, printer: fm.printer.value === '-' ? '' : fm.printer.value, inc: inc() });
+      pref('rep_mail', email);   // nächstes Mal schon ausgefüllt (nur auf diesem Gerät)
       dlg.close(); toast(t('amp_rep_sent'));
     } catch (er) {
       btn.disabled = false; btn.textContent = t('amp_rep_send');
-      msg(er.message === 'text' ? 'amp_rep_err_text' : er.message === 'offline' ? 'amp_rep_err_offline' : er.message === 'too_many' ? 'amp_rep_err_many' : 'err_generic', true);
+      msg(er.message === 'text' ? 'amp_rep_err_text' : er.message === 'email' ? 'amp_rep_err_mail' : er.message === 'offline' ? 'amp_rep_err_offline' : er.message === 'too_many' ? 'amp_rep_err_many' : 'err_generic', true);
     }
   };
   dlg.showModal();
@@ -8639,7 +8644,7 @@ const I_EXT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" strok
 // Die Leiste wird einmal gebaut, danach erneuern msDrawBar/msDrawBody nur ihre Teile — so bleibt das Suchfeld beim Laden bedienbar.
 const ms = { q: '', designer: '', page: 1, pages: 0, found: 0, hits: [], err: '', loaded: false, loading: false, busy: false, gen: 0, trend: null, trendAt: 0, trendErr: '', fresh: null, freshPage: 0, freshPages: 0, freshErr: '', rel: [], listY: null, came: false,
   total: 0, cont: null, contAt: 0, trendAll: false, sbSrc: null, sbShut: new Set(['src', 'area']) };   // 18.11.2026: Zahl der Modelle, laufende Wettbewerbe, Seitenleiste; Plattformen + Bereiche anfangs zu (20.11.2026)
-const MS_QSRC = ['printables', 'makerworld', 'thingiverse', 'cults3d', 'myminifactory', 'thangs', 'makeronline', 'crealitycloud', 'nexprint', 'grabcad', 'sketchfab'];
+const MS_QSRC = ['printables', 'makerworld', 'thingiverse', 'cults3d', 'myminifactory', 'thangs', 'makeronline', 'crealitycloud', 'nexprint', 'grabcad'];   // ohne Sketchfab: die Suche läuft mit safe=1 (25.11.2026), das blendet Sketchfab aus
 // Farben der Plattformen wie die Quellen-Symbole auf 3dsearch.net
 const MS_COL = { thingiverse: '#248bfb', printables: '#fa6831', cults3d: '#d63384', makerworld: '#00ae42', myminifactory: '#2db280', makeronline: '#0096d6',
   grabcad: '#c4352c', crealitycloud: '#00a86b', sketchfab: '#1caad9', nexprint: '#e5399c', thangs: '#2f76ff' };
@@ -8745,7 +8750,7 @@ async function msNewLoad(more) {
 // 3DSEARCH (Plattformen mit Häkchen + Anwenden, Wettbewerbe, Sortierung, Preis, Bereiche, Bibliothek), am Handy dasselbe als Filterblatt.
 // Karten wie 3DSEARCH: Plattform oben links, Merken + Zur Sammlung oben rechts, Designer, Likes/Makes, Tags. Gesetzte Filter als ×-Chips.
 // Plattformen: msF.src leer = alle (wie bisher); in Seitenleiste und Blatt erscheinen dann alle mit Häkchen (3DSEARCH-Art).
-const MS_SBSRC = ['thingiverse', 'printables', 'cults3d', 'makerworld', 'myminifactory', 'makeronline', 'thangs', 'grabcad', 'crealitycloud', 'nexprint', 'sketchfab'];   // Reihenfolge wie 3DSEARCH
+const MS_SBSRC = ['thingiverse', 'printables', 'cults3d', 'makerworld', 'myminifactory', 'makeronline', 'thangs', 'grabcad', 'crealitycloud', 'nexprint'];   // Reihenfolge wie 3DSEARCH
 const msSrcOn = (src, k) => !src.length || src.includes(k);
 /** Häkchen umschalten (leer = alle): das letzte lässt sich nicht abwählen, alle gewählt = leer */
 function msSrcToggle(src, k) {
