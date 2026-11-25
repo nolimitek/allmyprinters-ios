@@ -309,11 +309,29 @@ def apply(meta, shots_dir):
         ok(f'Verfügbarkeit {len(inc)} Länder', st, j)
     else:
         print('     Verfügbarkeit schon eingestellt', flush=True)
-    # 10 Build anhängen (neuester gültiger Build dieser Versionsnummer)
-    if meta.get('build'):
+    # 10 Build anhängen
+    attach_build(meta, ver)
+
+
+def attach_build(meta, ver=None):
+    """Build an die Version hängen — wartet bis zu 20 Min., bis Apple ihn verarbeitet hat (VALID)"""
+    if not meta.get('build'):
+        return
+    if ver is None:
+        vers, e = get_all(f'/apps/{APP_ID}/appStoreVersions?filter[platform]=IOS')
+        ver = next((v for v in vers or [] if (v['attributes'].get('appStoreState') or v['attributes'].get('appVersionState')) in EDITABLE), None)
+        if not ver:
+            errors.append('keine änderbare Version'); print('FEHL keine änderbare Version', flush=True); return
+    b = None
+    for k in range(40):
         st, j = req('GET', f'/builds?filter[app]={APP_ID}&filter[preReleaseVersion.version]={meta["version"]}&sort=-uploadedDate&limit=5')
-        b = next((x for x in j.get('data', []) if x['attributes'].get('processingState') == 'VALID' and not x['attributes'].get('expired')
-                  and (meta['build'] == 'latest' or x['attributes'].get('version') == str(meta['build']))), None) if st == 200 else None
+        cand = [x for x in j.get('data', []) if meta['build'] == 'latest' or x['attributes'].get('version') == str(meta['build'])] if st == 200 else []
+        b = next((x for x in cand if x['attributes'].get('processingState') == 'VALID' and not x['attributes'].get('expired')), None)
+        if b or (cand and cand[0]['attributes'].get('processingState') in ('FAILED', 'INVALID')):
+            break
+        print(f"     warte auf Build {meta['build']}: {[x['attributes'].get('processingState') for x in cand] or 'noch nicht da'}", flush=True)
+        time.sleep(30)
+    if True:
         if b:
             st, j = req('PATCH', f"/appStoreVersions/{ver['id']}/relationships/build", {'data': {'type': 'builds', 'id': b['id']}})
             ok(f"Build {b['attributes'].get('version')} an Version {meta['version']}", st, j)
@@ -322,12 +340,14 @@ def apply(meta, shots_dir):
 
 
 def main():
-    if len(sys.argv) < 3 or sys.argv[1] not in ('inspect', 'apply'):
+    if len(sys.argv) < 3 or sys.argv[1] not in ('inspect', 'apply', 'build'):
         sys.exit(__doc__)
     out = sys.argv[2]; os.makedirs(out, exist_ok=True)
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'store')
     if sys.argv[1] == 'apply':
-        here = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'store')
         apply(json.load(open(os.path.join(here, 'meta.json'), encoding='utf-8')), os.path.join(here, 'screens'))
+    elif sys.argv[1] == 'build':
+        attach_build(json.load(open(os.path.join(here, 'meta.json'), encoding='utf-8')))
     R = inspect(); R['fehler'] = errors
     json.dump(R, open(os.path.join(out, 'inspect.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print(json.dumps(R, ensure_ascii=False, indent=1)[:6000])
