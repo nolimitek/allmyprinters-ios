@@ -63,6 +63,7 @@ enum Diag {
             await t('net', () => AMP.native('net'));
             await t('saveload', async () => { await AMP.native('save', { key: 'diagtest', text: 'ok' }); return (await AMP.native('load', { key: 'diagtest' })).text; });
             await t('http', async () => { const r = await AMP.native('http', { url: 'https://allmyprinters.com/slicer/?a=version', timeout: 15000 }); return [r.status, String(r.text).slice(0, 160)]; });
+            await t('http_s3d', async () => { const r = await AMP.native('http', { url: 'https://3dsearch.net/api/v1/models/trending?per_page=1&safe=1', timeout: 15000 }); return [r.status, String(r.text).slice(0, 120)]; });
             await t('fetch_cors', async () => { const r = await fetch('https://allmyprinters.com/slicer/?a=version'); return [r.status, (await r.text()).slice(0, 80)]; });
             await t('tcp', () => AMP.native('tcpcheck', { host: 'allmyprinters.com', port: 443, timeout: 3000 }));
             await t('file', async () => { const s = await AMP.native('stash', { b64: btoa('hallo'), name: 'x.txt' }); const r = await AMP.native('fileRead', { token: s.token });

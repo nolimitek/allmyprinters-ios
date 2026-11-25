@@ -28,6 +28,7 @@ shot "" 01-start
 shot printers 02-drucker
 shot spools 03-spulen
 shot library 04-bibliothek
+shot models 04b-modelle
 shot settings 05-einstellungen
 xcrun simctl ui "$U" appearance dark 2>/dev/null || true
 shot printers 06-drucker-dunkel
