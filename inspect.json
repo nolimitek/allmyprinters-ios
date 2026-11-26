@@ -1,0 +1,401 @@
+{
+ "zeit": "2026-11-26T10:01:40Z",
+ "app": {
+  "accessibilityUrl": null,
+  "name": "AllMyPrinters",
+  "bundleId": "com.allmyprinters.app",
+  "sku": "allmyprinters-ios",
+  "primaryLocale": "de-DE",
+  "isOrEverWasMadeForKids": false,
+  "subscriptionStatusUrl": null,
+  "subscriptionStatusUrlVersion": null,
+  "subscriptionStatusUrlForSandbox": null,
+  "subscriptionStatusUrlVersionForSandbox": null,
+  "contentRightsDeclaration": null,
+  "streamlinedPurchasingEnabled": true,
+  "groupPurchaseInvitationMode": "APPLE_HOSTED"
+ },
+ "appInfos": [
+  {
+   "id": "d6b59fcc-f11f-4f5f-9e16-d48eba5a586b",
+   "attributes": {
+    "appStoreState": "PREPARE_FOR_SUBMISSION",
+    "state": "PREPARE_FOR_SUBMISSION",
+    "appStoreAgeRating": "FOUR_PLUS",
+    "australiaAgeRating": null,
+    "brazilAgeRating": "L",
+    "brazilAgeRatingV2": "SELF_RATED_L",
+    "franceAgeRating": null,
+    "koreaAgeRating": null
+   },
+   "localizations": [
+    {
+     "id": "6eda315d-72c6-43eb-8b2d-bb8199c7c13f",
+     "locale": "es-ES",
+     "name": "AllMyPrinters",
+     "subtitle": "Impresoras 3D y filamento",
+     "privacyPolicyUrl": "https://allmyprinters.com/es/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    },
+    {
+     "id": "5910a133-a418-4602-bc09-a5584b15bb19",
+     "locale": "it",
+     "name": "AllMyPrinters",
+     "subtitle": "Stampanti 3D e filamento",
+     "privacyPolicyUrl": "https://allmyprinters.com/it/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    },
+    {
+     "id": "e5c990a2-eeba-48f7-be2b-49af6ba56971",
+     "locale": "fr-FR",
+     "name": "AllMyPrinters",
+     "subtitle": "Imprimantes 3D et filament",
+     "privacyPolicyUrl": "https://allmyprinters.com/fr/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    },
+    {
+     "id": "051b32e8-a050-40ee-8023-5dd681707493",
+     "locale": "nl-NL",
+     "name": "AllMyPrinters",
+     "subtitle": "3D-printers en filament",
+     "privacyPolicyUrl": "https://allmyprinters.com/nl/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    },
+    {
+     "id": "607de1c1-e87b-4dd1-ba56-dfc0d909108e",
+     "locale": "de-DE",
+     "name": "AllMyPrinters",
+     "subtitle": "3D-Drucker & Filament im Griff",
+     "privacyPolicyUrl": "https://allmyprinters.com/de/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    },
+    {
+     "id": "6098e5d3-1f9b-4c7a-a533-4a07c2603d0d",
+     "locale": "en-US",
+     "name": "AllMyPrinters",
+     "subtitle": "3D printer & filament manager",
+     "privacyPolicyUrl": "https://allmyprinters.com/en/app-privacy/",
+     "privacyChoicesUrl": null,
+     "privacyPolicyText": null
+    }
+   ],
+   "ageRating": {
+    "id": "d6b59fcc-f11f-4f5f-9e16-d48eba5a586b",
+    "advertising": false,
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "datingAndRelationships": false,
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "healthOrWellnessTopics": false,
+    "kidsAgeBand": null,
+    "lootBox": false,
+    "medicalOrTreatmentInformation": "NONE",
+    "messagingAndChat": false,
+    "parentalControls": false,
+    "profanityOrCrudeHumor": "NONE",
+    "ageAssurance": false,
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "sharedLocation": false,
+    "socialMedia": false,
+    "socialMediaAgeRestricted": false,
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false,
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "violenceRealistic": "NONE",
+    "ageRatingOverride": "NONE",
+    "ageRatingOverrideV2": "NONE",
+    "koreaAgeRatingOverride": "NONE",
+    "gracRatingClassificationNumber": null,
+    "developerAgeRatingInfoUrl": null
+   },
+   "primaryCategory": "UTILITIES",
+   "secondaryCategory": "PRODUCTIVITY"
+  }
+ ],
+ "versions": [
+  {
+   "id": "c6ff5bb0-9c5a-47e0-85cc-36bd12a57a90",
+   "attributes": {
+    "platform": "IOS",
+    "versionString": "0.24.0",
+    "appStoreState": "PREPARE_FOR_SUBMISSION",
+    "appVersionState": "PREPARE_FOR_SUBMISSION",
+    "copyright": "2026 Christian Hietzker",
+    "reviewType": "APP_STORE",
+    "releaseType": "MANUAL",
+    "earliestReleaseDate": null,
+    "usesIdfa": null,
+    "downloadable": true,
+    "createdDate": "2026-11-23T05:00:33-08:00"
+   },
+   "localizations": [
+    {
+     "id": "d1ca1bb7-513f-4a8d-952e-7ef0243e02d2",
+     "description": "AllMyPrinters réunit toutes tes imprimantes 3D dans une seule app – directement ",
+     "locale": "fr-FR",
+     "keywords": "imprimante 3d,impression 3d,filament,bobine,slicer,gcode,stl,3mf,surveillance,nfc,caméra,modèles",
+     "marketingUrl": "https://allmyprinters.com/fr/",
+     "promotionalText": "Toutes tes imprimantes 3D dans une app : état en direct, caméra, découpe et bobines de filament – directement sur ton réseau local, sans cloud du fabricant.",
+     "supportUrl": "https://allmyprinters.com/fr/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "080812ff-90d4-437f-9d39-4f38109de943",
+     "description": "AllMyPrinters riunisce tutte le tue stampanti 3D in un’unica app – direttamente ",
+     "locale": "it",
+     "keywords": "stampante 3d,stampa 3d,filamento,bobina,slicer,gcode,stl,3mf,monitoraggio,nfc,camera,modelli",
+     "marketingUrl": "https://allmyprinters.com/it/",
+     "promotionalText": "Tutte le tue stampanti 3D in un’unica app: stato in diretta, camera, slicing e bobine di filamento – direttamente nella rete di casa, senza cloud del produttore.",
+     "supportUrl": "https://allmyprinters.com/it/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "349fb8bf-f861-4666-8a03-5ba4f89222c0",
+     "description": "AllMyPrinters brengt al je 3D-printers samen in één app – rechtstreeks in je thu",
+     "locale": "nl-NL",
+     "keywords": "3d-printer,3d-printen,filament,spoel,slicer,gcode,stl,3mf,printerbewaking,nfc,camera,modellen",
+     "marketingUrl": "https://allmyprinters.com/nl/",
+     "promotionalText": "Al je 3D-printers in één app: live status, camera, slicen en filamentspoelen – rechtstreeks in je thuisnetwerk, zonder cloud van de fabrikant.",
+     "supportUrl": "https://allmyprinters.com/nl/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "80664e59-e842-43a9-b5a0-559073141bef",
+     "description": "AllMyPrinters bringt alle deine 3D-Drucker in eine App – direkt im Heimnetz, ohn",
+     "locale": "de-DE",
+     "keywords": "3D-Drucker,3D-Druck,Filament,Spule,Slicer,G-Code,STL,3MF,Druckerüberwachung,NFC,Kamera,Modelle",
+     "marketingUrl": "https://allmyprinters.com/de/",
+     "promotionalText": "Alle 3D-Drucker in einer App: Status live, Kamera, Slicen und Filamentspulen – direkt im Heimnetz, ohne Hersteller-Cloud.",
+     "supportUrl": "https://allmyprinters.com/de/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "856f447d-2abc-499d-a598-b90994cf1377",
+     "description": "AllMyPrinters reúne todas tus impresoras 3D en una sola app, directamente en tu ",
+     "locale": "es-ES",
+     "keywords": "impresora 3d,impresión 3d,filamento,bobina,laminador,gcode,stl,3mf,monitor,nfc,cámara,modelos",
+     "marketingUrl": "https://allmyprinters.com/es/",
+     "promotionalText": "Todas tus impresoras 3D en una app: estado en directo, cámara, laminado y bobinas de filamento, directamente en tu red doméstica, sin la nube del fabricante.",
+     "supportUrl": "https://allmyprinters.com/es/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "49c1ee1a-0dc8-470c-8661-7dc7c08ad9f3",
+     "description": "AllMyPrinters brings all your 3D printers into one app – directly on your home n",
+     "locale": "en-US",
+     "keywords": "3d printer,3d printing,filament,spool,slicer,gcode,stl,3mf,printer monitor,nfc,camera,models",
+     "marketingUrl": "https://allmyprinters.com/en/",
+     "promotionalText": "All your 3D printers in one app: live status, camera, slicing and filament spools – directly on your home network, no manufacturer cloud needed.",
+     "supportUrl": "https://allmyprinters.com/en/community/",
+     "whatsNew": null,
+     "screenshotSets": [
+      {
+       "type": "APP_IPHONE_67",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      },
+      {
+       "type": "APP_IPAD_PRO_3GEN_129",
+       "n": 6,
+       "states": [
+        "COMPLETE"
+       ]
+      }
+     ]
+    }
+   ],
+   "reviewDetail": [
+    200,
+    "keine"
+   ],
+   "build": "12"
+  }
+ ],
+ "builds": [
+  {
+   "id": "ccc49394-49a4-48ec-8638-8ad5b48aa603",
+   "build": "12",
+   "state": "VALID",
+   "uploaded": "2026-11-26T00:47:07-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.24.0"
+  },
+  {
+   "id": "490f21aa-9846-40f9-94cc-777f280ba282",
+   "build": "11",
+   "state": "VALID",
+   "uploaded": "2026-11-25T13:49:02-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.23.1"
+  },
+  {
+   "id": "ab00041e-55a2-483d-9feb-f5ad8ff583c0",
+   "build": "10",
+   "state": "VALID",
+   "uploaded": "2026-11-25T13:24:56-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.23.0"
+  },
+  {
+   "id": "7ec21303-e239-46a5-836f-61c7fc8f863d",
+   "build": "9",
+   "state": "VALID",
+   "uploaded": "2026-11-25T04:49:43-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.22.0"
+  },
+  {
+   "id": "9b647468-0d14-4701-9261-7308e508002f",
+   "build": "8",
+   "state": "VALID",
+   "uploaded": "2026-11-24T23:21:40-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.22.0"
+  },
+  {
+   "id": "e60fa25d-589a-46a9-8648-47c467f04bcd",
+   "build": "7",
+   "state": "VALID",
+   "uploaded": "2026-11-24T06:18:41-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.21.0"
+  },
+  {
+   "id": "d0944797-c358-4f1e-b4ad-99980eeac84a",
+   "build": "5",
+   "state": "VALID",
+   "uploaded": "2026-11-24T01:43:57-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.20.0"
+  },
+  {
+   "id": "91dd1569-d864-4914-a78d-7d8eda1f857c",
+   "build": "4",
+   "state": "VALID",
+   "uploaded": "2026-11-23T07:17:14-08:00",
+   "expired": false,
+   "encryption": false,
+   "version": "0.19.6"
+  }
+ ],
+ "priceSchedule": [
+  200,
+  "6838309171",
+  [
+   "0.0"
+  ]
+ ],
+ "availability": [
+  200,
+  {
+   "availableInNewTerritories": true
+  },
+  {
+   "territories": 175,
+   "available": 175
+  }
+ ],
+ "fehler": [
+  "Hinweise für die Prüfung: 409 ENTITY_ERROR.ATTRIBUTE.REQUIRED: You must provide a value for the attribute 'contactPhone' with this request [/data/attributes/contactPhone]; ENTITY_ERROR.ATTRIBUTE.INVALID: The phone number must be in a valid format. Preface the phone number with ‘+’ followed by the country code (for example, +44 844 209 0611) [/data/attributes/contactPhone]"
+ ]
+}
