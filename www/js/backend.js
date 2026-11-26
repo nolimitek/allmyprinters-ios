@@ -5425,7 +5425,8 @@ const A = {
     const p = db.printers.find(x => x.id === inp.printer);
     if (!p) return { ok: false };
     const list = (Array.isArray(inp.list) ? inp.list : []).slice(0, 8);
-    const why = w => String(w || '').split('; ').map(t => t.replace(/^.*?: /, '')).join('; ').slice(0, 40);
+    // WebRTC-Gründe (amp-views rtcWhy, 26.11.2026) sind länger: „ice:failed no_track H264 c2l1 ip“
+    const why = w => String(w || '').split('; ').map(t => t.replace(/^.*?: /, '')).join('; ').slice(0, 64);
     diag({ a: 'cam_play', p: kindOf(p), m: p.model || '', err: 'no_picture', d: list.map(x => String(x.kind || '?').slice(0, 6) + ' ' + camShort(String(x.url || '')) + (x.why ? '=' + why(x.why) : '')).join(' ') });
     return { ok: true };
   },
@@ -5445,14 +5446,29 @@ const A = {
       await crGet(p, { getToken: 1 }).catch(() => {});
       for (let i = 0; i < 6 && !S.videoToken; i++) { await new Promise(z => setTimeout(z, 250)); S = ((await native('live_state', { key: crKey(p) }).catch(() => ({}))).state) || {}; }
     }
-    const offer = { type: 'offer', sdp: String(inp.sdp || '') }; if (S.videoToken) offer.token = String(S.videoToken);
+    // Eigene Adresse statt „.local“ (26.11.2026, K2 Pro am iPhone ohne Bild, Meldung #35): WebKit und Chromium verstecken die eigene Adresse
+    // im Angebot hinter einem zufälligen mDNS-Namen (iOS-Simulator geprüft: nur „….local“). Creality Print schickt echte Adressen; löst der
+    // Drucker .local nicht auf, bliebe nur der Umweg über unsere Prüfanfragen. Nur in der App — im Agenten läuft WebRTC im Browser eines
+    // anderen Geräts, dessen Adresse wir nicht kennen.
+    let sdp = String(inp.sdp || ''), ours = 'local';
+    try {
+      if (!(await native('info', {})).agent) {
+        const ip = String((await native('net', {})).ip || '');
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { const s2 = sdp.replace(/^(a=candidate:\S+ \d+ \S+ \d+ )[0-9a-z-]+\.local( \d+ typ host)/gim, '$1' + ip + '$2'); if (s2 !== sdp) { sdp = s2; ours = 'ip'; } }
+      }
+    } catch (e) { /* ohne Adresse wie bisher */ }
+    const offer = { type: 'offer', sdp }; if (S.videoToken) offer.token = String(S.videoToken);
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(offer))));
     const r = await native('http', { url, method: 'POST', headers: { 'Content-Type': 'plain/text' }, body: b64, timeout: 15000, max: 200000 });
     if (r.status !== 200) fail('cam_' + r.status);
     let a; try { a = JSON.parse(decodeURIComponent(escape(atob(String(r.text || '').trim())))); } catch (e) { fail('cam_answer'); }
     if (!a || !a.sdp) fail('cam_answer');
     // .local-Kandidaten des Druckers durch seine Adresse ersetzen (Creality Print macht das ebenso; Android löst .local nicht auf)
-    return { sdp: String(a.sdp).replace(/[0-9a-z-]+\.local\b/gi, p.host) };
+    // info fürs Protokoll, falls trotzdem kein Bild kommt (amp-views rtcWhy): Video-Codec der Antwort, Kandidaten des Druckers, unsere Adresse
+    const as = String(a.sdp), pt = (/^m=video \d+ \S+ (\d+)/m.exec(as) || [])[1];
+    const codec = pt ? ((new RegExp('^a=rtpmap:' + pt + ' ([A-Za-z0-9]+)', 'm').exec(as) || [])[1] || '?') : 'no_video';
+    const cands = (as.match(/^a=candidate:.*$/gm) || []);
+    return { sdp: as.replace(/[0-9a-z-]+\.local\b/gi, p.host), info: { codec, ours, cands: cands.length, local: cands.filter(l => /\.local /.test(l)).length } };
   },
   /** QR-Code einer Spule: unsere Etiketten (allmyprinters.com/s/<id>, auch …/filament/#s<id>), Spoolman (web+spoolman:s-<n>), nackt „#31“. */
   async resolve_qr(inp) {

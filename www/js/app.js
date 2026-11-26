@@ -3479,6 +3479,18 @@ async function viewPrint() {
     };
     const ms = await read('Metadata/model_settings.config'), pj = await read('Metadata/project_settings.config');
     const doc = ms ? new DOMParser().parseFromString(ms, 'text/xml') : null, plates = [];
+    // Farbwechsel nach Höhe (26.11.2026, HueForge-Bilder aus Bambu Studio): je Platte <layer type="2" extruder="N"/> im Modus
+    // MultiAsSingle — zählt wie ein benutztes Filament (Server: ps_3mf_layer_toolchanges), nur bei einfarbigen Teilen
+    const ltc = {}, cgx = await read('Metadata/custom_gcode_per_layer.xml');
+    if (cgx && cgx.length < 1048576) {
+      const cd = new DOMParser().parseFromString(cgx, 'text/xml');
+      for (const pl of cd.getElementsByTagName('plate')) {
+        const info = pl.getElementsByTagName('plate_info')[0], mode = pl.getElementsByTagName('mode')[0];
+        if (mode && mode.getAttribute('value') !== 'MultiAsSingle') continue;
+        const ex = [...pl.getElementsByTagName('layer')].filter(l => +l.getAttribute('type') === 2 && +l.getAttribute('extruder') >= 1).map(l => +l.getAttribute('extruder'));
+        if (ex.length) ltc[+((info && info.getAttribute('id')) || 1)] = ex;
+      }
+    }
     let usedFn = null;
     if (doc) {
       const kids = (el, tag) => [...el.children].filter(c => c.tagName === tag);
@@ -3487,7 +3499,7 @@ async function viewPrint() {
       const objName = {};
       objs.forEach(o => { objName[o.getAttribute('id')] = meta(o, 'name') || '#' + o.getAttribute('id'); });
       // Benutzte Extruder der Objekte einer Platte (leere Menge = alle Objekte, 3MF ohne Platten)
-      const usedOf = ids => {
+      const usedOf = (ids, pn) => {
         const used = new Set();
         objs.forEach(o => {
           if (ids.size && !ids.has(o.getAttribute('id'))) return;
@@ -3496,6 +3508,7 @@ async function viewPrint() {
           parts.forEach(pt => used.add(+meta(pt, 'extruder') || oe));
           if (!parts.length) used.add(oe);
         });
+        if (used.size === 1 && ltc[pn || 1]) ltc[pn || 1].forEach(e => used.add(e));
         return used;
       };
       usedFn = usedOf;
@@ -3508,9 +3521,9 @@ async function viewPrint() {
           ids.add(id);
           if (/^\d+$/.test(iid || '')) insts.push({ id: iid, obj: id, inst: +meta(mi, 'instance_id') || 0, name: objName[id] || '#' + id });
         });
-        plates.push({ n: i + 1, name: meta(pl, 'plater_name') || '', parts: ids.size, ids, insts, used: usedOf(ids), thumb: (meta(pl, 'thumbnail_file') || '').replace(/^\//, '') });
+        plates.push({ n: i + 1, name: meta(pl, 'plater_name') || '', parts: ids.size, ids, insts, used: usedOf(ids, i + 1), thumb: (meta(pl, 'thumbnail_file') || '').replace(/^\//, '') });
       });
-      if (!plates.length) plates.push({ n: 1, name: '', parts: 0, ids: new Set(), insts: [], used: usedOf(new Set()), thumb: '' });
+      if (!plates.length) plates.push({ n: 1, name: '', parts: 0, ids: new Set(), insts: [], used: usedOf(new Set(), 1), thumb: '' });
       // Lage der Teile für die kleine Draufsicht: Position = Build-Eintrag im 3D/3dmodel.model (k-ter Eintrag eines Objekts
       // = instance_id k), Umriss aus Metadata/plate_N.json. Dessen Koordinaten zählen je Platte, die Build-Einträge im ganzen
       // Projekt → über den gemeinsamen Mittelpunkt angleichen und je Teil den nächsten Umriss nehmen.
@@ -3562,7 +3575,7 @@ async function viewPrint() {
   function mfOf(pk, n, skip) {
     if (!pk) return null;
     const p = pk.plates.find(x => x.n === n) || pk.plates[0];
-    const used = p && skip && skip.size && pk.usedOf ? pk.usedOf(keptObjs(p, skip)) : p && p.used;
+    const used = p && skip && skip.size && pk.usedOf ? pk.usedOf(keptObjs(p, skip), p.n) : p && p.used;
     if (used && used.size > 1) return { n: used.size, sure: true };
     return pk.cols > 1 ? { n: pk.cols, sure: false } : null;
   }
@@ -6478,7 +6491,7 @@ function camNext(pid) {
   // Grund fürs Protokoll merken (Cam.kt liest MJPEG/Einzelbilder; z. B. „not in home network“, HTTP 404, Zeitüberschreitung)
   const cur = cam.src[pid];
   if (cur && (cur.kind === 'mjpeg' || cur.kind === 'snap') && !cur.why) AMP.native('cam_status', { key: pid }).then(st => { cur.why = String((st && st.err) || 'no_frame'); }).catch(() => {});
-  else if (cur && !cur.why) cur.why = 'no_frame';
+  else if (cur && !cur.why) cur.why = cur.rtcWhy ? cur.rtcWhy() : 'no_frame';
   const keep = cam.src[pid] ? cam.idx[pid] : -1;
   const list = cam.srcs && cam.srcs[pid] || [];
   camDrop(pid);
@@ -6545,16 +6558,22 @@ function camPlay(pid, list) {
     const pc = new RTCPeerConnection({ iceServers: [] });
     cam.player[pid] = { pause() {}, unload() {}, detachMediaElement() {}, destroy() { try { pc.close(); } catch (e) {} } };
     pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.ontrack = e => { if (cam.el[pid] !== v) return; v.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]); v.play().catch(() => {}); };
-    pc.onconnectionstatechange = () => { if (cam.el[pid] === v && pc.connectionState === 'failed') { clearTimeout(giveUp); camNext(pid); } };
+    // Grund fürs Protokoll statt nur „no_frame“ (26.11.2026, K2 Pro am iPhone, Meldung #35): Verbindungsstand, Spur/Abspielen,
+    // Codec + Kandidaten aus der Antwort des Druckers, ob wir unsere Adresse statt „.local“ geschickt haben (backend amp_webrtc)
+    let track = false, playErr = '', ainfo = null;
+    s.rtcWhy = () => ['ice:' + pc.iceConnectionState, track ? (playErr ? 'play:' + playErr : 'track_no_play') : 'no_track',
+                      ainfo ? ainfo.codec + ' c' + ainfo.cands + (ainfo.local ? 'l' + ainfo.local : '') + ' ' + ainfo.ours : 'no_answer'].join(' ');
+    pc.ontrack = e => { if (cam.el[pid] !== v) return; track = true; v.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]); v.play().catch(er => { playErr = (er && er.name) || 'err'; }); };
+    pc.onconnectionstatechange = () => { if (cam.el[pid] === v && pc.connectionState === 'failed') { s.why = s.rtcWhy(); clearTimeout(giveUp); camNext(pid); } };
     v.addEventListener('playing', () => { good(); camStatus(pid, camNote(pid)); });
     (async () => {
       try {
         await pc.setLocalDescription(await pc.createOffer());
         await new Promise(z => { if (pc.iceGatheringState === 'complete') return z(); const tm = setTimeout(z, 3000); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(tm); z(); } }); });
         const ans = await api('amp_webrtc', { printer: pid, url: s.url, sdp: pc.localDescription.sdp });
+        ainfo = ans.info || null;
         if (cam.el[pid] === v) await pc.setRemoteDescription({ type: 'answer', sdp: ans.sdp });
-      } catch (e) { if (cam.el[pid] === v) { clearTimeout(giveUp); camNext(pid); } }
+      } catch (e) { if (cam.el[pid] === v) { s.why = 'offer:' + String((e && e.message) || 'err').slice(0, 24); clearTimeout(giveUp); camNext(pid); } }
     })();
   } else if (s.kind === 'mjpeg' || s.kind === 'snap') {
     // MJPEG und Einzelbilder: der Android-Teil (Cam.kt) liest die Kamera, zerlegt den Strom in Bilder und verbindet selbst neu,
@@ -6586,7 +6605,7 @@ function camPlay(pid, list) {
       if (prev) URL.revokeObjectURL(prev);
     };
     AMP.native('cam', { key: pid, urls: [s.url] }).then(loop).catch(() => camNext(pid));
-  } else { clearTimeout(giveUp); camNext(pid); return; }
+  } else { if (s.kind === 'webrtc') s.why = 'no_rtc'; clearTimeout(giveUp); camNext(pid); return; }
   camRedraw();
 }
 async function camStart(pid) {

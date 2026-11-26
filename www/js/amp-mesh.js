@@ -193,6 +193,40 @@
       m.add9(tv[a * 3], tv[a * 3 + 1], tv[a * 3 + 2], tv[b * 3], tv[b * 3 + 1], tv[b * 3 + 2], tv[c * 3], tv[c * 3 + 1], tv[c * 3 + 2], Math.min(15, col));
     }
   }
+  /** Werkzeugwechsel nach Höhe je Platte aus custom_gcode_per_layer.xml: { plattennummer: [{ z, ext }, …] } (aufsteigend). */
+  function layerChanges(xml) {
+    const out = {};
+    if (!xml || xml.length > 1048576) return out;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    for (const pl of doc.getElementsByTagName('plate')) {
+      const info = pl.getElementsByTagName('plate_info')[0], mode = pl.getElementsByTagName('mode')[0];
+      if (mode && mode.getAttribute('value') !== 'MultiAsSingle') continue;
+      const ch = [...pl.getElementsByTagName('layer')].map(l => ({ type: +l.getAttribute('type'), z: +l.getAttribute('top_z'), ext: +l.getAttribute('extruder') }))
+        .filter(c => c.type === 2 && c.ext >= 1 && Number.isFinite(c.z)).sort((a, b) => a.z - b.z);
+      if (ch.length) out[+((info && info.getAttribute('id')) || 1)] = ch;
+    }
+    return out;
+  }
+  /** Dreiecke [a, b) eines Objekts nach Höhe einfärben: Orca legt das Objekt aufs Bett (z ab Unterkante), die Schicht mit
+   *  Oberkante top_z druckt schon das neue Filament und schneidet in ihrer Mitte → Mittelpunkt über top_z − halbe Schichthöhe
+   *  (Projekt-layer_height, sonst 0,2 mm). „Kitten“-Kugel 26.11.2026: Sockel bis 0,64 mm schwarz, Wechsel bei 0,72 mm, Schicht 0,08 —
+   *  mit fest 0,1 mm wurde der schwarze Hintergrund (0,63–0,65 mm) weiß. Nur einfarbige Objekte (sonst verwirft Orca die Wechsel). */
+  function layerColor(m, a, b, ch, npal, lh) {
+    if (b <= a) return;
+    const off = lh > 0 && lh < 1 ? lh / 2 : 0.1;
+    const P = m.pos, c0 = m.col[a];
+    let zmin = Infinity;
+    for (let t = a; t < b; t++) {
+      if (m.col[t] !== c0) return;
+      const o = t * 9; zmin = Math.min(zmin, P[o + 2], P[o + 5], P[o + 8]);
+    }
+    for (let t = a; t < b; t++) {
+      const o = t * 9, zc = (P[o + 2] + P[o + 5] + P[o + 8]) / 3 - zmin;
+      let col = c0;
+      for (const c of ch) { if (zc > c.z - off) col = Math.min(15, Math.max(0, Math.min(npal - 1, c.ext - 1))); else break; }
+      m.col[t] = col;
+    }
+  }
   /** Spalten des Plattenrasters wie Bambu Studio (lib_plate_cols). */
   const plateCols = n => { const v = Math.sqrt(n), r = Math.round(v); return Math.max(1, v > r ? r + 1 : r); };
 
@@ -228,9 +262,9 @@
       }
     }
     // Bett und Farben
-    let area = null, pal = [];
+    let area = null, pal = [], lh = 0;
     const ps = await z.text('Metadata/project_settings.config');
-    if (ps) { try { const cfg = JSON.parse(ps); area = cfg.printable_area || null; pal = [].concat(cfg.filament_colour || []); } catch (e) { /* kein JSON */ } }
+    if (ps) { try { const cfg = JSON.parse(ps); area = cfg.printable_area || null; pal = [].concat(cfg.filament_colour || []); lh = +cfg.layer_height || 0; } catch (e) { /* kein JSON */ } }
     else {
       const pe = await z.text('Metadata/Slic3r_PE.config');
       if (pe) {
@@ -248,6 +282,10 @@
       if (w >= 20 && d >= 20 && w <= 2000 && d <= 2000) bed = [Math.round(w * 10) / 10, Math.round(d * 10) / 10];
     }
     pal = (pal.length ? pal : [COLOR]).map(c => typeof c === 'string' && /^#[0-9a-f]{6}/i.test(c) ? c.slice(0, 7).toLowerCase() : COLOR);
+    // Farbwechsel nach Höhe (26.11.2026, HueForge-Bilder aus Bambu Studio: alles Filament 1, ab 1,3 mm Filament 2) — sonst zeigte die
+    // Vorschau alles in der ersten Farbe. Wie der Slicer (ps_3mf_layer_toolchanges): je Platte <layer top_z type="2" extruder="N"/>,
+    // nur Modus MultiAsSingle (sonst verwirft Orca die Wechsel)
+    const ltc = layerChanges(await z.text('Metadata/custom_gcode_per_layer.xml'));
 
     const cache = {};
     const scan = async e => {
@@ -259,11 +297,12 @@
     if (!plates.length) plates.push({ name: '', ins: null });
     const cols = plateCols(plates.length), out = [];
     for (let pi = 0; pi < plates.length; pi++) {
-      const pl = plates[pi], m = newMesh();
+      const pl = plates[pi], m = newMesh(), spans = [];
       let nobj = 0;
       for (const [oid, bm, inst] of build) {
         if (pl.ins && !pl.ins[oid + '/' + inst]) continue;
         nobj++;
+        const t0 = m.n;
         const obj = objs[oid] || null;
         // Tiefensuche über Komponenten; Farbe = Extruder des Teils (1. Ebene) bzw. des Objekts; Modifier/Negativ-Teile/Stützen weg
         const walk = async (entry, id, mx, depth, ext) => {
@@ -281,8 +320,11 @@
           }
         };
         await walk(main, oid, bm, 0, obj ? obj.ext : 1);
+        spans.push([t0, m.n]);
       }
       if (unit !== 1 && m.n) for (let i = 0; i < m.n * 9; i++) m.pos[i] *= unit;
+      const ch = ltc[pl.ins ? pi + 1 : 1];
+      if (ch) for (const [a, b] of spans) layerColor(m, a, b, ch, pal.length, lh);
       // Bambu-Raster: Platte i liegt bei (Spalte × Breite × 1,2, −Zeile × Tiefe × 1,2) — nur mit Platten aus model_settings
       let origin = bmin.slice();
       if (bed && pl.ins) origin = [bmin[0] + (pi % cols) * bed[0] * 1.2, bmin[1] - Math.floor(pi / cols) * bed[1] * 1.2];
