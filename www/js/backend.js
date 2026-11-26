@@ -2085,7 +2085,9 @@ async function bbSync(p, force) {
   entry.temps = { nozzle: Math.round(+pr.nozzle_temper || 0), bed: Math.round(+pr.bed_temper || 0) };
   entry.ctl = bbCtl(p, L, pr, entry.busy);
   const dev = bbDevMode(pr);
-  p.devmode = dev; entry.amp_devmode = dev;
+  // Hinweis „Entwicklermodus ist aus“: nach einer echten Ablehnung immer; nach dem Merkmal (fun-Bit) nur, solange ein Druck trotz „aus“
+  // nicht schon geklappt hat (H2C 25.11.2026: 2× abgewiesen, ob das Bit dort stimmt, ist unbelegt — bb_bitbad lernt es)
+  p.devmode = dev; entry.amp_devmode = dev === true ? true : p.bb_rej ? false : dev === false && p.bb_bitbad ? null : dev;
   const ver = ((st.state || {}).info || {}).module;
   if (Array.isArray(ver)) { const ota = ver.find(m => m.name === 'ota'); if (ota) L.fw = ota.sw_ver; }
   entry.stats = { prints: null, hours: null, fw: L.fw || null };
@@ -3297,6 +3299,172 @@ async function fileMeta(file) {
   const tail = (await native('fileRead', { token: file.token, tail: true, length: 262144 })).text;
   return gcodeMeta(head, tail);
 }
+// ── G-Code-Prüfung vor dem Senden (26.11.2026) ─────────────────────────────────────────────────────────────────────────
+// Anlass: U1 mehrfarbig (25.11.) — der Slicer heizte beim Kopfwechsel den falschen Kopf, der Drucker meldete „Düsentemperatur zu
+// niedrig“. Gefunden nur, weil Chris selbst einen U1 hat. User: „was können wir machen, damit wir mehr sehen, wenn ein User druckt“ +
+// „auch den eigenen Slicer beachten“ → die App prüft JEDE Datei kurz vor dem Senden (unser Slicer, eigener Slicer, fertige Datei),
+// liest sie dafür einmal durch und schickt nur die Namen der auffälligen Regeln + Anzahl mit der Rückmeldung zum Druckstart.
+// Nichts aus der Datei verlässt das Gerät. Regeln (bewusst wenige, ohne Fehlalarme an 31 Testdateien von 22 Druckern):
+//   tc_heat    Kopfwechsel: „M109 … T<a>“ wartet auf Kopf a, gewechselt wird auf Kopf b (U1-Fehler bis Slicer 1.0.13)
+//   cold_ext   Extrudieren, während der aktive Kopf ausdrücklich unter 170 °C gestellt ist (Klipper-Grenze min_extrude_temp)
+//   rel_xy     Druckbewegung im G91 (relativ) — ein Wechsel-Makro hat G90 vergessen (02.10.2026)
+//   tool_range Werkzeug T<n>, das der Drucker laut Datei nicht hat (nur Werkzeugwechsler mit eigenem Heizer je Kopf)
+//   off_bed    Druckbewegung außerhalb der Druckfläche aus der Datei (+3 mm)
+//   bed_cold   Bett wird nie geheizt, die Einstellungen in der Datei verlangen aber eine Betttemperatur (U1-Plattentyp 17.11.)
+//   no_ext     Keine einzige Druckbewegung
+// Nicht prüfbar → skip_read / skip_time / skip_fmt (Binär-G-Code). Ergebnis: { rules: {regel: anzahl} } oder { skip }.
+const GCHK_V = 1, GCHK_MIN_T = 170, GCHK_MS = 60000;
+/** Einstellungsblock am Dateiende (Orca, Bambu Studio, PrusaSlicer: „; key = value“) → nur die Werte, die die Regeln brauchen. */
+function gchkConf(tail) {
+  const c = {};
+  for (const m of String(tail || '').matchAll(/^; ?([a-z_0-9]+) = (.*)$/gm)) c[m[1]] = m[2].trim();
+  const nz = (c.nozzle_diameter || '').split(',').filter(x => x.trim() !== '').length;
+  const area = [];
+  for (const m of String(c.printable_area || c.extruder_printable_area || c.bed_shape || '').matchAll(/(-?[\d.]+)x(-?[\d.]+)/g)) area.push([+m[1], +m[2]]);
+  // Betttemperatur aus der Datei: PrusaSlicer bed_temperature/first_layer_bed_temperature, Orca/Bambu je Plattentyp (curr_bed_type)
+  const plate = { 'Cool Plate': 'cool_plate_temp', 'Engineering Plate': 'eng_plate_temp', 'High Temp Plate': 'hot_plate_temp', 'Textured PEI Plate': 'textured_plate_temp',
+                  'Textured Cool Plate': 'textured_cool_plate_temp', 'Supertack Plate': 'supertack_plate_temp' }[(c.curr_bed_type || '').replace(/^"|"$/g, '')];
+  const num = k => Math.max(0, ...String(c[k] || '').split(',').map(Number).filter(Number.isFinite));
+  const bed = plate ? Math.max(num(plate), num(plate + '_initial_layer')) : Math.max(num('bed_temperature'), num('first_layer_bed_temperature'));
+  return {
+    // Heizer je Werkzeug: mehrere Düsen und KEIN „ein Extruder, mehrere Filamente“ (Bambu H2D: 2 Düsen, T = Filament → nicht je Werkzeug)
+    heaters: nz > 1 && c.single_extruder_multi_material === '0' && !/bambu/i.test(c.printer_model || '') ? nz : 1,
+    box: area.length >= 3 ? [Math.min(...area.map(p => p[0])), Math.min(...area.map(p => p[1])), Math.max(...area.map(p => p[0])), Math.max(...area.map(p => p[1]))] : null,
+    bed, known: Object.keys(c).length > 20,
+  };
+}
+function gchkNew(conf) {
+  return { conf, hit: {}, layer: false, abs: true, absE: false, e: 0, tool: 0, tgt: {}, heatT: null, bedHeat: false, ext: 0, extAny: 0, x: null, y: null };
+}
+const gchkHit = (st, r) => { st.hit[r] = (st.hit[r] || 0) + 1; };
+const gchkNum = (s, k) => { const m = s.match(new RegExp('(?:^|\\s)' + k + '(-?[\\d.]+)', 'i')); return m ? +m[1] : null; };
+/** Eine Zeile (ohne Kommentar am Zeilenende) prüfen. */
+function gchkLine(st, raw) {
+  const c0 = raw.charCodeAt(0);
+  if (c0 === 59) {   // ';' — Schichtwechsel: ab hier wird gedruckt (Orca/Prusa „;LAYER_CHANGE“, Bambu „; CHANGE_LAYER“, Cura „;LAYER:0“)
+    // Simplify3D „; layer 1, Z = …“, KISSlicer „; BEGIN_LAYER“. Ohne Marke greifen nur no_ext/bed_cold/tool_range (nichts raten)
+    if (!st.layer && /^;\s*(LAYER_CHANGE\b|CHANGE_LAYER\b|LAYER:\s*\d|layer \d|BEGIN_LAYER)/.test(raw)) st.layer = true;
+    return;
+  }
+  const sc = raw.indexOf(';');
+  const l = (sc >= 0 ? raw.slice(0, sc) : raw).trim();
+  if (!l) return;
+  const u = l.charCodeAt(0);
+  const heat = st.conf.heaters > 1;
+  if (u === 71 || u === 103) {   // G
+    const g = l.match(/^G(\d+)/i); if (!g) return;
+    const n = +g[1];
+    if (n === 90) { st.abs = true; return; }
+    if (n === 91) { st.abs = false; return; }
+    if (n === 92) { const e = gchkNum(l, 'E'); if (e !== null) st.e = e; return; }
+    if (n > 3) return;
+    const x = gchkNum(l, 'X'), y = gchkNum(l, 'Y'), e = gchkNum(l, 'E');
+    if (st.abs) { if (x !== null) st.x = x; if (y !== null) st.y = y; }
+    if (e === null) return;
+    const d = st.absE ? e - st.e : e;
+    if (st.absE) st.e = e;
+    if (!(d > 0.0001)) return;
+    st.heatT = null;   // gedruckt → ein früheres „M109 … T<a>“ gehört nicht mehr zum nächsten Wechsel (Creator 5: erst T, dann M109)
+    if (x === null && y === null) return;
+    st.extAny++;
+    if (!st.layer) return;
+    st.ext++;
+    if (!st.abs) { gchkHit(st, 'rel_xy'); return; }
+    const t = st.tgt[heat ? st.tool : 0];
+    if (t !== undefined && t < GCHK_MIN_T && !st.tAmb) gchkHit(st, 'cold_ext');
+    const b = st.conf.box;
+    if (b && st.x !== null && st.y !== null && (st.x < b[0] - 3 || st.y < b[1] - 3 || st.x > b[2] + 3 || st.y > b[3] + 3)) gchkHit(st, 'off_bed');
+    return;
+  }
+  if (u === 77 || u === 109) {   // M
+    const m = l.match(/^M(\d+)/i); if (!m) return;
+    const n = +m[1];
+    if (n === 82) { st.absE = true; return; }
+    if (n === 83) { st.absE = false; return; }
+    if (n === 104 || n === 109) {
+      const s = gchkNum(l, 'S'), r = gchkNum(l, 'R'), tt = gchkNum(l, 'T');
+      const v = s !== null ? s : r;
+      // Ein Heizer laut Datei, aber Befehle für Kopf 1, 2 …: Bambu H2D/H2C (2 Düsen, T = Filament) — welche Düse druckt, steht nicht da
+      if (!heat && tt) st.tAmb = true;
+      const tool = heat ? (tt !== null ? tt : st.tool) : 0;
+      if (v !== null) st.tgt[tool] = v;
+      if (n === 109 && tt !== null) st.heatT = tt;
+      return;
+    }
+    if ((n === 140 || n === 190) && (gchkNum(l, 'S') || gchkNum(l, 'R') || 0) > 0) st.bedHeat = true;
+    return;
+  }
+  if (u === 84 || u === 116) {   // T<n> = Werkzeugwahl
+    const m = l.match(/^T(\d+)\s*$/i); if (!m) return;
+    const t = +m[1];
+    // nur im Druck: Startskripte holen die Köpfe nacheinander ab, ohne zu drucken (Prusa XL: M109 T0 S170, dann T1, T2 …)
+    if (st.heatT !== null && st.heatT !== t && heat && st.layer) gchkHit(st, 'tc_heat');
+    st.heatT = null;
+    if (heat && t >= st.conf.heaters) gchkHit(st, 'tool_range');
+    st.tool = t;
+    return;
+  }
+  // Makros (Klipper): Bett per Parameter (PRINT_START BED=60, BED_TEMP=…), Heizer per SET_HEATER_TEMPERATURE
+  if (!st.bedHeat && /\bBED[A-Z_]*=\s*[1-9]/i.test(l)) st.bedHeat = true;
+  // Düse per Parameter (START_PRINT EXTRUDER_TEMP=220, PRINT_START EXTRUDER=220 HOTEND=…) — Orca schreibt davor oft „M104 S0“.
+  // Startmakro ohne Temperatur: es heizt vielleicht selbst → Ziel unbekannt
+  const xt = l.match(/\b(?:EXTRUDER|HOTEND|NOZZLE)[A-Z_]*=\s*(\d{2,3})\b/i);
+  if (xt && +xt[1] >= 100) { if (heat) st.tgt[st.tool] = +xt[1]; else st.tgt[0] = +xt[1]; }
+  else if (/^[A-Z_]*(START|PREPARE|BEGIN)[A-Z_]*\b/i.test(l)) st.tgt = {};
+  const sh = l.match(/^SET_HEATER_TEMPERATURE\s+HEATER=(\w+)\s+TARGET=([\d.]+)/i);
+  if (sh) {
+    if (/^heater_bed$/i.test(sh[1])) { if (+sh[2] > 0) st.bedHeat = true; }
+    else { const k = sh[1].match(/^extruder(\d*)$/i); if (k) st.tgt[heat ? +(k[1] || 0) : 0] = +sh[2]; }
+  }
+}
+function gchkEnd(st) {
+  if (!st.extAny) gchkHit(st, 'no_ext');
+  if (!st.bedHeat && st.conf.known && st.conf.bed > 0) gchkHit(st, 'bed_cold');
+  return { v: GCHK_V, rules: st.hit };
+}
+/** Ganze Datei als Text (z. B. G-Code aus einer .gcode.3mf). */
+function gchkText(g) {
+  const st = gchkNew(gchkConf(g.slice(0, 393216) + '\n' + g.slice(-262144)));
+  let i = 0;
+  while (i < g.length) { let j = g.indexOf('\n', i); if (j < 0) j = g.length; gchkLine(st, g.slice(i, g.charCodeAt(j - 1) === 13 ? j - 1 : j)); i = j + 1; }
+  return gchkEnd(st);
+}
+/** Datei zur Kennung lesen (Android/iOS/Agent liefern sie unter /file?t=) und prüfen. Wirft nie. */
+async function gcodeCheck(file, name) {
+  try {
+    if (/\.bgcode$/i.test(name || '')) return { skip: 'fmt' };
+    const url = (window.AMP_BASE || '') + '/file?t=' + encodeURIComponent(file.token);
+    const until = Date.now() + GCHK_MS;
+    if (/\.3mf$/i.test(name || '')) {
+      if (!(window.AMPMesh && AMPMesh.gcodeOf)) return { skip: 'fmt' };
+      const g = await AMPMesh.gcodeOf(await (await _fetch(url)).blob());
+      return g === null ? { skip: 'fmt' } : gchkText(g);
+    }
+    // Einstellungen stehen am Ende (Orca, PrusaSlicer) bzw. am Anfang (Bambu Studio, Orca mit Bambu-Druckern)
+    const head = (await native('fileRead', { token: file.token, offset: 0, length: 393216 })).text;
+    const tail = (await native('fileRead', { token: file.token, tail: true, length: 262144 })).text;
+    const st = gchkNew(gchkConf(head + '\n' + tail));
+    const res = await _fetch(url);
+    if (!res.ok) return { skip: 'read' };
+    if (!res.body || !res.body.getReader) { const g = await res.text(); return gchkText(g); }   // ohne Stream (alte WebView): ganz lesen
+    const rd = res.body.getReader(), dec = new TextDecoder();
+    let rest = '';
+    for (;;) {
+      const { done, value } = await rd.read();
+      const s = rest + (done ? dec.decode() : dec.decode(value, { stream: true }));
+      let i = 0, j;
+      while ((j = s.indexOf('\n', i)) >= 0) { gchkLine(st, s.slice(i, s.charCodeAt(j - 1) === 13 ? j - 1 : j)); i = j + 1; }
+      rest = s.slice(i);
+      if (done) { if (rest) gchkLine(st, rest); break; }
+      if (Date.now() > until) { rd.cancel().catch(() => {}); return { skip: 'time' }; }
+    }
+    return gchkEnd(st);
+  } catch (e) { return { skip: 'read' }; }
+}
+/** Für die Rückmeldung: „tc_heat:48,cold_ext:3“, leer = unauffällig, „skip_time:1“ = nicht geprüft. */
+const gchkStr = r => !r ? null : r.skip ? 'skip_' + r.skip + ':1' : Object.entries(r.rules || {}).map(([k, n]) => k + ':' + Math.min(n, 99999)).join(',');
+// ── Ende G-Code-Prüfung ──
+
 /** Hochladen + Starten je Treiber → Dateiname auf dem Drucker. */
 const SEND = {
   async moonraker(p, file, name, start, plan, opts) {
@@ -3355,7 +3523,10 @@ const SEND = {
     if (!st.connected) fail('unreach');
     // Stand vor dem Start: FAILED/print_error bleiben nach einem abgebrochenen Druck stehen (Ruhezustand) — nur Änderungen zählen
     const g0 = String(pr.gcode_state || '').toUpperCase(), e0 = +pr.print_error || 0;
-    if (bbDevMode(pr) === false) fail('devmode');
+    // Entwicklermodus (26.11.2026): nicht mehr vorab sperren — das Merkmal ist nicht bei jedem Modell belegt (H2C, Druckstarts 25.11.).
+    // Der Drucker sagt es selbst: Startantwort „verify failed“ → devmode (unten). Kostet bei wirklich ausgeschaltetem Modus nur das Hochladen.
+    const devBit = bbDevMode(pr);
+    if (devBit === false) diag({ a: 'send', p: 'bambu', m: p.model || '', d: 'devmode bit off, trying' });
     if (start && ['RUNNING', 'PAUSE', 'PREPARE'].includes(String(pr.gcode_state || '').toUpperCase())) fail('printer_busy');
     // .gcode.3mf packen (Metadata/plate_1.gcode), per FTPS hochladen, per MQTT mit Fachzuordnung starten
     // Keine Leerzeichen im Namen (sonst startet der Drucker nicht)
@@ -3404,10 +3575,13 @@ const SEND = {
       await new Promise(z => setTimeout(z, 1000));
       const s2 = await native('live_state', { key: 'bb_' + p.id }).catch(() => ({}));
       const S2 = s2.state || {}, pr2 = S2.print || {}, g2 = String(pr2.gcode_state || '').toUpperCase();
-      if (['PREPARE', 'RUNNING', 'SLICING'].includes(g2)) return remote;
+      if (['PREPARE', 'RUNNING', 'SLICING'].includes(g2)) {
+        if (p.bb_rej || (devBit === false && !p.bb_bitbad)) { p.bb_rej = 0; if (devBit === false) p.bb_bitbad = true; persist(); }   // Merkmal „aus“ war falsch
+        return remote;
+      }
       const ack = S2.bb_ack && +S2.bb_ack.at >= sentAt && (!S2.bb_ack.seq || String(S2.bb_ack.seq) === sid) ? S2.bb_ack : null;
       if (ack && /fail/i.test(ack.result || '')) {
-        if (/verif/i.test(ack.reason || '') || [84033543, 84033544, 84033545, 84033546, 84033547, 84033548].includes(+ack.err)) fail('devmode');
+        if (/verif/i.test(ack.reason || '') || [84033543, 84033544, 84033545, 84033546, 84033547, 84033548].includes(+ack.err)) { p.bb_rej = Date.now(); p.bb_bitbad = false; persist(); fail('devmode'); }
         const e = new Error('start_failed'); e.code = 'start_failed'; e.detail = `${ack.reason || ''} ${ack.err || ''}`.trim(); e.msg = ack.reason || ''; throw e;
       }
       if (g2 && g2 !== 'FAILED') other = true;
@@ -3811,6 +3985,8 @@ async function printSend(inp, onProgress) {
   const file = inp.file || fail('no_file');
   const L = live[p.id];
   const name = String(file.name || 'print.gcode').replace(/[^\w.\- ()+]+/g, '_').replace(/^\.+/, '') || 'print.gcode';
+  // G-Code-Prüfung (26.11.2026): läuft neben dem Hochladen, das Ergebnis geht nur mit der Rückmeldung zum Druckstart (startReport)
+  if (inp.start && !startOff() && !inp._chk) inp._chk = gcodeCheck(file, file.name || name);
   // Modellbild für die Druckkarte (und Bambu: plate_1.png): vom Slicer mitgegeben, sonst aus dem G-Code-Kopf
   let img = inp.thumb || (inp.meta && inp.meta.thumb) || null;
   if (!img && /\.(gcode|gco|g)$/i.test(name) && file.token) img = (await fileMeta(file).catch(() => ({}))).thumb || null;
@@ -4009,7 +4185,7 @@ async function slicePrinters() {
     const via = { sdcp: 'elegoo', cc2: 'elegoo', acl: 'acl' }[kindOf(p)] || kindOf(p);
     out.push({ key: 'moonraker:' + p.id, provider: 'moonraker', id: p.id, via, name: p.name, model: p.model || '', online: !!e.online, busy: !!e.busy,
                // beta: Hinweis „noch in der Testphase“ in der Druckansicht — Flashforge (22.11.2026, User), ffBeta: ohne Creator 5 / 5 Pro
-               img: p.img || '', can_print: true, testers_only: false, beta: ffBeta(p), box: hasBox, slots, slot_mode: any ? 'slots' : 'material', tool0, ttg: tool0 === null ? ttg : null,
+               img: p.img || '', can_print: true, testers_only: false, beta: ffBeta(p), devmode_off: kindOf(p) === 'bambu' && e.amp_devmode === false, box: hasBox, slots, slot_mode: any ? 'slots' : 'material', tool0, ttg: tool0 === null ? ttg : null,
                machine: prof ? prof.machine : null, vendor: prof ? prof.vendor : null, exact: prof ? prof.exact : false, chosen: !!(prof && prof.chosen),
                // Häkchen „Bett vor dem Druck nivellieren“ (17.11.2026, Wunsch YvonneOliver Community #39): Anycubic LAN schickt die Wahl als
                // task_settings.auto_leveling im Startbefehl (vorher fest 1). Modus wie die Anycubic-Cloud auf 3DSEARCH (ps_level_info 'cloud'), Vorgabe an
@@ -4107,7 +4283,7 @@ const START_URL = (() => { try { return localStorage.getItem('amp_start_url') ||
 const startOff = () => !!(db.settings.amp_start_report_off || (window.FM && FM.no_report));
 let startInfo = null;
 /** sj: Eintrag des Slicer-Auftrags (merkt Kennung + Versuche) oder null bei einer fertigen Datei (je Start eine neue Kennung). */
-async function startReport(sj, p, res, plan, via) {
+async function startReport(sj, p, res, plan, via, chkP) {
   try {
     if (startOff() || !p) return;
     sj = sj || {};
@@ -4121,6 +4297,8 @@ async function startReport(sj, p, res, plan, via) {
                    // Nur echte Codes (unreach, printer_busy, upload_404 …). Freitext von Node/Android kann eine Adresse enthalten
                    // („connect ECONNREFUSED 192.168.…“) → dann nur „other“
                    r: /^[A-Za-z0-9_]{1,40}$/.test(String(res || '')) ? String(res).toLowerCase() : 'other' };
+    // G-Code-Prüfung (ab 0.24.0): nur Regelname + Anzahl („tc_heat:48“), leer = unauffällig — nie etwas aus der Datei
+    if (chkP) { const c = gchkStr(await Promise.race([chkP, new Promise(z => setTimeout(() => z({ skip: 'time' }), GCHK_MS + 5000))]).catch(() => null)); if (c !== null) body.chk = c; }
     // Nebenbei, ohne Warten und ohne Fehlermeldung: Drucken darf daran nie hängen
     const ac = typeof AbortController === 'function' ? new AbortController() : null;
     if (ac) setTimeout(() => ac.abort(), 15000);
@@ -4151,17 +4329,18 @@ async function sliceSend(inp) {
     else diag({ a: 'ff_full', p: 'flashforge', m: p.model || '', err: 'download_' + ((d3 && d3.status) || 0) });
     return full;
   } : null;
+  const pin = { printer: p.id, file: { token: dl.token, name: dl.name, size: dl.size, plate_png: j.thumb_png || null, full3mf: fullGet }, start: !!inp.start, plan: j.plan || [],
+                thumb: j.thumb || null, level: (sj[inp.job] || {}).level, vib: (sj[inp.job] || {}).vib === true, flow: (sj[inp.job] || {}).flow === true, tl: (sj[inp.job] || {}).tl === true, plate_ok: !!inp.plate_ok };
   try {
-    const r = await printSend({ printer: p.id, file: { token: dl.token, name: dl.name, size: dl.size, plate_png: j.thumb_png || null, full3mf: fullGet }, start: !!inp.start, plan: j.plan || [],
-                                thumb: j.thumb || null, level: (sj[inp.job] || {}).level, vib: (sj[inp.job] || {}).vib === true, flow: (sj[inp.job] || {}).flow === true, tl: (sj[inp.job] || {}).tl === true, plate_ok: !!inp.plate_ok });
+    const r = await printSend(pin);
     sj[inp.job] = { ...(sj[inp.job] || {}), [inp.start ? 'sent' : 'uploaded']: now() };
     if (inp.start && (sj[inp.job].lib || sj[inp.job].plate)) libLink([].concat(sj[inp.job].lib || [], sj[inp.job].plate || []), r.started ? r.job : null, p.name);
     persist();
-    if (inp.start) startReport(sj[inp.job], p, r.started ? 'ok' : 'not_started', j.plan, via);
+    if (inp.start) startReport(sj[inp.job], p, r.started ? 'ok' : 'not_started', j.plan, via, pin._chk);
     return { ok: true, pending: false, kept: null, started: r.started };
   } catch (e) {
     if (e.message === 'plate_check') return { error: 'plate_check', img: e.img || null };   // Platte nicht leer? → Oberfläche fragt nach
-    if (inp.start) startReport(sj[inp.job], p, e.code || e.message, j.plan, via);
+    if (inp.start && e.message !== 'plate_check') startReport(sj[inp.job], p, e.code || e.message, j.plan, via, pin._chk);
     // „unreach“ roh im Satz verstand niemand (09.11.2026) → vorhandener Text „Nicht erreichbar unter <Adresse> …“
     // (app.js ist eine eigene Funktion — dessen t() gibt es hier nicht; die Texte liegen in window.FM.S)
     const ur = window.FM && FM.S && FM.S.amp_unreach;
@@ -5554,8 +5733,8 @@ const A = {
     const plan = inp.plan || (inp.meta && inp.meta.weights ? inp.meta.weights.map((g, t) => ({ slot: inp.map && inp.map[t] != null ? +inp.map[t] : t, tool: t, g })) : []);
     let r;
     try { r = await printSend(inp, inp._progress); }
-    catch (e) { if (inp.start && e.message !== 'plate_check') startReport(null, p, e.code || e.message, plan, 'file'); throw e; }
-    if (inp.start) startReport(null, p, r && r.started ? 'ok' : 'not_started', plan, 'file');
+    catch (e) { if (inp.start && e.message !== 'plate_check') startReport(null, p, e.code || e.message, plan, 'file', inp._chk); throw e; }
+    if (inp.start) startReport(null, p, r && r.started ? 'ok' : 'not_started', plan, 'file', inp._chk);
     if (inp.lib && r && r.started) { libLink(inp.lib, r.job, (db.printers.find(x => x.id === inp.printer) || {}).name); persist(); }
     return r;
   },

@@ -3058,7 +3058,7 @@ async function viewPrint() {
       <span class="pstate ${!p.online ? 'off' : p.busy ? 'busy' : 'idle'}"><span class="dot ${!p.online ? '' : p.busy ? 'busy' : 'idle'}"></span>${!p.online ? t('st_offline') : p.busy ? t('st_printing') : t('st_ready')}</span>
       ${p.testers_only ? `<span class="hint tnote">${tf('psd_cr_testers', fbLink)}</span>` : !p.can_print ? `<span class="hint">${S.psd_bambu_note}</span>` : !p.machine ? `<span class="hint err-t">${S.psd_err_no_profile}</span>`
         : !p.exact ? `<span class="hint">${tf('psd_similar', esc(p.machine.replace(' 0.4 nozzle', '')))}</span>` : ''}
-      ${p.beta ? `<span class="hint">${esc(t('psd_beta'))}</span>` : ''}</span></label>`).join('')}
+      ${p.beta ? `<span class="hint">${esc(t('psd_beta'))}</span>` : ''}${p.devmode_off ? `<span class="hint err-t">${esc(t('amp_bb_devmode'))}</span>` : ''}</span></label>`).join('')}
   </div><div class="prof" id="pprof"></div></section>
   <section class="step"><div class="step-h"><b>2</b>${S.psd_model}</div>
     <p class="hint" id="phand" hidden></p><input type="hidden" name="model_id" id="pmodel">
@@ -3108,7 +3108,8 @@ async function viewPrint() {
     if (spin && sp && sp.classList.contains('spin') && el.children.length === 2) { if (el.lastElementChild.outerHTML !== tx) el.lastElementChild.outerHTML = tx; return; }
     el.innerHTML = (spin ? '<span class="spin"></span>' : '') + tx;
   };
-  const errText = r => r.error === 'slice' ? tf('psd_err_slice', esc(r.detail || '')) : r.error === 'send' ? tf('psd_err_send', esc(r.detail || ''))
+  const errText = r => { const h = errText0(r); return ['send', 'slice', 'agent_failed'].includes(r.error) && typeof ampRepLink === 'function' ? h + ampRepLink(h, (printer() || {}).id) : h; };
+  const errText0 = r => r.error === 'slice' ? tf('psd_err_slice', esc(r.detail || '')) : r.error === 'send' ? tf('psd_err_send', esc(r.detail || ''))
     : r.error === 'agent_failed' ? tf('psd_err_agent_failed', esc(r.detail || '')) : S['psd_err_' + r.error] ? esc(S['psd_err_' + r.error]) : tf('psd_err_generic', esc(r.error || '?'));
   const pdur = m => m >= 60 ? tf('psd_h_min', Math.floor(m / 60), m % 60) : tf('psd_min', m);
 
@@ -5817,7 +5818,8 @@ async function viewGcode() {
         if (confirm(t('amp_plate_ask'))) return await send(start, true);   // await: das finally hier läuft erst nach dem zweiten Senden
         box.innerHTML = `<div class="note warn-note">${esc(t('amp_plate_stop'))}</div>`; view.querySelectorAll('#pgo, #pup').forEach(b => { b.disabled = false; }); return;
       }
-      box.innerHTML = `<div class="note warn-note">${esc(e.message === 'printer_busy' ? t('amp_busy') : t('err_generic'))}${e.msg ? ' (' + esc(e.msg) + ')' : ''}</div>`;
+      const sx = 'amp_send_' + e.message, msg = esc(e.message === 'printer_busy' ? t('amp_busy') : S[sx] ? t(sx) : t('err_generic')) + (e.msg ? ' (' + esc(e.msg) + ')' : '');
+      box.innerHTML = `<div class="note warn-note">${msg}${e.message === 'printer_busy' ? '' : ampRepLink(msg + (S[sx] ? '' : ' [' + esc(e.message) + ']'), pr.printer)}</div>`;
       view.querySelectorAll('#pgo, #pup').forEach(b => { b.disabled = false; });
     } finally { off(); pr.busy = false; }
   };
@@ -6882,7 +6884,7 @@ document.addEventListener('click', e => {
     return;
   }
   const rp = e.target.closest('[data-report]');
-  if (rp) { e.preventDefault(); if (window.AMP_moreClose) window.AMP_moreClose(); ampReport(rp.dataset.report || ''); }
+  if (rp) { e.preventDefault(); if (window.AMP_moreClose) window.AMP_moreClose(); ampReport(rp.dataset.report || '', rp.dataset.rep || ''); }
 });
 
 // ── Kalibrieren vor dem Druck (21.11.2026, User: „Vibrationstest vor dem Druck … mit Flusskalibrierung“) ──────────
@@ -7111,11 +7113,17 @@ async function viewGuide(sec) {
 
 // ── Problem melden ────────────────────────────────────────────────────────
 const AMP_MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-async function ampReport(pid) {
+/** „Problem melden“ gleich an einer Fehlermeldung beim Drucken (26.11.2026, H2C 25.11.: zweimal abgewiesen, nichts gemeldet) —
+ *  Drucker und Meldung sind im Dialog schon eingetragen. html = die angezeigte Meldung (HTML), pid = App-Drucker. */
+function ampRepLink(html, pid) {
+  const d = document.createElement('div'); d.innerHTML = String(html || '');
+  return ` <button type="button" class="linkbtn amp-replink" data-report="${esc(pid || '')}" data-rep="${esc(d.textContent.trim().slice(0, 300))}">${esc(t('amp_rep_btn'))}</button>`;
+}
+async function ampReport(pid, pre) {
   const list = (AMP.db && AMP.db.printers) || [];
   dlg.innerHTML = `<form method="dialog" id="frep" class="amp-rep"><div class="dlg-h"><b>${esc(t('amp_rep_h'))}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
     <div class="dlg-b">
-      <label class="fld"><span>${esc(t('amp_rep_what'))}</span><textarea class="in" name="text" rows="4" maxlength="4000" required placeholder="${esc(t('amp_rep_ph'))}"></textarea></label>
+      <label class="fld"><span>${esc(t('amp_rep_what'))}</span><textarea class="in" name="text" rows="4" maxlength="4000" required placeholder="${esc(t('amp_rep_ph'))}">${pre ? esc(t('amp_rep_pre', { e: pre }) + '\n\n') : ''}</textarea></label>
       <label class="fld"><span>${esc(t('amp_rep_printer'))}</span><select class="in" name="printer">
         ${list.length > 1 ? `<option value="">${esc(t('amp_rep_all'))}</option>` : ''}${list.map(p => `<option value="${esc(p.id)}"${p.id === pid ? ' selected' : ''}>${esc(p.name + (p.model && p.model !== p.name ? ' · ' + p.model : ''))}</option>`).join('')}
         <option value="-"${!list.length ? ' selected' : ''}>${esc(t('amp_rep_none'))}</option></select></label>
