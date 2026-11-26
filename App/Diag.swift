@@ -190,6 +190,46 @@ enum Diag {
                 setTimeout(() => { clearInterval(pt); const o = { t: v.currentTime, w: v.videoWidth, h: v.videoHeight, rs: v.readyState, errs, ev: ev.slice(0, 20), prog };
                   try { p.destroy(); } catch (e) {} v.remove(); res(o); }, 9000);
               }));
+              // ── 26.11.2026: WebRTC wie die Creality-Kamera (K2 Pro, Meldung #35 vom iPhone: „no_frame“). App = nur empfangen, Angebot ohne
+              //    Trickle (erst alle Kandidaten), Gegenstelle = „Drucker“ mit Testbild (canvas.captureStream). webrtc_h264: H.264 zuerst (wie der Drucker),
+              //    webrtc_nocand: Angebot ohne unsere Kandidaten (Drucker löst .local nicht auf → nur über die Prüfanfragen der App erreichbar)
+              const rtc = (strip, h264) => new Promise(async res => {
+                const o = { rtc: typeof window.RTCPeerConnection, proto: location.protocol };
+                if (!window.RTCPeerConnection) { res(o); return; }
+                const gather = pc => new Promise(z => { if (pc.iceGatheringState === 'complete') return z(); const tm = setTimeout(z, 3000); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(tm); z(); } }); });
+                const cands = sdp => { const c = sdp.split(/\\r?\\n/).filter(l => l.startsWith('a=candidate')); return { n: c.length, local: c.filter(l => /\\.local /.test(l)).length, ip: c.filter(l => /typ host/.test(l) && !/\\.local /.test(l)).length, types: [...new Set(c.map(l => (/typ (\\w+)/.exec(l) || [])[1]))] }; };
+                const a = new RTCPeerConnection({ iceServers: [] }), b = new RTCPeerConnection({ iceServers: [] });
+                let draw = null;
+                try {
+                  const tr = a.addTransceiver('video', { direction: 'recvonly' });
+                  if (h264 && tr.setCodecPreferences && window.RTCRtpReceiver && RTCRtpReceiver.getCapabilities) { const cs = RTCRtpReceiver.getCapabilities('video').codecs; tr.setCodecPreferences(cs.filter(c => /h264/i.test(c.mimeType)).concat(cs.filter(c => !/h264/i.test(c.mimeType)))); }
+                  const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', '');
+                  v.style.cssText = 'position:fixed;left:0;top:400px;width:320px;height:180px;z-index:99999;background:#000'; document.body.appendChild(v);
+                  o.track = false; a.ontrack = e => { o.track = true; v.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]); const pl = v.play(); if (pl) pl.catch(er => { o.play = er.name; }); };
+                  v.addEventListener('playing', () => { o.playing = true; });
+                  await a.setLocalDescription(await a.createOffer()); await gather(a);
+                  let offer = a.localDescription.sdp; o.offer = cands(offer); o.offerCodecs = [...new Set((offer.match(/a=rtpmap:\\d+ [A-Za-z0-9]+/g) || []).map(x => x.split(' ')[1]))];
+                  if (strip) offer = offer.split(/\\r?\\n/).filter(l => !l.startsWith('a=candidate')).join('\\r\\n');
+                  const cv = document.createElement('canvas'); cv.width = 320; cv.height = 180; const cx = cv.getContext('2d'); let f = 0;
+                  draw = setInterval(() => { cx.fillStyle = 'hsl(' + (f++ * 7 % 360) + ',80%,50%)'; cx.fillRect(0, 0, 320, 180); cx.fillStyle = '#fff'; cx.fillRect(f % 300, 80, 20, 20); }, 66);
+                  const st = cv.captureStream ? cv.captureStream(15) : null; o.capture = !!st;
+                  await b.setRemoteDescription({ type: 'offer', sdp: offer });
+                  if (st) { const t0 = b.getTransceivers()[0]; t0.direction = 'sendonly'; await t0.sender.replaceTrack(st.getVideoTracks()[0]); }
+                  await b.setLocalDescription(await b.createAnswer()); await gather(b);
+                  o.answer = cands(b.localDescription.sdp);
+                  await a.setRemoteDescription({ type: 'answer', sdp: b.localDescription.sdp });
+                  await new Promise(z => setTimeout(z, 8000));
+                  o.conn = a.connectionState; o.ice = a.iceConnectionState;
+                  try { (await a.getStats()).forEach(s => { if (s.type === 'inbound-rtp' && s.kind === 'video') o.frames = s.framesDecoded; if (s.type === 'codec' && /video/.test(s.mimeType || '')) (o.codecs = o.codecs || []).push(s.mimeType); }); } catch (e) { o.stats = e.message; }
+                  o.w = v.videoWidth; o.t = +v.currentTime.toFixed(2); v.remove();
+                } catch (e) { o.err = (e && e.name) + ' ' + (e && e.message); }
+                if (draw) clearInterval(draw);
+                try { a.close(); b.close(); } catch (e) {}
+                res(o);
+              });
+              await t('webrtc', () => rtc(false, false));
+              await t('webrtc_h264', () => rtc(false, true));
+              await t('webrtc_nocand', () => rtc(true, true));
             }
             out.errs = (window.__ampErr || []).slice(0, 40);
             return JSON.stringify(out);
