@@ -3370,6 +3370,7 @@ async function viewPrint() {
     if (!$('#px_orient').checked && ps.kind === 'stl') n++;
     if ($('#px_rot').checked) n++;
     $('#pxn').hidden = !n; $('#pxn').textContent = t('psd_x_n', { n });
+    if (typeof ampXSum === 'function') ampXSum();
   }
   function pxSave() {
     const o = {};
@@ -3385,6 +3386,7 @@ async function viewPrint() {
     renderX();   // erst die Schichthöhen des Druckers, dann die gemerkten Werte
     for (const [k, v] of Object.entries(o)) { const el = /^x_\w+$/.test(k) && !PX_TEMP.includes(k) && box.querySelector(`[name="${k}"]`); if (el) el.value = v; }
     $('#px_orient').checked = o.orient !== '0'; $('#px_rot').checked = o.rot === '1';
+    if (typeof ampXTidy === 'function') ampXTidy(box);
     try { box.open = localStorage.getItem('psd_x_open') === '1'; } catch (e) { /* privates Fenster */ }
     pxCount();
     box.addEventListener('toggle', () => { try { localStorage.setItem('psd_x_open', box.open ? '1' : '0'); } catch (e) { /* privates Fenster */ } if (box.open) renderX(); });
@@ -5780,7 +5782,8 @@ async function viewGcode() {
   if (!ps.length) {
     h += `<div class="empty"><b>${esc(t('amp_no_printers'))}</b><br><br><a class="btn pri" href="#connect">${esc(t('pr_tab_connect'))}</a></div>`;
   } else {
-    const opt = x => `<option value="${esc(x.id)}"${x.id === pr.printer ? ' selected' : ''}${!x.online || x.busy ? ' disabled' : ''}>${esc(x.name)}${!x.online ? ' · ' + t('amp_offline') : x.busy ? ' · ' + t('amp_busy') : ''}</option>`;
+    const wake = x => !x.online && !!(x.pwr && x.pwr.wake);   // Stromschalter (#64): Senden schaltet ein und wartet auf Klipper
+    const opt = x => `<option value="${esc(x.id)}"${x.id === pr.printer ? ' selected' : ''}${(!x.online && !wake(x)) || x.busy ? ' disabled' : ''}>${esc(x.name)}${wake(x) ? ' · ' + t('amp_pwr_opt') : !x.online ? ' · ' + t('amp_offline') : x.busy ? ' · ' + t('amp_busy') : ''}</option>`;
     h += `<section class="card amp-card"><label class="fld"><span>${esc(t('amp_printer_lbl'))}</span><select class="in" id="pprn">${ps.map(opt).join('')}</select></label>`;
     if (p && ws.length) {
       const single = !p.slots.length || p.slots.every(s => s.single);
@@ -5805,7 +5808,7 @@ async function viewGcode() {
       if (g_ !== navGen) return;
       if (sh.length) h += `<div class="note warn-note amp-short">${sh.map(x => esc(t('pf_short', { slot: tf('pc_slot_n', x.slot), need: nf.format(x.need), left: nf.format(x.left), spool: x.spool }))).join('<br>')}</div>`;
     }
-    const can = p && p.online && !p.busy && !pr.busy && !pr.err;
+    const can = p && (p.online || wake(p)) && !p.busy && !pr.busy && !pr.err;
     // Bett vor dem Druck nivellieren (17.11.2026, Wunsch YvonneOliver Community #39): Anycubic LAN, seit 21.11.2026 auch Elegoo CC2 (p.lvl),
     // Wahl je Drucker wie in der Druckansicht (psd_level_<key>)
     if (p && (p.lvl || (p.agent && p.agent.backend === 'anycubic'))) {
@@ -7058,8 +7061,8 @@ const ampSpdBlock = (p, pid) => {
     <div class="amp-seg amp-spdseg${s.lv.length > 3 ? ' n4' : ''}" style="--n:${s.lv.length}" role="radiogroup" aria-label="${lbl}">${s.lv.map(k => `<button type="button" role="radio" aria-checked="${k === s.cur ? 'true' : 'false'}"${k === s.cur ? ' class="on"' : ''} data-ampspd="${esc(k)}" data-pid="${pid}">${esc(t('amp_spd_' + k))}</button>`).join('')}</div></div>`;
 };
 window.ampCtlBlock = (prov, p) => {
-  const c = p.ctl;
-  if (!c || !p.online || p.locked || (!(c.fans || []).length && !(c.lights || []).length && !c.speed)) return '';
+  const c = p.ctl || { fans: [], lights: [] }, pw = (p.pwr && p.pwr.devs) || [];
+  if (!p.online || p.locked || (!(c.fans || []).length && !(c.lights || []).length && !c.speed && !pw.length)) return '';
   const pid = esc(p.id);
   const fans = (c.fans || []).map(f => {
     const run = f.pct > 0;
@@ -7069,7 +7072,7 @@ window.ampCtlBlock = (prov, p) => {
   const lights = (c.lights || []).map(l => `<button type="button" class="amp-ct lt${l.on ? ' on' : ''}" role="switch" aria-checked="${l.on ? 'true' : 'false'}" data-amplight="${esc(l.id)}" data-on="${l.on ? 1 : 0}" data-pid="${pid}" aria-label="${esc(ampCtlName(l, true))}">
       <span class="amp-ct-t"><b>${esc(ampCtlName(l, true))}</b><small>${esc(l.on == null ? '–' : t(l.on ? 'amp_ctl_on' : 'amp_ctl_off'))}</small></span><span class="amp-ct-i amp-bulb">${I_BULB}</span></button>`);
   const tiles = fans.concat(lights);
-  return `<div class="amp-ctl">${ampSpdBlock(p, pid)}${tiles.length ? `<div class="amp-ctl-h">${esc(t('amp_ctl_h'))}</div><div class="amp-ct-g">${tiles.join('')}</div>` : ''}</div>`;
+  return `<div class="amp-ctl">${ampSpdBlock(p, pid)}${tiles.length ? `<div class="amp-ctl-h">${esc(t('amp_ctl_h'))}</div><div class="amp-ct-g">${tiles.join('')}</div>` : ''}${ampPwrTiles(p, pid)}</div>`;
 };
 const ampCtlOf = (pid, kind, id) => { for (const cn of (pv.data && pv.data.connections) || []) for (const p of cn.printers || []) if (String(p.id) === String(pid)) return (((p.ctl || {})[kind]) || []).find(x => String(x.id) === String(id)) || null; return null; };
 const ampCtlErr = (e, cmd) => toast(String((e && e.message) || '').split('\n')[0] === 'print_only' ? t(cmd === 'speed' ? 'amp_spd_print_only' : 'amp_ctl_print_only') : t('amp_ctl_err'));
@@ -7120,6 +7123,109 @@ document.addEventListener('click', e => {
     const sm = lb.querySelector('small'); if (sm) sm.textContent = t(on ? 'amp_ctl_on' : 'amp_ctl_off');
     ampCtlSend({ printer: lb.dataset.pid, cmd: 'light', id: lb.dataset.amplight, on });
   }
+});
+
+// ── Moonraker-Stromschalter (27.11.2026, Community #64 Burnie: Drucker an einer Steckdose, die Moonraker schaltet) ─────────────
+// backend.js entry.pwr {devs [{id, on, locked}], main, chosen, off_after, cool, wait_s, wake, off, arm}. Kacheln unter „Steuern“ (online),
+// Hinweis „Ausgeschaltet“ + „Einschalten“ in der Karte (offline), Dialog im ⋯ (Gerät des Druckers, „Nach dem Druck ausschalten“).
+// Senden an einen ausgeschalteten Drucker schaltet das Backend selbst ein (mrWake) und meldet das über das Ereignis amp-pwr.
+const I_POWER = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>';
+const ampPrOf = pid => ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid)) || null;
+const ampPwrName = id => String(id || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+/** Aus nur mit Rückfrage; während eines Drucks gesperrt fürs Gerät des Druckers (oder wenn keins feststeht) — wie mrPwrSet. */
+const ampPwrLock = (p, d) => !!(p.online && p.busy && d.on && (!p.pwr.main || d.id === p.pwr.main || d.locked));
+function ampPwrTiles(p, pid) {
+  const pw = p.pwr; if (!pw || !(pw.devs || []).length) return '';
+  const tiles = pw.devs.map(d => {
+    const main = d.id === pw.main, ro = ampPwrLock(p, d);
+    const sub = d.on == null ? '–' : main && d.on && pw.arm ? t('amp_pwr_arm_s', { t: pw.cool }) : t(d.on ? 'amp_ctl_on' : 'amp_ctl_off');
+    const nm = main ? t('amp_pwr_main') : ampPwrName(d.id);
+    return `<button type="button" class="amp-ct pw${d.on ? ' on' : ''}${ro ? ' ro' : ''}" role="switch" aria-checked="${d.on ? 'true' : 'false'}" data-amppwr="${esc(d.id)}" data-on="${d.on ? 1 : 0}" data-pid="${pid}" aria-label="${esc(nm)}">
+      <span class="amp-ct-t"><b>${esc(nm)}</b><small>${esc(sub)}</small></span><span class="amp-ct-i amp-pwr-i">${I_POWER}</span></button>`;
+  });
+  return `<div class="amp-ctl-h">${esc(t('amp_pwr_h'))}</div><div class="amp-ct-g">${tiles.join('')}</div>`;
+}
+async function ampPwrSend(pid, id, on) {
+  pv.busy = true;
+  let ok = true;
+  try { await api('printer_cmd', { printer: pid, cmd: 'power', id, on }); }
+  catch (e) { ok = false; toast(String((e && e.message) || '').split('\n')[0] === 'printer_busy' ? t('amp_pwr_busy') : t('amp_pwr_err')); }
+  finally { pv.busy = false; }
+  if (ok && on) toast(t('amp_pwr_on_toast'));
+  // Moonraker meldet den neuen Stand sofort; Klipper braucht nach dem Einschalten einige Sekunden → zweimal nachsehen
+  const re = async () => { try { await loadPrinters(false); if (!dlg.open && view.querySelector('.pcard')) drawPrinters(); else if (dlg.open && dlg.querySelector('.amp-pwrd')) ampPwrDlg(pid); } catch (e) {} };
+  setTimeout(re, 700); if (on) setTimeout(re, 12000);
+}
+/** Tippen auf Strom (Kachel, Karte, Dialog): an sofort, aus mit Rückfrage. */
+function ampPwrTap(b) {
+  const pid = b.dataset.pid, id = b.dataset.amppwr, p = ampPrOf(pid), d = p && p.pwr && p.pwr.devs.find(x => x.id === id);
+  if (!d) return;
+  if (ampPwrLock(p, d)) { toast(t('amp_pwr_busy')); return; }
+  const on = b.dataset.on !== '1';
+  if (!on && !confirm(t('amp_pwr_off_ask', { n: id === p.pwr.main ? p.name : ampPwrName(id) }))) return;
+  ampPwrSend(pid, id, on);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-amppwr]');
+  if (b) { e.preventDefault(); e.stopPropagation(); ampPwrTap(b); return; }
+  const m = e.target.closest && e.target.closest('[data-amppwrdlg]');
+  if (m) { const d = m.closest('details'); if (d) d.open = false; ampPwrDlg(m.dataset.amppwrdlg); }
+}, true);
+/** Karte offline: „Ausgeschaltet“ + Einschalten, sonst (an, Klipper nicht bereit) Ausschalten; mehrere Geräte ohne Wahl → Hinweis. */
+function ampPwrCard(card, p) {
+  const pw = p && p.pwr;
+  if (!pw || p.online || !(pw.devs || []).length) return;
+  const m = pw.main ? pw.devs.find(d => d.id === pw.main) : null, pid = esc(p.id);
+  const el = document.createElement('div');
+  el.className = 'note amp-pwrnote' + (pw.off ? ' off' : '');
+  if (m && m.on === false) {
+    el.innerHTML = `<span class="amp-pwrnote-i">${I_POWER}</span><span class="amp-pwrnote-t"><b>${esc(t('amp_pwr_st_off'))}</b><small>${esc(t('amp_pwr_off_note', { d: m.id }))}</small></span>
+      <button type="button" class="btn sm pri" data-amppwr="${esc(m.id)}" data-on="0" data-pid="${pid}">${esc(t('amp_pwr_on_btn'))}</button>`;
+    const st = card.querySelector(':scope > .pc-top .pstate');
+    if (st) st.lastChild.textContent = t('amp_pwr_st_off');
+  } else if (m) {
+    el.innerHTML = `<span class="amp-pwrnote-i">${I_POWER}</span><span class="amp-pwrnote-t"><small>${esc(t('amp_pwr_on_row', { d: m.id }))}</small></span>
+      <button type="button" class="btn sm" data-amppwr="${esc(m.id)}" data-on="1" data-pid="${pid}">${esc(t('amp_pwr_off_btn'))}</button>`;
+  } else el.innerHTML = `<span class="amp-pwrnote-i">${I_POWER}</span><span class="amp-pwrnote-t"><small>${esc(t('amp_pwr_several'))}</small></span>
+      <button type="button" class="btn sm" data-amppwrdlg="${pid}">${esc(t('amp_pwr_menu'))}</button>`;
+  const at = card.querySelector(':scope > .pc-live') || card.querySelector(':scope > .pc-top');
+  if (at) at.after(el);
+}
+/** ⋯ → Stromschalter: Geräte schalten, welches den Drucker versorgt, „Nach dem Druck ausschalten“. Speichert sofort. */
+function ampPwrDlg(pid) {
+  const p = ampPrOf(pid); if (!p || !p.pwr) return;
+  const pw = p.pwr, one = pw.devs.length === 1 ? pw.devs[0].id : null, cur = pw.chosen ? (pw.main || '') : 'auto';
+  const opt = (v, l) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`;
+  dlg.innerHTML = `<form method="dialog" class="amp-pf amp-pwrd"><div class="dlg-h"><b>${esc(t('amp_pwr_menu'))}<small class="amp-pf-sub">${esc(p.name)}</small></b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
+    <div class="dlg-b"><p class="hint">${esc(t('amp_pwr_dlg_p', { s: pw.wait_s }))}</p>
+      <ul class="amp-pf-l">${pw.devs.map(d => `<li class="amp-pf-r amp-pwr-r${d.on ? ' on' : ''}"><span class="amp-pwr-i">${I_POWER}</span>
+        <span class="amp-pf-t"><b>${esc(d.id)}${d.id === pw.main ? ` <small class="amp-pwr-tag">${esc(t('amp_pwr_main'))}</small>` : ''}</b><small>${esc(d.on == null ? '–' : t(d.on ? 'amp_ctl_on' : 'amp_ctl_off'))}</small></span>
+        <button type="button" class="btn sm${d.on ? '' : ' pri'}" data-amppwr="${esc(d.id)}" data-on="${d.on ? 1 : 0}" data-pid="${esc(p.id)}"${ampPwrLock(p, d) ? ' disabled' : ''}>${esc(t(d.on ? 'amp_pwr_off_btn' : 'amp_pwr_on_btn'))}</button></li>`).join('')}</ul>
+      <label class="fld amp-pwr-fld"><span>${esc(t('amp_pwr_dev_lbl'))}</span><select class="in" id="amppwrdev">${opt('auto', one ? t('amp_pwr_auto', { d: one }) : t('amp_pwr_auto_none'))}${opt('', t('amp_pwr_none'))}${pw.devs.map(d => opt(d.id, d.id)).join('')}</select></label>
+      <label class="chk row amp-pwr-chk"><input type="checkbox" id="amppwroff"${pw.off_after ? ' checked' : ''}${pw.main ? '' : ' disabled'}> ${esc(t('amp_pwr_offafter'))}</label>
+      <p class="hint">${esc(pw.main ? t('amp_pwr_offafter_p', { t: pw.cool }) : t('amp_pwr_offafter_need'))}</p></div>
+    <div class="dlg-f"><button type="button" class="btn" data-x>${esc(t('close'))}</button></div></form>`;
+  dlg.querySelectorAll('[data-x]').forEach(b => b.onclick = () => dlg.close());
+  const save = async body => {
+    try { await api('printer_pwr', Object.assign({ printer: p.id }, body)); toast(t('saved')); }
+    catch (e) { toast(t('err_generic')); }
+    try { await loadPrinters(false); } catch (e) {}
+    if (dlg.open && dlg.querySelector('.amp-pwrd')) ampPwrDlg(pid);
+  };
+  dlg.querySelector('#amppwrdev').onchange = e => save({ dev: e.target.value === 'auto' ? null : e.target.value });
+  dlg.querySelector('#amppwroff').onchange = e => save({ off_after: e.target.checked });
+  if (!dlg.open) dlg.showModal();
+}
+// Senden an einen ausgeschalteten Drucker: backend.js mrWake schaltet ein und wartet auf Klipper (bis zu 90 s)
+document.addEventListener('amp-pwr', e => {
+  const d = e.detail || {};
+  if (d.phase === 'on') toast(t('amp_pwr_toast_on', { p: d.name || '' }));
+  const tx = document.getElementById('pptxt');
+  if (tx && d.phase === 'wait') tx.textContent = t('amp_pwr_wait');
+  if (tx && d.phase === 'ready') tx.textContent = t('amp_starting');
+  // „Dateien am Drucker“ → Starten: Zeile mit Drehkreis zeigt das Warten
+  const pm = d.phase === 'wait' && dlg.open && [...dlg.querySelectorAll('.amp-pf .amp-pf-msg:not([hidden])')].find(m => m.querySelector('.amp-spin'));
+  if (pm) pm.innerHTML = spin(t('amp_pwr_wait'));
 });
 
 // ── Was braucht mein Drucker? ──────────────────────────────────────────────
@@ -7289,10 +7395,12 @@ window.ampProfInit = (box, after) => {
     try { list = (await api('amp_profiles', {})).profiles; } catch (e) {}
     host.innerHTML = `<div class="amp-pf-row"><select class="in" id="amppfsel" aria-label="${esc(t('amp_pf_choose'))}"><option value="">${esc(t('amp_pf_choose'))}</option>
         ${list.map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
-        <button type="button" class="btn sm" id="amppfsave">${esc(t('amp_pf_save'))}</button><button type="button" class="btn sm" id="amppfimp">${esc(t('amp_pf_import'))}</button></div>
+        <details class="smenu amp-pfmenu" id="amppfmenu"><summary class="icon-btn" title="${esc(t('pr_more'))}" aria-label="${esc(t('pr_more'))}">${I_DOTS}</summary><div class="smenu-l">
+          <button type="button" id="amppfsave">${esc(t('amp_pf_save'))}</button><button type="button" id="amppfimp">${esc(t('amp_pf_import'))}</button>
+          ${sel ? `<button type="button" class="bad" id="amppfdel">${esc(t('amp_pf_delete'))}</button>` : ''}<p class="hint">${esc(t('amp_pf_hint'))}</p></div></details></div>
       <div class="amp-pf-row" id="amppfnamef" hidden><input class="in" id="amppfname" maxlength="40" enterkeyhint="done" placeholder="${esc(t('amp_pf_name'))}"><button type="button" class="btn sm pri" id="amppfok">${esc(t('amp_pf_ok'))}</button></div>
-      ${sel ? `<button type="button" class="linkbtn amp-pf-del" id="amppfdel">${esc(t('amp_pf_delete'))}</button>` : ''}
-      <div id="amppfmsg" class="amp-pf-msg">${msg || `<p class="hint">${esc(t('amp_pf_hint'))}</p>`}</div>`;
+      <div id="amppfmsg" class="amp-pf-msg">${msg || ''}</div>`;
+    { const mn = host.querySelector('#amppfmenu'); mn.addEventListener('click', e => { if (e.target.closest('button')) mn.open = false; }); }
     const s = host.querySelector('#amppfsel');
     s.onchange = () => { const p = list.find(x => x.id === +s.value); if (p) { apply(p.vals); draw(p.id, `<p class="hint">${esc(t('amp_pf_applied', { n: p.name }))}</p>`); } else draw(0); };
     host.querySelector('#amppfsave').onclick = () => {
@@ -7639,11 +7747,12 @@ window.ampLibUp = async (u, d, box, done) => {
   try {
     const thumb = /\.stl$/i.test(u.file.name) ? await ampStlThumb(u.file).catch(() => null) : null;
     token = await ampStash(u.file, setPct);
-    r = await api('lib_upload', { token, name: u.file.name, size: u.file.size, folder: u.folder || '', thumb });
+    r = await api('lib_upload', { token, name: u.file.name, size: u.file.size, folder: u.folder || '', thumb, ...(u.parent ? { parent: u.parent } : {}) });
   } catch (e) { r = { error: 'lib_upload' }; }
   finally { if (token) AMP.native('fileDrop', { token }).catch(() => {}); }
   if (r && r.ok && r.file) {
     u.state = 'ok'; d.files.unshift(r.file); d.used = r.used;
+    if (u.parent && lb.cur === u.parent && window.ampLibFilesDraw) window.ampLibFilesDraw();   // Datei ins offene Modell (27.11.2026)
     if (u.zipGo && lb.zipGo === u.zipGo) {   // erstes Teil einer einzelnen ZIP da → ihren Ordner zeigen
       const ff = r.file.folder || ''; lb.folder = ff === u.zipGo || ff.startsWith(u.zipGo + '/') ? u.zipGo : ff; lb.view = 'all'; pref('lib_f', lb.folder); lb.zipGo = null;
     }
@@ -7894,7 +8003,7 @@ const I_LBGRID = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" st
 const I_HIST = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>';
 
 function drawLib() {
-  const d = lb.d, files = d.files, y = window.scrollY;
+  const d = lb.d, files = d.files.filter(f => !f.parent), y = window.scrollY;   // Dateien eines Modells nur im Modell (27.11.2026)
   if (lb.want) { lb.view = 'want'; lb.want = false; }   // Sprung „Gemerkt“ aus der Modellsuche (ampLbJump → viewLib)
   if (!LB_LISTV.includes(lb.view)) lb.view = 'all';
   if (lb.folder === '' ? !files.some(f => !f.folder) : lb.folder !== '*' && !files.some(f => lbInF(f, lb.folder))) lb.folder = '*';
@@ -7912,7 +8021,7 @@ function drawLib() {
   scope.forEach(f => (f.tags || []).forEach(x => { const k = x.toLowerCase(); (tags[k] = tags[k] || { tg: x, n: 0 }).n++; }));
   if (lb.tag && !tags[lb.tag.toLowerCase()]) lb.tag = null;
   const list = scope.filter(f => (!lb.tag || lbHasTag(f, lb.tag)) && (!fitP || lbFitOf(f, fitP.bed) === true) && (!lb.types.size || lb.types.has(lbTypeOf(f)))
-    && (!q || [f.name, f.folder, (f.tags || []).join(' '), f.notes, f.orig].join(' ').toLowerCase().includes(q)));
+    && (!q || [f.name, f.folder, (f.tags || []).join(' '), f.notes, f.orig, ...d.files.filter(x => x.parent === f.id).map(x => x.name + ' ' + x.orig)].join(' ').toLowerCase().includes(q)));
   const byName = (a, b) => lbCmp(a.name, b.name);
   list.sort(lb.view === 'recent' ? (a, b) => tsv(b.printed) - tsv(a.printed) || b.id - a.id
     : { new: (a, b) => b.id - a.id, name: byName, size: (a, b) => b.size - a.size, printed: (a, b) => tsv(b.printed) - tsv(a.printed) || b.id - a.id }[lb.sort]);
@@ -8028,7 +8137,8 @@ function lbCard(f) {
   const bw = [f.gone ? t('amp_lib_gone') : '', miss ? t('amp_plate_missing_n', { n: miss }) : ''].filter(Boolean);
   const bdg = [...bw, f.plate ? t('amp_plate_badge') : '', !f.plate && np > 1 ? t('lib_plates_n', { n: np }) : '', f.multi ? t('amp_lv_multi') : ''].filter(Boolean).slice(0, lbTypeOf(f) ? 1 : 2);
   const dims = f.plate ? null : lbDimsOf(f)[0];
-  const meta = f.plate ? t('amp_plate_parts', { n: f.parts.length }) : [f.ext.toUpperCase(), dims ? lbDimTxt(dims) : fsize(f.size), f.gcode && f.gcode.printer ? f.gcode.printer : ''].filter(Boolean).join(' · ');
+  const nkids = f.plate ? 0 : ((lb.d && lb.d.files) || []).filter(x => x.parent === f.id).length;
+  const meta = f.plate ? t('amp_plate_parts', { n: f.parts.length }) : [f.ext.toUpperCase(), dims ? lbDimTxt(dims) : fsize(f.size), f.gcode && f.gcode.printer ? f.gcode.printer : '', nkids ? t('amp_lib_files_n', { n: nkids + 1 }) : ''].filter(Boolean).join(' · ');
   const dots = (f.last && f.last.cols) || [];
   // Ordner nur zeigen, wenn die Karte nicht ohnehin in diesem Ordner liegt
   const fo = f.folder && f.folder !== lb.folder ? (lb.folder !== '*' && lb.folder && f.folder.startsWith(lb.folder + '/') ? f.folder.slice(lb.folder.length + 1) : f.folder) : '';
@@ -8504,7 +8614,7 @@ function libOpen(f) {
   ].filter(Boolean).join('');
   const ph = f.photo ? `<img src="api.php?a=lib_thumb&amp;id=${f.id}&amp;n=0&amp;v=${f.v}" alt="">` : '';
   dlg.innerHTML = `<form method="dialog" class="lbf" id="lbf"><div class="dlg-h"><b id="lbname">${esc(f.name)}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
-    <div class="dlg-b">${pv}${facts ? `<div class="amp-lbfacts">${facts}</div>` : ''}
+    <div class="dlg-b">${f.parent ? ampLibPartOfHtml(f) : ''}${pv}${facts ? `<div class="amp-lbfacts">${facts}</div>` : ''}
       <div class="lbmeta"><label class="fld"><span>${esc(t('lib_name'))}</span><input class="in" data-k="name" maxlength="120" value="${esc(f.name)}" autocomplete="off"></label>
         <label class="fld"><span>${esc(t('lib_folder'))}</span><input class="in" data-k="folder" list="lbfl" maxlength="160" value="${esc(f.folder || '')}" placeholder="${esc(t('amp_lib_folder_ph'))}" autocomplete="off"></label></div>
       <p class="hint lbfhint">${esc(t('amp_lib_folder_hint'))}</p>
@@ -8513,6 +8623,7 @@ function libOpen(f) {
       <div class="amp-lbsave"><button type="button" class="btn" id="lbsave" disabled><span>${esc(t('save'))}</span></button></div>
       <datalist id="lbfl">${lbPaths(lb.d.files).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <datalist id="lbtl">${lbAllTags(lb.d.files).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      ${f.want || f.plate || f.parent ? '' : '<section class="amp-lbsec amp-lbfiles" id="amplbfiles"></section>'}
       ${f.want ? `<p class="hint">${esc(t('amp_want_since', { d: date(f.created) }))}</p>` : f.plate ? `<p class="hint">${esc([t('amp_plate_parts', { n: f.parts.length }), t('lib_added', { d: date(f.created) }), f.printed ? t('lib_printed_at', { d: date(f.printed) }) : ''].filter(Boolean).join(' · '))}</p>` : `<p class="hint">${esc([f.orig, fsize(f.size), t('lib_added', { d: date(f.created) }), f.printed ? t('lib_printed_at', { d: date(f.printed) }) : '', ampLibWhereTxt(f)].filter(Boolean).join(' · '))}</p>${ampRemoteLine(f)}`}
       ${f.want ? '' : `<section class="amp-lbsec"><h3>${esc(t('amp_lib_photo'))}</h3><div class="amp-lbphoto">${ph ? `<span class="amp-lbph">${ph}</span>` : ''}<div>
         <p class="hint">${esc(t(f.photo ? 'amp_lib_photo_on' : 'amp_lib_photo_hint'))}</p>
@@ -8586,11 +8697,15 @@ function libOpen(f) {
     const b = e.currentTarget;
     if (!b.dataset.sure) { b.dataset.sure = '1'; b.classList.add('danger'); b.querySelector('span').textContent = t('lib_delete_sure'); return; }   // zweiter Klick löscht
     try {
-      const r = await api('lib_delete', { id: f.id });
-      lb.d.files = lb.d.files.filter(x => x.id !== f.id); lb.d.used = r.used;
+      const kids = lb.d.files.filter(x => x.parent === f.id);
+      const withKids = kids.length ? confirm(t('amp_lib_del_parts_q', { n: kids.length })) : false;
+      const r = await api('lib_delete', { id: f.id, ...(kids.length ? { parts: withKids ? 'del' : 'keep' } : {}) });
+      lb.d.files = lb.d.files.filter(x => x.id !== f.id && !(withKids && kids.includes(x))); lb.d.used = r.used;
+      if (!withKids) kids.forEach(x => { x.parent = null; });
       lb.save = null; dlg.close(); toast(t('deleted')); drawLib();
     } catch (er) { fail(er); }
   };
+  if (window.ampLibFilesBind) window.ampLibFilesBind(f);   // Modell mit mehreren Dateien (27.11.2026)
   // Foto vom Druck: verkleinert (längste Seite 1280 px, JPEG) als Bild Nr. 0
   const phIn = $('#amplbph');
   if (phIn) phIn.onchange = async () => {
@@ -9678,6 +9793,11 @@ function ampPrTidy() {
   ampStandHead();
   const pc = ampPcMode();
   view.dataset.amppc = pc ? '1' : '0';
+  // Zugeklappt: „Ausgeschaltet“ statt „Offline“, wenn der Stromschalter des Druckers aus ist (#64)
+  view.querySelectorAll(':scope > .pcard.pmini[data-fold^="moonraker:"]').forEach(card => {
+    const p = ampPrOf(card.dataset.fold.slice(10)), st = card.querySelector('.pstate');
+    if (p && p.pwr && p.pwr.off && st && st.lastChild) st.lastChild.textContent = t('amp_pwr_st_off');
+  });
   view.querySelectorAll(':scope > .pcard:not(.pmini):not(.locked)').forEach(card => {
     const any = card.querySelector('[data-pid]'), pid = any ? any.dataset.pid : '';
     if (!pid) return;
@@ -9726,6 +9846,7 @@ function ampPrTidy() {
       if (boxes) pan.append(boxes);
       (acts.childElementCount ? acts : last).after(pan);
     }
+    ampPwrCard(card, ampPrOf(pid));   // Stromschalter (#64): zuletzt, damit der Hinweis direkt unter dem Kopf über „Drucken“ steht
   });
   ampPrLastFill();
   ampPrExtras();
@@ -9766,12 +9887,22 @@ function ampPrMenu(card, pid) {
     const v = document.createElement('button'); v.type = 'button'; v.dataset.amptl = pid; v.textContent = t('amp_tl_menu');
     const rm = l.querySelector('.bad'); if (rm) { rm.before(f); rm.before(v); } else l.append(f, v);
   }
+  // Filament entladen je Kopf (Snapmaker U1, 27.11.2026) — vor „Entfernen“
+  if (pr && pr.unload) {
+    const u = document.createElement('button'); u.type = 'button'; u.dataset.ampunl = pid; u.textContent = t('amp_unl_menu');
+    const rm = l.querySelector('.bad'); if (rm) rm.before(u); else l.append(u);
+  }
+  // Stromschalter (Moonraker [power …], 27.11.2026, #64) — vor „Entfernen“
+  if (pr && pr.pwr && (pr.pwr.devs || []).length) {
+    const w = document.createElement('button'); w.type = 'button'; w.dataset.amppwrdlg = pid; w.textContent = t('amp_pwr_menu');
+    const rm = l.querySelector('.bad'); if (rm) rm.before(w); else l.append(w);
+  }
   top.append(d);
 }
 /** Infozeile: „Lüfter & Licht · aus“ bzw. was läuft (Luftfilter 60 %, Licht an) — Antippen öffnet Steuern. */
 function ampPrInfo(card, ctl, pid) {
   const live = card.querySelector(':scope > .pc-live'); if (!live) return;
-  const on = [...ctl.querySelectorAll('.amp-ct.on')].map(b => { const n = (b.querySelector('.amp-ct-t b') || {}).textContent || '', v = (b.querySelector('.amp-ct-t small') || {}).textContent || ''; return `${n} ${v}`.trim(); }).filter(Boolean);
+  const on = [...ctl.querySelectorAll('.amp-ct.on:not(.pw)')].map(b => { const n = (b.querySelector('.amp-ct-t b') || {}).textContent || '', v = (b.querySelector('.amp-ct-t small') || {}).textContent || ''; return `${n} ${v}`.trim(); }).filter(Boolean);
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'tchip amp-ctlchip'; b.dataset.ampsteer = pid; b.setAttribute('aria-expanded', String(ampSteer.has(pid)));
   b.innerHTML = `<small>${esc(t('amp_info_ctl'))}</small><b>${esc(on.length ? on.join(' · ') : t('amp_info_off'))}</b>`;
@@ -10011,12 +10142,25 @@ async function ampPfDlg(pid) {
   try { r = await api('print_pfiles', { printer: pid }); }
   catch (er) { box.innerHTML = `<p class="hint bad">${esc(er.message === 'offline' ? t('amp_dpf_offline') : t('amp_dpf_err'))}</p>`; return; }
   if (!r.files.length) { box.innerHTML = `<p class="hint">${esc(t('amp_dpf_empty'))}</p>`; return; }
-  box.innerHTML = (r.busy ? `<p class="amp-pf-busy">${esc(t('amp_dpf_busy'))}</p>` : '') + `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r" data-i="${i}">
+  const pfDisk = dk => dk ? `<p class="hint amp-disk" id="amppfdisk">${esc(t('amp_disk', { f: fsize(dk.free), t: fsize(dk.total) }))}</p>` : '';
+  box.innerHTML = pfDisk(r.disk) + (r.busy ? `<p class="amp-pf-busy">${esc(t('amp_dpf_busy'))}</p>` : '') + `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r" data-i="${i}">
       <span class="amp-pf-img">${f.img ? `<img src="${esc(f.img)}" alt="" loading="lazy">` : I_PRINT_S}</span>
       <span class="amp-pf-t"><b>${esc(ampPfTitle(f.name))}</b><small>${[f.time ? hm(f.time) : '', f.g ? nf.format(f.g) + ' g' : '', f.colors > 1 ? t('amp_dpf_colors', { n: f.colors }) : '', f.modified ? ago(ampPfDate(f.modified)) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>
-      <button type="button" class="btn sm pri" data-pfgo="${i}"${r.busy ? ' disabled' : ''}>${esc(t('amp_dpf_start'))}</button>
+      <span class="amp-tl-b"><button type="button" class="btn sm ghost amp-fdel" data-pfdel="${i}" aria-label="${esc(t('amp_fdel'))}" title="${esc(t('amp_fdel'))}">${I_TRASH}</button><button type="button" class="btn sm pri" data-pfgo="${i}"${r.busy ? ' disabled' : ''}>${esc(t('amp_dpf_start'))}</button></span>
       <div class="amp-pf-msg" hidden></div></li>`).join('')}</ul>` + (r.total > r.files.length ? `<p class="hint">${esc(t('amp_dpf_more', { n: r.files.length }))}</p>` : '');
   box.onclick = async e => {
+    const dd = e.target.closest('[data-pfdel]');
+    if (dd) {   // Löschen (27.11.2026): erster Tipp fragt, zweiter löscht; die Datei im laufenden Druck lehnt das Backend ab
+      const f = r.files[+dd.dataset.pfdel], row = dd.closest('.amp-pf-r'), msg = row.querySelector('.amp-pf-msg');
+      if (!dd.dataset.sure) { dd.dataset.sure = '1'; dd.classList.add('danger'); dd.textContent = t('amp_fdel_sure'); return; }
+      dd.disabled = true;
+      try {
+        const x = await api('print_pfile_del', { printer: pid, path: f.path });
+        row.remove(); toast(t('amp_fdel_done'));
+        const dk = box.querySelector('#amppfdisk'); if (x && x.disk) { if (dk) dk.outerHTML = pfDisk(x.disk); else box.insertAdjacentHTML('afterbegin', pfDisk(x.disk)); }
+      } catch (er) { dd.disabled = false; msg.hidden = false; msg.innerHTML = `<span class="bad">${esc(er.message === 'printer_busy' ? t('amp_fdel_busy') : t('amp_fdel_err', { e: er.message || '' }))}</span>`; }
+      return;
+    }
     const b = e.target.closest('[data-pfgo]'); if (!b) return;
     const f = r.files[+b.dataset.pfgo], row = b.closest('.amp-pf-r'), msg = row.querySelector('.amp-pf-msg');
     box.querySelectorAll('[data-pfgo]').forEach(x => { x.disabled = true; });
@@ -10033,7 +10177,7 @@ async function ampPfDlg(pid) {
       if (location.hash === '#printers' || location.hash === '') viewPrinters(); else location.hash = 'printers';
     } catch (er) {
       const m = er.message || '';
-      msg.innerHTML = `<span class="bad">${esc(m === 'printer_busy' ? t('amp_dpf_busy') : m === 'offline' ? t('amp_dpf_offline') : t('amp_dpf_start_err', { e: m }))}</span>`;
+      msg.innerHTML = `<span class="bad">${esc(m === 'printer_busy' ? t('amp_dpf_busy') : m === 'offline' ? t('amp_dpf_offline') : m === 'power_timeout' ? t('amp_send_power_timeout') : t('amp_dpf_start_err', { e: m }))}</span>`;
       box.querySelectorAll('[data-pfgo]').forEach(y => { y.disabled = !!r.busy; });
     }
   };
@@ -10066,10 +10210,11 @@ async function ampTlDlg(pid) {
   catch (er) { box.innerHTML = `<p class="hint bad">${esc(er.message === 'offline' ? t('amp_dpf_offline') : t('amp_tl_err'))}</p>`; return; }
   if (!r.root) { box.innerHTML = `<p class="hint">${esc(t('amp_tl_none'))}</p>`; return; }
   if (!r.files.length) { box.innerHTML = `<p class="hint">${esc(t('amp_tl_empty'))}</p>` + (r.u1 ? `<p class="hint">${esc(t('amp_tl_u1hint'))}</p>` : ''); return; }
-  box.innerHTML = `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r amp-tl-r" data-i="${i}">
+  const diskTxt = dk => dk ? `<p class="hint amp-disk" id="amptldisk">${esc(t('amp_disk', { f: fsize(dk.free), t: fsize(dk.total) }))}</p>` : '';
+  box.innerHTML = diskTxt(r.disk) + `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r amp-tl-r" data-i="${i}">
       <button type="button" class="amp-pf-img amp-tl-img" data-tlplay="${i}" aria-label="${esc(t('amp_tl_play'))}">${f.img ? `<img src="${esc(ampTlSrc(f.img))}" alt="" loading="lazy">` : I_TL}</button>
       <span class="amp-pf-t"><b>${esc(ampTlTitle(f.name))}</b><small>${[f.modified ? ago(ampPfDate(f.modified)) : '', ampTlSize(f.size)].filter(Boolean).map(esc).join(' · ')}</small></span>
-      <span class="amp-tl-b"><button type="button" class="btn sm" data-tlsave="${i}">${esc(t('amp_tl_save'))}</button><button type="button" class="btn sm pri" data-tlplay="${i}">${esc(t('amp_tl_play'))}</button></span>
+      <span class="amp-tl-b"><button type="button" class="btn sm ghost amp-fdel" data-tldel="${i}" aria-label="${esc(t('amp_fdel'))}" title="${esc(t('amp_fdel'))}">${I_TRASH}</button><button type="button" class="btn sm" data-tlsave="${i}">${esc(t('amp_tl_save'))}</button><button type="button" class="btn sm pri" data-tlplay="${i}">${esc(t('amp_tl_play'))}</button></span>
       <div class="amp-pf-msg" hidden></div></li>`).join('')}</ul>` + (r.total > r.files.length ? `<p class="hint">${esc(t('amp_tl_more', { n: r.files.length }))}</p>` : '');
   const play = i => {
     const f = r.files[i]; stop();
@@ -10096,7 +10241,21 @@ async function ampTlDlg(pid) {
     }
     all.forEach(x => { x.disabled = false; });
   };
+  const del = async b => {
+    const i = +b.dataset.tldel, f = r.files[i], row = b.closest('.amp-tl-r'), msg = row.querySelector('.amp-pf-msg');
+    if (!b.dataset.sure) { b.dataset.sure = '1'; b.classList.add('danger'); b.textContent = t('amp_fdel_sure'); return; }
+    b.disabled = true;
+    try {
+      const x = await api('amp_cam_tl_del', { printer: pid, root: r.root, path: f.path });
+      if (pl.querySelector('video') && pl.querySelector('video').getAttribute('src') === ampTlSrc(f.src)) { stop(); pl.hidden = true; pl.innerHTML = ''; }
+      row.remove(); f.gone = true;
+      const dk = box.querySelector('#amptldisk'); if (x && x.disk) { if (dk) dk.outerHTML = diskTxt(x.disk); else box.insertAdjacentHTML('afterbegin', diskTxt(x.disk)); }
+      if (!box.querySelector('.amp-tl-r')) box.querySelector('.amp-pf-l').outerHTML = `<p class="hint">${esc(t('amp_tl_empty'))}</p>`;
+      toast(t('amp_fdel_done'));
+    } catch (er) { b.disabled = false; msg.hidden = false; msg.innerHTML = `<span class="bad">${esc(t('amp_fdel_err', { e: er.message || '' }))}</span>`; }
+  };
   dlg.querySelector('.amp-tl').onclick = e => {
+    const dd = e.target.closest('[data-tldel]'); if (dd) { del(dd); return; }
     const p = e.target.closest('[data-tlplay]'); if (p) { play(+p.dataset.tlplay); return; }
     const s = e.target.closest('[data-tlsave]'); if (s) save(+s.dataset.tlsave, s);
   };
@@ -10106,11 +10265,320 @@ document.addEventListener('click', e => {
   const d = b.closest('details'); if (d) d.open = false;
   ampTlDlg(b.dataset.amptl);
 });
+
+// ── Filament entladen je Kopf (27.11.2026, Snapmaker U1; User: „auswählbar pro Kopf muss das sein“). backend printer_feed (Köpfe + Stand,
+// alle 2 s solange offen) / printer_cmd unload {head}. Erster Tipp fragt nach, zweiter startet; während eines Drucks oder solange ein Kopf
+// entlädt, sind alle Knöpfe gesperrt. Laden gibt es bewusst nicht: der U1 zieht Filament selbst ein, sobald es im Einzug steckt.
+const AMP_UNL_RUN = ['start', 'prep', 'heat', 'pull'];
+async function ampUnlDlg(pid) {
+  const pr = ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid)) || {};
+  dlg.innerHTML = `<form method="dialog" class="amp-pf amp-unl"><div class="dlg-h"><b>${esc(t('amp_unl_h'))}${pr.name ? `<small class="amp-pf-sub">${esc(pr.name)}</small>` : ''}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
+    <div class="dlg-b"><p class="hint">${esc(t('amp_unl_hint'))}</p><div id="ampunll">${spin(t('amp_unl_load'))}</div></div></form>`;
+  const form = dlg.querySelector('.amp-unl');
+  let r = null, sure = null, sureAt = 0, msg = {}, tm = 0, sending = false;
+  const stop = () => { clearTimeout(tm); tm = 0; };
+  dlg.querySelector('[data-x]').onclick = () => { stop(); dlg.close(); };
+  dlg.addEventListener('close', stop, { once: true });
+  if (!dlg.open) dlg.showModal();
+  const box = document.getElementById('ampunll');
+  const stTxt = h => h.state === 'start' ? t('amp_unl_start') : h.state === 'prep' ? t('amp_unl_prep') : h.state === 'heat' ? t('amp_unl_heat') : h.state === 'pull' ? t('amp_unl_pull')
+    : h.state === 'done' ? t('amp_unl_done') : h.state === 'fail' ? t('amp_unl_fail', { e: h.err || '?' }) : h.state === 'noresp' ? t('amp_unl_noresp') : '';
+  const draw = () => {
+    if (!r) return;
+    const run = r.heads.some(h => AMP_UNL_RUN.includes(h.state)), off = r.busy || run || sending;
+    if (sure !== null && Date.now() - sureAt > 8000) sure = null;   // Nachfrage verfällt
+    box.innerHTML = (r.busy ? `<p class="amp-pf-busy">${esc(t('amp_unl_busy'))}</p>` : '') + `<ul class="amp-pf-l">${r.heads.map(h => {
+      const s = stTxt(h), cls = h.state === 'done' ? 'ok-t' : h.state === 'fail' ? 'bad' : h.state === 'noresp' ? 'warn-t' : '';
+      const sub = [h.filled ? h.material || '' : t('amp_unl_empty')].filter(Boolean).map(esc).join(' · ');
+      return `<li class="amp-pf-r amp-unl-r${AMP_UNL_RUN.includes(h.state) ? ' on' : ''}" data-i="${h.i}">
+        <span class="amp-unl-dot${h.filled && h.color ? '' : ' none'}"${h.filled && h.color ? ` style="background:${esc(h.color)}"` : ''}></span>
+        <span class="amp-pf-t"><b>${esc(t('amp_unl_head', { n: h.label }))}</b><small>${sub}</small>${s ? `<small class="amp-unl-st ${cls}">${AMP_UNL_RUN.includes(h.state) ? '<span class="amp-spin" aria-hidden="true"></span>' : ''}${esc(s)}</small>` : ''}</span>
+        <span class="amp-tl-b"><button type="button" class="btn sm ${sure === h.i ? 'danger-fill' : 'pri'}" data-unl="${h.i}"${off ? ' disabled' : ''}>${esc(sure === h.i ? t('amp_unl_sure') : t('amp_unl_go'))}</button></span>
+        ${msg[h.i] ? `<div class="amp-pf-msg"><span class="bad">${esc(msg[h.i])}</span></div>` : sure === h.i ? `<div class="amp-pf-msg"><span class="hint">${esc(t('amp_unl_sure_p', { n: h.label }))}</span></div>` : ''}</li>`;
+    }).join('')}</ul>`;
+  };
+  const poll = async () => {
+    tm = 0;
+    if (!dlg.open || !form.isConnected) return;
+    try { r = await api('printer_feed', { printer: pid }); draw(); }
+    catch (er) { if (!r) { box.innerHTML = `<p class="hint bad">${esc(er.message === 'offline' ? t('amp_dpf_offline') : t('amp_unl_err_load'))}</p>`; return; } }
+    if (dlg.open && form.isConnected) tm = setTimeout(poll, 2000);
+  };
+  box.onclick = async e => {
+    const b = e.target.closest('[data-unl]'); if (!b || b.disabled) return;
+    const i = +b.dataset.unl; msg = {};
+    if (sure !== i) { sure = i; sureAt = Date.now(); draw(); return; }
+    sure = null; sending = true; draw();
+    try {
+      await api('printer_cmd', { printer: pid, cmd: 'unload', head: i });   // {ok:false} = Klipper lehnt ab → steht als „fehlgeschlagen“ beim Kopf (printer_feed)
+    } catch (er) {
+      const m = er.message || '';
+      msg[i] = m === 'printer_busy' ? t('amp_unl_busy') : m === 'unload_running' ? t('amp_unl_running') : m === 'offline' ? t('amp_dpf_offline') : t('amp_unl_fail', { e: m });
+    }
+    sending = false;
+    stop(); poll();
+  };
+  poll();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-ampunl]'); if (!b) return;
+  const d = b.closest('details'); if (d) d.open = false;
+  ampUnlDlg(b.dataset.ampunl);
+});
 // Zweite Farbe beim manuellen Anlegen einer Spule (Community #56): Feld im Formular (build_web.py, Spulen-Dialog), Häkchen schaltet die Farbe frei
 window.ampColor2 = s => {
   const c2 = s && !s.fm_filament_id && s.colors && s.colors.length > 1 ? s.colors[1] : '';
   return `<label class="fld amp-c2"><span>${esc(t('amp_color2'))}</span><span class="amp-c2w"><input type="checkbox" name="color2_on" value="1"${c2 ? ' checked' : ''} aria-label="${esc(t('amp_color2'))}"
     onchange="this.nextElementSibling.disabled=!this.checked"><input class="in" name="color2" type="color" value="${esc(c2 || '#ffffff')}" style="padding:4px"${c2 ? '' : ' disabled'}></span></label>`;
+};
+
+// ── Experten-Einstellungen neu angeordnet (27.11.2026, User: „besser anordnen, intuitiver machen, aktuell sehr unübersichtlich“ →
+// Leinwand FEwxAgkDBgEtk7WxMBVYgf, „Variante A ist gut“). Nur App/Agent — /filament auf 3DSEARCH bleibt unverändert. Die Felder sind
+// dieselben (name="x_<key>", #pnozzle, #px_orient, #px_rot): renderX/pxCount/pxSave/Profile/Absenden laufen wie bisher. Hier wird nur
+// umgestellt: Gruppen zum Aufklappen mit Zusammenfassung, Zeile „Für diesen Druck geändert“ mit ×, Schnellwahl für Schichthöhe und
+// Füllung, ± für Wände/Schichten, Seltenes unter „Feinheiten“. Aufruf: ampXTidy einmal nach dem Bau (build_web-Patch), ampXSum aus pxCount.
+const AMP_XG = [
+  ['quality', '<path d="M4 7h16M4 12h16M4 17h10"/>', ['sparse_infill_pattern', 'seam_position', 'ironing_type', 'fuzzy_skin']],
+  ['support', '<path d="M6 20V10M12 20V6M18 20v-8"/>', ['support_top_z_distance', 'support_bottom_z_distance', 'support_object_xy_distance', 'support_interface_top_layers']],
+  ['adhesion', '<rect x="4" y="9" width="16" height="8" rx="2"/><path d="M2 20h20"/>', []],
+  ['temp', '<path d="M10 14V5a2 2 0 1 1 4 0v9a4 4 0 1 1-4 0z"/>', []],
+  ['plate', '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M13 7h8M3 17h8"/>', []],
+];
+const AMP_XQ = { layer_height: [0.12, 0.16, 0.2, 0.28], sparse_infill_density: [10, 15, 25, 40, 100] };
+const AMP_XSTEP = ['wall_loops', 'top_shell_layers', 'bottom_shell_layers'];
+const ampXKeys = g => ((PX_GROUPS.find(x => x[0] === g) || [])[1] || []);
+const ampXOpenGet = () => { try { const a = JSON.parse(localStorage.getItem('amp_xg_open') || 'null'); return new Set(Array.isArray(a) ? a : ['quality']); } catch (e) { return new Set(['quality']); } };
+const ampXOpenSet = s => { try { localStorage.setItem('amp_xg_open', JSON.stringify([...s])); } catch (e) { /* privates Fenster */ } };
+const ampXEl = (box, k) => k === 'nozzle' ? box.querySelector('#pnozzle') : k === 'orient' ? box.querySelector('#px_orient') : k === 'rot' ? box.querySelector('#px_rot') : box.querySelector(`[name="x_${k}"]`);
+const ampXNum = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : null; };
+const ampXUnit = k => { const u = (PX_NUM[k] || [])[3] || ''; return u === '%' ? ' %' : u === '°' ? '°' : u ? ' ' + u : ''; };
+/** Wert eines Feldes als Text (Standard aus Platzhalter bzw. „Standard (…)“) und ob er für diesen Druck geändert ist */
+function ampXVal(box, k) {
+  const el = ampXEl(box, k); if (!el) return null;
+  if (el.type === 'checkbox') return { txt: '', chg: k === 'orient' ? !el.checked && ps.kind === 'stl' : el.checked };
+  if (el.tagName === 'SELECT') {
+    const o = el.options[el.selectedIndex]; let tx = o ? o.textContent.trim() : '';
+    if (el.value === '') { const m = /\(([^()]*)\)\s*$/.exec(tx); tx = m ? m[1] : ''; }
+    return { txt: tx, chg: el.value !== '' && !el.disabled };
+  }
+  const v = el.value !== '' ? el.value : (el.placeholder || ''), n = ampXNum(v);
+  return { txt: v === '' ? '' : (n !== null ? nf2.format(n) : v) + (n !== null ? ampXUnit(k) : ''), chg: el.value !== '' && !el.disabled };
+}
+const ampXLab = k => String(S['psd_x_' + k] || k);
+/** Wert setzen wie von Hand (input + change → pxCount, pxSave, Neu-slicen-Hinweis) */
+function ampXSet(el, v) {
+  if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+  el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+/** Zusammenfassung einer Gruppe: [{ s, chg }] */
+function ampXSumOf(box, g) {
+  const V = k => ampXVal(box, k) || { txt: '', chg: false };
+  const P = (k, tpl, onlyChg) => { const x = V(k); if (!x.txt || (onlyChg && !x.chg) || (!x.chg && /^0(\s|$)/.test(x.txt))) return null; return { s: tpl ? t(tpl, { v: x.txt }) : x.txt, chg: x.chg }; };   // Standard 0 (z. B. 0 Skirt-Runden) weglassen
+  const out = [];
+  if (g === 'quality') out.push(P('layer_height'), P('wall_loops', 'amp_xs_walls'), P('sparse_infill_density', 'amp_xs_infill'), P('sparse_infill_pattern'));
+  else if (g === 'support') {
+    out.push(P('support_type'), P('support_threshold_angle', 'amp_xs_angle'));
+    const el = ampXEl(box, 'support_on_build_plate_only');
+    if (el) { const on = el.value ? el.value === '1' : (el.options[0].textContent || '').includes(S.psd_xo_support_on_build_plate_only_1 || '\u0000'); if (on) out.push({ s: t('amp_xs_bed'), chg: el.value !== '' }); }
+  } else if (g === 'adhesion') out.push(P('brim_type'), P('brim_width', 'amp_xs_brimw', true), P('skirt_loops', 'amp_xs_skirt'));
+  else if (g === 'temp') out.push(P('nozzle'), P('nozzle_temperature', 'amp_xs_nt'), P('bed_temperature', 'amp_xs_bt'));
+  else if (g === 'plate') {
+    out.push(P('scale'), P('print_sequence'), P('enable_prime_tower', 'amp_xs_tower'));
+    const pz = ampXEl(box, 'pause'); if (pz && pz.value.trim()) out.push({ s: t('amp_xs_pause', { v: pz.value.trim() }), chg: true });
+    ['orient', 'rot'].forEach(k => { const x = V(k); if (x.chg) out.push({ s: ampXLab(k), chg: true }); });
+  }
+  return out.filter(Boolean);
+}
+/** Alles neu beschriften: Zusammenfassungen, Zähler je Gruppe, „geändert“-Zeile, Schnellwahl, Markierung geänderter Felder */
+window.ampXSum = () => {
+  const box = document.getElementById('pexp'); if (!box || !box.classList.contains('amp-x')) return;
+  const all = [];
+  for (const [g] of AMP_XG) {
+    const sec = box.querySelector(`.amp-xg[data-g="${g}"]`); if (!sec) continue;
+    const parts = ampXSumOf(box, g);
+    sec.querySelector('.amp-xg-t small').innerHTML = parts.length ? parts.map(p => p.chg ? `<b>${esc(p.s)}</b>` : esc(p.s)).join(' · ') : esc(t('amp_xs_std'));
+    let n = 0;
+    for (const k of ampXKeys(g)) {
+      const x = ampXVal(box, k); if (!x) continue;
+      const row = (ampXEl(box, k) || {}).closest && ampXEl(box, k).closest('.amp-xr, .px-chk');
+      if (row) row.classList.toggle('amp-xchanged', !!x.chg);
+      if (x.chg) { n++; all.push({ k, txt: x.txt }); }
+    }
+    const fine = sec.querySelector('.amp-xfine');
+    if (fine) { const fn = AMP_XG.find(z => z[0] === g)[2].filter(k => (ampXVal(box, k) || {}).chg).length; fine.querySelector('summary span').textContent = fn ? t('amp_x_fine_n', { n: fn }) : t('amp_x_fine'); }
+    const badge = sec.querySelector('.amp-xg-n'); badge.hidden = !n; badge.textContent = n;
+  }
+  const row = box.querySelector('#ampxchg');
+  if (row) {
+    row.hidden = !all.length;
+    row.querySelector('.amp-xchgl').innerHTML = all.map(x => `<button type="button" class="chip amp-xchip" data-xreset="${esc(x.k)}" aria-label="${esc(t('amp_x_reset_one', { n: ampXLab(x.k) }))}">${esc(ampXLab(x.k).replace(/\s*\([^)]*\)\s*$/, ''))}${x.txt ? ' ' + esc(x.txt) : ''} <span aria-hidden="true">×</span></button>`).join('');
+  }
+  // Schnellwahl: Knopf „an“, wenn er dem eingestellten bzw. dem Standardwert entspricht
+  box.querySelectorAll('.amp-xctl[data-k]').forEach(c => {
+    const k = c.dataset.k, el = ampXEl(box, k); if (!el) return;
+    const cur = el.value !== '' ? ampXNum(el.value) : ampXDef(el);
+    c.querySelectorAll('.amp-xq').forEach(b => { const on = cur !== null && Math.abs(+b.dataset.v - cur) < 1e-6; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.hidden = el.tagName === 'SELECT' && ![...el.options].some(o => o.value !== '' && Math.abs(ampXNum(o.value) - +b.dataset.v) < 1e-6) && !(ampXDef(el) !== null && Math.abs(ampXDef(el) - +b.dataset.v) < 1e-6); });
+  });
+};
+/** Standardwert eines Feldes als Zahl (Platzhalter bzw. „Standard (0,2 mm)“), sonst null */
+function ampXDef(el) {
+  if (el.tagName === 'SELECT') { const m = /\(([\d.,]+)/.exec((el.options[0] || {}).textContent || ''); return m ? ampXNum(m[1]) : null; }
+  return ampXNum(el.placeholder);
+}
+/** Einmal nach dem Bau der Experten-Einstellungen: umstellen (Elemente bleiben dieselben, nur verschoben) */
+window.ampXTidy = box => {
+  if (!box || box.classList.contains('amp-x')) return;
+  box.classList.add('amp-x');
+  const hint = box.querySelector(':scope > p.hint'), prof = box.querySelector(':scope > #ampprof'), reset = box.querySelector('#pxreset');
+  const chg = document.createElement('div'); chg.className = 'amp-xchg'; chg.id = 'ampxchg'; chg.hidden = true;
+  chg.innerHTML = `<span>${esc(t('amp_x_chg'))}</span><span class="amp-xchgl"></span><button type="button" class="lnk" id="ampxall">${esc(S.psd_x_reset || '')}</button>`;
+  (prof || hint || box.querySelector('summary')).after(chg);
+  const open = ampXOpenGet();
+  let last = chg;
+  for (const [g, ico, fine] of AMP_XG) {
+    const old = [...box.querySelectorAll(':scope > .px-g')].find(x => x.querySelector(`[data-px="${ampXKeys(g)[0]}"]`) || x.querySelector(g === 'temp' ? '#pnozzle' : `[name="x_${ampXKeys(g)[0]}"]`));
+    if (!old) continue;
+    const sec = document.createElement('details'); sec.className = 'amp-xg'; sec.dataset.g = g; sec.open = open.has(g);
+    sec.innerHTML = `<summary><span class="amp-xg-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ico}</svg></span>
+      <span class="amp-xg-t"><b>${esc(S['psd_x_g_' + g] || g)}</b><small></small></span><span class="amp-xg-n" hidden></span>
+      <svg class="amp-xg-chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="amp-xg-b"></div>`;
+    const body = sec.querySelector('.amp-xg-b');
+    const gh = old.querySelector(':scope > p.hint'); if (gh) { gh.classList.add('amp-xgh'); body.append(gh); }
+    const grid = old.querySelector('.fgrid'), labels = grid ? [...grid.children] : [];
+    let fineBox = null;
+    for (const lab of labels) {
+      const k = lab.dataset.px;
+      if (lab.classList.contains('fld')) {
+        lab.classList.add('amp-xr');
+        const h = t('amp_xh_' + k); if (h !== 'amp_xh_' + k) { const sm = document.createElement('small'); sm.className = 'amp-xh'; sm.textContent = h; lab.querySelector('span').after(sm); }
+        const el = lab.querySelector('select, input');
+        if (el && AMP_XQ[k]) {   // Schnellwahl + das Feld selbst (für alle übrigen Werte)
+          const c = document.createElement('span'); c.className = 'amp-xctl'; c.dataset.k = k;
+          c.innerHTML = AMP_XQ[k].map(v => `<button type="button" class="amp-xq" data-v="${v}" aria-pressed="false">${esc(nf2.format(v))}${k === 'sparse_infill_density' ? ' %' : ''}</button>`).join('');
+          el.before(c); c.append(el);
+        } else if (el && AMP_XSTEP.includes(k)) {
+          const c = document.createElement('span'); c.className = 'amp-xctl amp-xstep';
+          c.innerHTML = `<button type="button" data-xstep="-1" aria-label="−">−</button>`; el.before(c); c.append(el);
+          c.insertAdjacentHTML('beforeend', `<button type="button" data-xstep="1" aria-label="+">+</button>`);
+        }
+      }
+      if (fine.includes(k)) {
+        if (!fineBox) { fineBox = document.createElement('details'); fineBox.className = 'amp-xfine'; fineBox.innerHTML = `<summary><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span></span></summary><div class="amp-xfine-b"></div>`; }
+        fineBox.querySelector('.amp-xfine-b').append(lab);
+      } else body.append(lab);
+    }
+    if (fineBox) body.append(fineBox);
+    old.remove();
+    last.after(sec); last = sec;
+    sec.addEventListener('toggle', () => { const s = ampXOpenGet(); if (sec.open) s.add(g); else s.delete(g); ampXOpenSet(s); });
+  }
+  if (hint) { hint.classList.add('amp-xfoot'); hint.textContent = t('amp_x_foot'); last.after(hint); }
+  if (reset) reset.hidden = true;
+  box.addEventListener('click', e => {
+    const q = e.target.closest('.amp-xq');
+    if (q) { const c = q.closest('.amp-xctl'), el = ampXEl(box, c.dataset.k), v = +q.dataset.v, d = ampXDef(el);
+      let val = d !== null && Math.abs(d - v) < 1e-6 ? '' : String(v);
+      if (el.tagName === 'SELECT' && val && ![...el.options].some(o => o.value === val)) { const o = [...el.options].find(o => o.value !== '' && Math.abs(ampXNum(o.value) - v) < 1e-6); if (o) val = o.value; }
+      ampXSet(el, val); return; }
+    const st = e.target.closest('[data-xstep]');
+    if (st) { const el = st.parentElement.querySelector('input'), k = el.name.slice(2), [mn, mx] = PX_NUM[k] || [0, 99];
+      const d = ampXDef(el), base = el.value !== '' ? ampXNum(el.value) : (d !== null ? d : mn), n = Math.max(mn, Math.min(mx, Math.round(base + +st.dataset.xstep)));
+      ampXSet(el, d !== null && n === d ? '' : String(n)); return; }
+    const r = e.target.closest('[data-xreset]');
+    if (r) { const k = r.dataset.xreset, el = ampXEl(box, k); if (el) ampXSet(el, el.type === 'checkbox' ? k === 'orient' : ''); return; }
+    if (e.target.closest('#ampxall') && reset) reset.click();
+  });
+  window.ampXSum();
+};
+
+// ── Modell mit mehreren Dateien (27.11.2026, User: „ein Modell hat mehrere STL-Dateien; lade ich eine STL hoch, kann ich weitere STL zu dem
+// Modell nicht mehr hinzufügen“ — „oder auch 3MF je nachdem“). Weitere Dateien sind Bibliothekseinträge mit parent (backend lib_upload
+// parent, amp_lib_join/amp_lib_detach); hier der Abschnitt „Dateien des Modells“ im Datei-Dialog (libOpen) und „Datei von …“ im Teil.
+const ampLibKids = f => ((lb.d && lb.d.files) || []).filter(x => x.parent === f.id);
+const ampLibPic = x => { const p1 = (x.plates || []).find(p => !p.empty && p.thumb); return p1 && (x.mesh || x.thumbs) ? `<img src="api.php?a=lib_thumb&amp;id=${x.id}&amp;n=${p1.n}&amp;v=${x.v}" alt="" loading="lazy">` : (lbIsGc(x) ? I_GCODE : I_BOX); };
+/** Im Dialog einer Datei, die zu einem Modell gehört: Hinweis + zurück zum Modell + lösen */
+function ampLibPartOfHtml(f) {
+  const m = ((lb.d && lb.d.files) || []).find(x => x.id === f.parent);
+  return `<div class="note amp-lbpartof">${I_BOX}<span>${esc(t('amp_lib_partof', { m: m ? m.name : '?' }))}</span>${m ? `<button type="button" class="btn sm" id="amplbtomodel">${esc(t('amp_lib_partof_go'))}</button>` : ''}
+    <button type="button" class="btn sm ghost" id="amplbdetach">${esc(t('amp_lib_files_detach'))}</button></div>`;
+}
+window.ampLibFilesBind = f => {
+  lb.filesOf = f;
+  // Teil: zurück zum Modell / lösen
+  const go = $('#amplbtomodel'), de = $('#amplbdetach');
+  if (go) go.onclick = () => { const m = lb.d.files.find(x => x.id === f.parent); if (m) { if (lb.save) lb.save(); libOpen(m); } };
+  if (de) de.onclick = async () => {
+    try { const r = await api('amp_lib_detach', { id: f.id }); Object.assign(f, r.file); f.parent = null; toast(t('saved')); libOpen(f); if (view.querySelector('.lbtop')) drawLib(); } catch (e) { fail(e); }
+  };
+  window.ampLibFilesDraw();
+};
+window.ampLibFilesDraw = () => {
+  const f = lb.filesOf, box = document.getElementById('amplbfiles'); if (!f || !box || lb.cur !== f.id) return;
+  const kids = ampLibKids(f), all = [f, ...kids], ups = (lb.ups || []).filter(u => u.parent === f.id && u.state !== 'ok');
+  const can = all.filter(x => (x.ext === 'stl' || (x.ext === '3mf' && !lbIsGc(x))) && !x.gone), n3 = can.filter(x => x.ext === '3mf').length;
+  const plateOk = can.length >= 2 && n3 <= 1 && ps_ok();
+  const row = (x, main) => `<li class="amp-lbfr${main ? ' amp-main' : ''}" data-fid="${x.id}"><span class="amp-lbfpic">${ampLibPic(x)}</span>
+      <span class="amp-lbft"><b>${esc(main ? x.orig || x.name : x.name)}</b><small>${esc([x.ext.toUpperCase(), fsize(x.size), main ? t('amp_lib_files_main') : (x.orig && x.orig !== x.name ? x.orig : '')].filter(Boolean).join(' · '))}</small></span>
+      ${main ? '' : `<span class="amp-lbmb"><button type="button" class="btn sm" data-fopen="${x.id}">${esc(t('amp_lib_files_open'))}</button>
+        <details class="smenu" data-k="lbf${x.id}"><summary class="icon-btn" aria-label="${esc(t('pr_more'))}" title="${esc(t('pr_more'))}">${I_DOTS}</summary><div class="smenu-l">
+          <button type="button" data-fsave="${x.id}">${esc(t('amp_lib_saveas'))}</button><button type="button" data-fdet="${x.id}">${esc(t('amp_lib_files_detach'))}</button>
+          <button type="button" class="bad" data-fdel="${x.id}">${esc(t('amp_lib_files_del'))}</button></div></details></span>`}</li>`;
+  box.innerHTML = `<h3>${esc(t('amp_lib_files_h'))}${kids.length ? ` <small>(${all.length})</small>` : ''}</h3>
+    <ul class="amp-lbfl">${all.map((x, i) => row(x, i === 0)).join('')}${ups.map(u => `<li class="amp-lbfr amp-up"><span class="amp-lbfpic"><span class="spin"></span></span><span class="amp-lbft"><b>${esc(u.file.name)}</b><small>${esc(u.state === 'err' ? u.err || '' : t('lib_up_wait'))}</small></span></li>`).join('')}</ul>
+    <div class="amp-lbmbtns"><label class="btn sm"><input type="file" id="amplbfadd" multiple accept="${esc(((lb.d && lb.d.exts) || ['stl', '3mf']).map(x => '.' + x).join(','))}" hidden>${I_PLUS_S} ${esc(t('amp_lib_files_add'))}</label>
+      <button type="button" class="btn sm" id="amplbfpick">${esc(t('amp_lib_files_pick'))}</button>
+      ${plateOk ? `<button type="button" class="btn sm pri" id="amplbfplate">${I_PLATE} ${esc(t('amp_lib_files_plate'))}</button>` : ''}</div>
+    <div id="amplbfpk" hidden></div>
+    <p class="hint">${esc(t(n3 > 1 ? 'amp_lib_files_3mf' : 'amp_lib_files_hint'))}</p>`;
+  const add = box.querySelector('#amplbfadd');
+  add.onchange = () => {
+    const fl = [...(add.files || [])]; add.value = ''; if (!fl.length) return;
+    lb.ups = (lb.ups || []).filter(u => u.state !== 'ok');
+    fl.forEach(file => lb.ups.push({ file, folder: f.folder || '', parent: f.id, state: 'wait', pct: 0 }));
+    lbUpBox(); lbUpNext(); window.ampLibFilesDraw();
+  };
+  box.querySelector('#amplbfpick').onclick = () => {
+    const pk = box.querySelector('#amplbfpk'); pk.hidden = !pk.hidden; if (pk.hidden) return;
+    const cand = lb.d.files.filter(x => x.id !== f.id && !x.parent && !x.want && !x.plate && !ampLibKids(x).length);
+    const sel = new Set();
+    const draw = q => {
+      const l = cand.filter(x => !q || (x.name + ' ' + (x.folder || '') + ' ' + (x.orig || '')).toLowerCase().includes(q)).slice(0, 60);
+      pk.querySelector('.amp-lbfpl').innerHTML = l.length ? l.map(x => `<label class="chk row amp-lbfpi"><input type="checkbox" value="${x.id}"${sel.has(x.id) ? ' checked' : ''}> <span>${esc(x.name)} <small class="hint">${esc([x.ext.toUpperCase(), x.folder || ''].filter(Boolean).join(' · '))}</small></span></label>`).join('')
+        : `<p class="hint">${esc(t('amp_lib_files_pick_none'))}</p>`;
+    };
+    pk.innerHTML = `<input class="in" type="search" id="amplbfq" placeholder="${esc(t('lib_search'))}" autocomplete="off"><div class="amp-lbfpl"></div>
+      <button type="button" class="btn sm pri" id="amplbfpgo" disabled>${esc(t('amp_lib_files_pick_go', { n: 0 }))}</button>`;
+    draw('');
+    pk.querySelector('#amplbfq').oninput = e => draw(e.target.value.trim().toLowerCase());
+    pk.onchange = e => { if (e.target.type !== 'checkbox') return; const id = +e.target.value; if (e.target.checked) sel.add(id); else sel.delete(id);
+      const b = pk.querySelector('#amplbfpgo'); b.disabled = !sel.size; b.textContent = t('amp_lib_files_pick_go', { n: sel.size }); };
+    pk.querySelector('#amplbfpgo').onclick = async () => {
+      try { const r = await api('amp_lib_join', { parent: f.id, ids: [...sel] }); (r.files || []).forEach(nf_ => { const x = lb.d.files.find(y => y.id === nf_.id); if (x) Object.assign(x, nf_); }); window.ampLibFilesDraw(); if (view.querySelector('.lbtop')) drawLib(); }
+      catch (e) { fail(e); }
+    };
+  };
+  const pl = box.querySelector('#amplbfplate');
+  if (pl) pl.onclick = async () => {
+    pl.disabled = true;
+    try {
+      const items = await ampPlateFetch(can.map(x => ({ id: x.id, name: x.name, n: 1, slot: '', ext: x.ext })), (i, n) => { pl.textContent = t('amp_plate_loading', { i, n }); });
+      if (lb.save) lb.save();
+      dlg.close();
+      ampEdOpen(items.map(x => x.ext === '3mf' ? { ...x, plate3: 1 } : x), null, null);
+    } catch (e) { pl.disabled = false; pl.innerHTML = `${I_PLATE} ${esc(t('amp_lib_files_plate'))}`; toast(ampPlateErr(e)); }
+  };
+  box.onclick = async e => {
+    const o = e.target.closest('[data-fopen]'); if (o) { const x = lb.d.files.find(y => y.id === +o.dataset.fopen); if (x) { if (lb.save) lb.save(); libOpen(x); } return; }
+    const sv = e.target.closest('[data-fsave]');
+    if (sv) { sv.closest('details').open = false; try { const r = await api('amp_lib_save_as', { id: +sv.dataset.fsave }); if (r && r.ok) toast(t('saved')); } catch (er) { fail(er); } return; }
+    const dt = e.target.closest('[data-fdet]');
+    if (dt) { try { const r = await api('amp_lib_detach', { id: +dt.dataset.fdet }); const x = lb.d.files.find(y => y.id === +dt.dataset.fdet); if (x) { Object.assign(x, r.file); x.parent = null; } window.ampLibFilesDraw(); if (view.querySelector('.lbtop')) drawLib(); } catch (er) { fail(er); } return; }
+    const dl = e.target.closest('[data-fdel]');
+    if (dl) {
+      if (!dl.dataset.sure) { dl.dataset.sure = '1'; dl.textContent = t('lib_delete_sure'); return; }
+      try { const r = await api('lib_delete', { id: +dl.dataset.fdel }); lb.d.files = lb.d.files.filter(y => y.id !== +dl.dataset.fdel); lb.d.used = r.used; window.ampLibFilesDraw(); if (view.querySelector('.lbtop')) drawLib(); } catch (er) { fail(er); }
+    }
+  };
 };
 
 
@@ -10214,24 +10682,56 @@ function edFix(p, it) { it.bb = edBox(p.geo, it.L); }
 const edWorld = it => [it.x - it.bb.d[0] / 2, it.y - it.bb.d[1] / 2, it.x + it.bb.d[0] / 2, it.y + it.bb.d[1] / 2, it.bb.d[2]];
 
 // ── Zustand ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-// cur: { name, plateId, parts: [{ key, id, name, file, geo, slot, color, inst: [{ L, x, y, s, skip, bb }] }], pool, sel: {p, i}, tool,
-//        printers, pr (gewählter Drucker), bed [w, d, h], bedKnown, undo [], redo [], unit 'mm'|'%', lock }
+// cur: { name, plateId, parts: [{ key, id, name, file, geo, slot, color, inst: [{ L, x, y, s, skip, bb, pl }] }], pool, sel: {p, i}, tool,
+//        printers, pr (gewählter Drucker), bed [w, d, h], bedKnown, undo [], redo [], unit 'mm'|'%', lock, plates, pl, sent {} }
+// Mehrere Platten (27.11.2026, Community #55 Burnie: Teile passen nicht auf eine Platte): je Kopie it.pl (0 …), cur.plates = Anzahl,
+// cur.pl = angezeigte Platte. Bearbeiten, Prüfen, Anordnen und Drucken gelten immer für die angezeigte Platte; Drucken = eine Platte
+// nach der anderen (cur.sent merkt, welche schon an die Druckansicht gingen). Passt beim Anordnen nicht alles drauf, kommen die
+// übrigen Reihen auf neue Platten (edArrange). Nur bei STL-Platten — eine 3MF behält ihre eigenen Platten (#edpl).
+const ED_PL_MAX = 20;
 const edBed = cur => cur.bed || ED_BED0;
-function edSnap(cur) { return JSON.stringify({ gone: cur.gone || [], map3: cur.map3 || {}, parts: cur.parts.map(p => ({ key: p.key, slot: p.slot, sup: p.sup || '', ext3: p.ext3 || 1, inst: p.inst.map(i => ({ L: i.L, x: i.x, y: i.y, s: i.s, skip: !!i.skip, rz: i.rz || 0, bi: i.bi })) })), sel: cur.sel }); }
+const edPl = it => it.pl || 0;
+const edHere = (cur, it) => edPl(it) === (cur.pl || 0);
+const edMulti = cur => cur.mode !== '3mf' && (cur.plates || 1) > 1;
+function edSnap(cur) { return JSON.stringify({ gone: cur.gone || [], map3: cur.map3 || {}, plates: cur.plates || 1, pl: cur.pl || 0, parts: cur.parts.map(p => ({ key: p.key, slot: p.slot, sup: p.sup || '', ext3: p.ext3 || 1, inst: p.inst.map(i => ({ L: i.L, x: i.x, y: i.y, s: i.s, skip: !!i.skip, rz: i.rz || 0, bi: i.bi, pl: edPl(i) })) })), sel: cur.sel }); }
 function edPush(cur) { cur.undo.push(edSnap(cur)); if (cur.undo.length > 60) cur.undo.shift(); cur.redo = []; }
 function edRestore(cur, snap) {
   const d = JSON.parse(snap);
-  cur.gone = d.gone || []; cur.map3 = d.map3 || {};
+  cur.gone = d.gone || []; cur.map3 = d.map3 || {}; cur.plates = d.plates || 1; cur.pl = Math.min(d.pl || 0, cur.plates - 1);
   cur.parts = d.parts.map(q => { const p = cur.pool[q.key]; p.slot = q.slot; p.sup = q.sup || ''; p.ext3 = q.ext3 || 1; p.inst = q.inst.map(i => ({ ...i })); p.inst.forEach(i => edFix(p, i)); return p; });
-  cur.sel = d.sel && cur.parts[d.sel.p] && cur.parts[d.sel.p].inst[d.sel.i] ? d.sel : cur.parts.length ? { p: 0, i: 0 } : null;
+  cur.sel = d.sel && cur.parts[d.sel.p] && cur.parts[d.sel.p].inst[d.sel.i] ? d.sel : null;
+  edSelFix(cur);
+}
+/** Auswahl immer auf der angezeigten Platte (sonst die erste Kopie dort, auf einer leeren Platte keine) */
+function edSelFix(cur) {
+  const s = cur.sel, it = s && cur.parts[s.p] ? cur.parts[s.p].inst[s.i] : null;
+  if (it && edHere(cur, it)) return;
+  cur.sel = null;
+  cur.parts.some((p, pi) => p.inst.some((q, ii) => edHere(cur, q) ? (cur.sel = { p: pi, i: ii }, true) : false));
+}
+/** Leere Platten (außer der angezeigten) entfernen, Nummern nachziehen */
+function edPlTidy(cur) {
+  if (cur.mode === '3mf') { cur.plates = 1; cur.pl = 0; return; }
+  const used = new Set(); cur.parts.forEach(p => p.inst.forEach(i => used.add(edPl(i)))); used.add(cur.pl || 0);
+  const keep = [...Array(cur.plates || 1).keys()].filter(k => used.has(k)), nmap = new Map(keep.map((k, i) => [k, i]));
+  if (keep.length === (cur.plates || 1)) return;
+  cur.parts.forEach(p => p.inst.forEach(i => { i.pl = nmap.get(edPl(i)) || 0; }));
+  const sent = {}; Object.keys(cur.sent || {}).forEach(k => { if (nmap.has(+k)) sent[nmap.get(+k)] = cur.sent[k]; }); cur.sent = sent;
+  cur.pl = nmap.get(cur.pl || 0) || 0; cur.plates = keep.length;
+}
+/** Andere Platte anzeigen (zählt nicht als Änderung) */
+function edPlGo(cur, k) {
+  cur.pl = Math.max(0, Math.min((cur.plates || 1) - 1, k)); edPlTidy(cur); edSelFix(cur);
+  edMeshes(cur); edPanel(cur);
 }
 const edSelInst = cur => cur.sel && cur.parts[cur.sel.p] ? cur.parts[cur.sel.p].inst[cur.sel.i] || null : null;
 const edSelPart = cur => cur.sel ? cur.parts[cur.sel.p] || null : null;
 
-/** Alles anordnen: Reihen nach Tiefe (tiefste zuerst), Abstand ED_GAP, die ganze Anordnung in die Bettmitte */
+/** Anordnen (angezeigte Platte): Reihen nach Tiefe (tiefste zuerst), Abstand ED_GAP, die Anordnung in die Bettmitte. Passen die Reihen
+ *  nicht in die Tiefe des Betts, kommen die übrigen auf neue Platten (#55; nicht bei 3MF). Rückgabe: Zahl der neuen Platten. */
 function edArrange(cur) {
   const [W, D] = edBed(cur), items = [];
-  cur.parts.forEach(p => p.inst.forEach(it => items.push(it)));
+  cur.parts.forEach(p => p.inst.forEach(it => { if (edHere(cur, it)) items.push(it); }));
   items.sort((a, b) => b.bb.d[1] - a.bb.d[1] || b.bb.d[0] - a.bb.d[0]);
   const rows = []; let row = null;
   for (const it of items) {
@@ -10239,18 +10739,44 @@ function edArrange(cur) {
     if (!row || (row.w + (row.items.length ? ED_GAP : 0) + w > W && row.items.length)) { row = { items: [], w: 0, d: 0 }; rows.push(row); }
     row.items.push(it); row.w += (row.items.length > 1 ? ED_GAP : 0) + w; row.d = Math.max(row.d, d);
   }
-  const totD = rows.reduce((a, r) => a + r.d, 0) + ED_GAP * Math.max(0, rows.length - 1);
-  let y = D / 2 + totD / 2;
+  // Reihen auf Platten verteilen: eine Platte nimmt Reihen, solange die Tiefe reicht (eine zu tiefe Reihe bleibt allein und wird gemeldet)
+  const groups = [[]]; let used = 0;
   for (const r of rows) {
-    let x = W / 2 - r.w / 2;
-    for (const it of r.items) { it.x = x + it.bb.d[0] / 2; it.y = y - r.d / 2; x += it.bb.d[0] + ED_GAP; }
-    y -= r.d + ED_GAP;
+    const g = groups[groups.length - 1], need = (g.length ? ED_GAP : 0) + r.d;
+    if (g.length && used + need > D && cur.mode !== '3mf' && (cur.plates || 1) + groups.length - 1 < ED_PL_MAX) { groups.push([r]); used = r.d; }
+    else { g.push(r); used += need; }
   }
+  const base = cur.plates || 1;
+  groups.forEach((g, gi) => {
+    const totD = g.reduce((a, r) => a + r.d, 0) + ED_GAP * Math.max(0, g.length - 1);
+    let y = D / 2 + totD / 2;
+    for (const r of g) {
+      let x = W / 2 - r.w / 2;
+      for (const it of r.items) { it.x = x + it.bb.d[0] / 2; it.y = y - r.d / 2; x += it.bb.d[0] + ED_GAP; if (gi) it.pl = base + gi - 1; }
+      y -= r.d + ED_GAP;
+    }
+  });
+  if (groups.length > 1) cur.plates = base + groups.length - 1;
+  return groups.length - 1;
 }
-/** Neue Kopie neben dem Vorbild: rechts, links, hinten, vorn — erste Stelle ohne Überschneidung auf dem Bett */
+/** Anordnen-Knopf: neue Platten nennen */
+function edArrangeUi(cur) {
+  edPush(cur);
+  const n = edArrange(cur);
+  if (n) { edSelFix(cur); edMeshes(cur); toast(t('amp_ed_pl_spill', { n: cur.plates })); } else edPose(cur);
+  edPanel(cur);
+}
+/** Neues Teil auf seine Platte: Bettmitte, wenn dort frei, sonst daneben (edFreeSpot) */
+function edSpotOn(cur, it) {
+  const [W, D] = edBed(cur); it.x = W / 2; it.y = D / 2;
+  const me = edWorld(it), g = ED_GAP / 2;
+  const hit = cur.parts.some(p => p.inst.some(o => { if (o === it || edPl(o) !== edPl(it)) return false; const b = edWorld(o); return me[0] < b[2] + g && me[2] > b[0] - g && me[1] < b[3] + g && me[3] > b[1] - g; }));
+  return hit ? edFreeSpot(cur, it) : [it.x, it.y];
+}
+/** Neue Kopie neben dem Vorbild: rechts, links, hinten, vorn — erste Stelle ohne Überschneidung auf dem Bett (Platte des Teils) */
 function edFreeSpot(cur, it) {
   const [W, D] = edBed(cur), w = it.bb.d[0], d = it.bb.d[1];
-  const others = []; cur.parts.forEach(p => p.inst.forEach(o => { if (o !== it) others.push(edWorld(o)); }));
+  const others = []; cur.parts.forEach(p => p.inst.forEach(o => { if (o !== it && edPl(o) === edPl(it)) others.push(edWorld(o)); }));
   const free = (x, y) => x - w / 2 >= 0 && x + w / 2 <= W && y - d / 2 >= 0 && y + d / 2 <= D
     && others.every(b => x + w / 2 + ED_GAP / 2 <= b[0] || x - w / 2 - ED_GAP / 2 >= b[2] || y + d / 2 + ED_GAP / 2 <= b[1] || y - d / 2 - ED_GAP / 2 >= b[3]);
   for (let ring = 1; ring < 8; ring++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
@@ -10263,7 +10789,7 @@ function edFreeSpot(cur, it) {
 function edCheck(cur) {
   const [W, D, H] = edBed(cur), bad = [], tall = [], all = [];
   cur.parts.forEach((p, pi) => p.inst.forEach((it, ii) => {
-    if (it.skip) { it.over = 0; it.tall = 0; return; }
+    if (it.skip || !edHere(cur, it)) { it.over = 0; it.tall = 0; return; }
     const b = edWorld(it);
     it.over = Math.max(0, -b[0], -b[1], b[2] - W, b[3] - D); it.tall = Math.max(0, b[4] - H);
     if (it.over > 0.3) bad.push({ p, it, mm: it.over }); if (it.tall > 0.3) tall.push({ p, it, mm: it.tall });
@@ -10276,6 +10802,16 @@ function edCheck(cur) {
   }
   cur.chk = { bad, tall, overlap, ok: !bad.length && !tall.length && all.length > 0 };
   return cur.chk;
+}
+/** Für die Platten-Reiter: Teile je Platte und ob etwas über den Rand ragt (ohne cur.chk zu ändern) */
+function edPlInfo(cur) {
+  const [W, D, H] = edBed(cur), out = [...Array(cur.plates || 1)].map(() => ({ n: 0, bad: false }));
+  cur.parts.forEach(p => p.inst.forEach(it => {
+    const o = out[edPl(it)]; if (!o || it.skip) return;
+    const b = edWorld(it); o.n++;
+    if (Math.max(-b[0], -b[1], b[2] - W, b[3] - D) > 0.3 || b[4] - H > 0.3) o.bad = true;
+  }));
+  return out;
 }
 
 // ── Drucker, Fächer, Farben ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -10386,6 +10922,7 @@ function edMeshes(cur) {
     if (grp && !p.bg.groups.length) p.geo.groups.forEach((gr, gi) => p.bg.addGroup(gr.s * 3, gr.n * 3, gi));
     const mat = (c, it) => new T.MeshPhongMaterial({ color: new T.Color(c), flatShading: true, shininess: 18, specular: 0x1a1a1a, side: T.DoubleSide, transparent: !!it.skip, opacity: it.skip ? 0.28 : 1 });
     p.inst.forEach((it, ii) => {
+      if (!edHere(cur, it)) return;   // andere Platte (#55)
       const m = new T.Mesh(p.bg, grp ? p.geo.groups.map(gr => mat(ed3Col(cur, gr.c + 1), it)) : mat(edColorOf(cur, p), it));
       m.userData = { pi, ii, shared: true }; m.matrixAutoUpdate = false;
       g.parts.add(m); g.meshes.push(m);
@@ -10619,7 +11156,7 @@ const edUuid = n => ('00000000' + n.toString(16)).slice(-8) + '-a3f1-4d2e-9c7b-'
  */
 async function edBuild3mf(cur, prog) {
   const pr = cur.pr, [W, D, H] = edBed(cur), multi = edMultiOf(pr);
-  const items = []; cur.parts.forEach(p => p.inst.forEach((it, k) => { if (!it.skip) items.push({ p, it, k }); }));
+  const items = []; cur.parts.forEach(p => p.inst.forEach((it, k) => { if (!it.skip && edHere(cur, it)) items.push({ p, it, k }); }));
   if (!items.length) throw edErr('empty');
   const slotKey = p => { const s = edSlotOf(cur, p); return s ? String(s.index) : ''; };
   const keys = multi ? [...new Set(items.map(x => slotKey(x.p)))] : [slotKey(items[0].p)];
@@ -10730,15 +11267,19 @@ async function edBuildCur(h) {
     const n = Math.max(1, Math.min(100, +s.n || 1)), saved = Array.isArray(s.inst) ? s.inst : null;
     for (let k = 0; k < n; k++) {
       const q = saved && saved[k];
-      const it = q && Array.isArray(q.L) && q.L.length === 9 ? { L: q.L.map(Number), x: +q.x || 0, y: +q.y || 0, s: +q.s || 1, skip: !!q.skip, rz: 0 } : { L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0, fresh: true };
+      const it = q && Array.isArray(q.L) && q.L.length === 9 ? { L: q.L.map(Number), x: +q.x || 0, y: +q.y || 0, s: +q.s || 1, skip: !!q.skip, rz: 0, pl: Math.max(0, Math.min(ED_PL_MAX - 1, Math.floor(+q.pl) || 0)) } : { L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0, fresh: true };
       edFix(p, it); p.inst.push(it);
     }
     pool[key] = p; parts.push(p);
   }
   if (src3 && parts.some(p => p.kind === 'stl') && src3.kind !== 'bambu') throw edErr('mix_prusa', src3.name);
   const name = src3 ? src3.name : h.plate ? h.plate.name : parts.length > 1 ? t('amp_plate_n_models', { n: parts.length }) : parts.length ? parts[0].name : t('amp_ed_new');
-  return { name, plateId: h.plate ? h.plate.id : null, mode: src3 ? '3mf' : 'stl', src3, plate3, gone: [], map3: {},
-    parts, pool, sel: parts.length ? { p: 0, i: 0 } : null, tool: 'move', undo: [], redo: [], unit: 'mm', lock: true, want: h.printer, slot1: '' };
+  // Platten aus der gespeicherten Anordnung (#55); leere dazwischen fallen weg
+  const plates = src3 ? 1 : 1 + Math.max(0, ...parts.flatMap(p => p.inst.map(edPl)));
+  const cur = { name, plateId: h.plate ? h.plate.id : null, mode: src3 ? '3mf' : 'stl', src3, plate3, gone: [], map3: {},
+    parts, pool, sel: parts.length ? { p: 0, i: 0 } : null, tool: 'move', undo: [], redo: [], unit: 'mm', lock: true, want: h.printer, slot1: '', plates, pl: 0, sent: {} };
+  edPlTidy(cur); edSelFix(cur);
+  return cur;
 }
 /** Teile einer 3MF-Platte: je Druckobjekt ein Teil, je <item> eine Kopie; Lage zuerst im Projekt-System (it.g), Bett folgt in ed3Place */
 async function ed3Parts(src3, pi, pool, parts, count) {
@@ -10794,8 +11335,9 @@ async function viewEdit() {
       if (cur.mode === '3mf') {
         ed3Place(cur); ed3AutoMap(cur);
         cur.parts.forEach(p => p.inst.forEach(i => { if (i.fresh) { delete i.fresh; [i.x, i.y] = edFreeSpot(cur, Object.assign(i, { x: edBed(cur)[0] / 2, y: edBed(cur)[1] / 2 })); } }));
-      } else if (cur.parts.some(p => p.inst.some(i => i.fresh))) edArrange(cur);
+      } else if (cur.parts.some(p => p.inst.some(i => i.fresh))) { if (edArrange(cur)) cur.spilled = true; }
       cur.parts.forEach(p => p.inst.forEach(i => { delete i.fresh; }));
+      edSelFix(cur);
       ED.cur = cur;
     } catch (e) {
       const msg = e.message === 'too_big' ? t('amp_ed_too_big', { name: e.part, n: ED_TRI_MAX / 1e6 }) : ['two_3mf', 'mix_prusa', 'gcode3mf'].includes(e.message) ? t('amp_ed_' + e.message, { name: e.part || '?' }) : t('amp_ed_bad_file', { name: e.part || '?' });
@@ -10810,7 +11352,10 @@ async function viewEdit() {
   }
   try { await edThree(); } catch (e) { view.innerHTML = `<div class="amp-ed"><div class="empty"><b>${esc(t('amp_ed_no_webgl'))}</b></div></div>`; return; }
   if (location.hash !== '#edit') return;
+  // Zurück aus der Druckansicht nach „Platte n drucken“: nächste noch nicht gedruckte Platte zeigen (#55)
+  if (cur.next) { delete cur.next; const k = [...Array(cur.plates || 1).keys()].find(i => !(cur.sent || {})[i]); if (k != null && k !== cur.pl) { cur.pl = k; edSelFix(cur); } }
   edRender(cur);
+  if (cur.spilled) { delete cur.spilled; toast(t('amp_ed_pl_spill', { n: cur.plates })); }
 }
 // Verlassen der Ansicht: WebGL freigeben (der Zustand bleibt in ED.cur — zurück aus der Druckansicht steht alles noch so da)
 window.addEventListener('hashchange', () => { if (location.hash !== '#edit' && ED.g) edGfxDrop(); });
@@ -10833,6 +11378,7 @@ function edRender(cur) {
       <button type="button" class="btn pri amp-edgo" id="edgo">${esc(t('amp_ed_print'))}</button>
     </div>
     <div class="amp-edst" id="edst"></div>
+    ${cur.mode === '3mf' ? '' : '<div class="amp-edpls" id="edpls" role="tablist"></div>'}
     <div class="amp-edbody">
       <aside class="amp-edparts" aria-label="${esc(t('amp_ed_parts_h'))}"><h2>${esc(t('amp_ed_parts_h'))}</h2><div id="edlist"></div><div id="edslotsL"></div>
         <div class="amp-edg2"><button type="button" class="btn amp-edadd" id="edadd">${edI(EI.plus)}<span>${esc(t('amp_plate_from_lib'))}</span></button>
@@ -10872,7 +11418,7 @@ function edBind(cur) {
   root.querySelectorAll('.amp-edviews [data-v]').forEach(b => b.onclick = () => { edView(cur, b.dataset.v); root.querySelectorAll('.amp-edviews [data-v]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
   $('#edundo').onclick = () => { if (!cur.undo.length) return; cur.redo.push(edSnap(cur)); edRestore(cur, cur.undo.pop()); edMeshes(cur); edPanel(cur); };
   $('#edredo').onclick = () => { if (!cur.redo.length) return; cur.undo.push(edSnap(cur)); edRestore(cur, cur.redo.pop()); edMeshes(cur); edPanel(cur); };
-  $('#edarr').onclick = () => { edPush(cur); edArrange(cur); edPose(cur); edPanel(cur); };
+  $('#edarr').onclick = () => edArrangeUi(cur);
   $('#edadd').onclick = () => edPick(cur);
   $('#eddev').onclick = () => edFromDevice(cur);
   if ($('#edpl')) $('#edpl').onchange = e => ed3Plate(cur, +e.target.value);
@@ -10900,7 +11446,7 @@ function edAct(cur, k) {
   if (k === 'copy') {
     if (cur.parts.reduce((a, x) => a + x.inst.length, 0) >= 200) { toast(t('psd_err_too_many_objs')); return; }
     edPush(cur);
-    const c = { L: it.L.slice(), x: it.x, y: it.y, s: it.s, skip: false, rz: it.rz || 0 }; edFix(p, c);
+    const c = { L: it.L.slice(), x: it.x, y: it.y, s: it.s, skip: false, rz: it.rz || 0, pl: edPl(it) }; edFix(p, c);
     [c.x, c.y] = edFreeSpot(cur, c);
     p.inst.splice(cur.sel.i + 1, 0, c); cur.sel = { p: cur.sel.p, i: cur.sel.i + 1 };
     edMeshes(cur); edPanel(cur);
@@ -10909,7 +11455,7 @@ function edAct(cur, k) {
     const gone = p.inst.splice(cur.sel.i, 1)[0];
     if (gone && gone.bi != null) cur.gone = (cur.gone || []).concat(gone.bi);
     if (!p.inst.length) cur.parts.splice(cur.sel.p, 1);
-    cur.sel = cur.parts.length ? { p: Math.min(cur.sel.p, cur.parts.length - 1), i: 0 } : null;
+    cur.sel = null; edSelFix(cur);
     edMeshes(cur); edPanel(cur);
   } else if (k === 'mirror') {
     edPush(cur); it.L = edMul([-1, 0, 0, 0, 1, 0, 0, 0, 1], it.L); edFix(p, it); edPose(cur); edPanel(cur);
@@ -10920,10 +11466,13 @@ function edAct(cur, k) {
 /** Liste links, Auswahl am Handy, Status, Hinweise, rechte Spalte */
 function edPanel(cur) {
   if (!$('#amped')) return;
+  edSelFix(cur);
   const chk = edCheck(cur), pr = cur.pr;
-  // Liste der Teile (Desktop) + Auswahl (Handy)
+  edPlBar(cur);
+  // Liste der Teile (Desktop) + Auswahl (Handy) — nur die angezeigte Platte
   const rows = [];
   cur.parts.forEach((p, pi) => p.inst.forEach((it, ii) => {
+    if (!edHere(cur, it)) return;
     const on = cur.sel && cur.sel.p === pi && cur.sel.i === ii, s = edSlotOf(cur, p), b = it.bb.d;
     const nm = p.inst.length > 1 ? `${p.name} (${ii + 1})` : p.name;
     rows.push(`<div class="amp-edrow${on ? ' on' : ''}${it.skip ? ' off' : ''}${it.over > 0.3 || it.tall > 0.3 ? ' bad' : ''}">
@@ -10934,9 +11483,9 @@ function edPanel(cur) {
   $('#edlist').innerHTML = rows.join('');
   $('#edlist').querySelectorAll('[data-sel]').forEach(b => b.onclick = () => { const [p, i] = b.dataset.sel.split(':').map(Number); cur.sel = { p, i }; edPose(cur); edPanel(cur); });
   $('#edlist').querySelectorAll('[data-skip]').forEach(b => b.onclick = () => { const [p, i] = b.dataset.skip.split(':').map(Number); cur.sel = { p, i }; edAct(cur, 'skip'); });
-  $('#edpick').innerHTML = cur.parts.map((p, pi) => p.inst.map((it, ii) => `<option value="${pi}:${ii}"${cur.sel && cur.sel.p === pi && cur.sel.i === ii ? ' selected' : ''}>${esc((p.inst.length > 1 ? `${p.name} (${ii + 1})` : p.name) + (edSlotOf(cur, p) ? ' · ' + tf('pc_slot_n', edSlotOf(cur, p).label) : ''))}</option>`).join('')).join('');
+  $('#edpick').innerHTML = cur.parts.map((p, pi) => p.inst.map((it, ii) => !edHere(cur, it) ? '' : `<option value="${pi}:${ii}"${cur.sel && cur.sel.p === pi && cur.sel.i === ii ? ' selected' : ''}>${esc((p.inst.length > 1 ? `${p.name} (${ii + 1})` : p.name) + (edSlotOf(cur, p) ? ' · ' + tf('pc_slot_n', edSlotOf(cur, p).label) : ''))}</option>`).join('')).join('');
   // Passt auch auf
-  const all = []; cur.parts.forEach(p => p.inst.forEach(i => { if (!i.skip) all.push(edWorld(i)); }));
+  const all = []; cur.parts.forEach(p => p.inst.forEach(i => { if (!i.skip && edHere(cur, i)) all.push(edWorld(i)); }));
   const ext = all.length ? [Math.max(...all.map(b => b[2])) - Math.min(...all.map(b => b[0])), Math.max(...all.map(b => b[3])) - Math.min(...all.map(b => b[1])), Math.max(...all.map(b => b[4]))] : [0, 0, 0];
   const others = (cur.printers || []).filter(p => p.bed && (!pr || p.key !== pr.key));
   $('#edfits').innerHTML = others.length ? `<h2>${esc(t('amp_ed_fits_h'))}</h2><ul class="amp-edfits">${others.map(p => { const ok = ext[0] <= p.bed[0] && ext[1] <= p.bed[1] && ext[2] <= (p.bed[2] || 999);
@@ -10950,11 +11499,12 @@ function edPanel(cur) {
   else if (chk.ok) st.push(`<span class="amp-edchip ok">${edI(EI.check, 16)}${esc(t('amp_ed_fit_ok'))}</span>`);
   if (!cur.bedKnown && cur.slcOld) st.push(`<span class="amp-edchip warn amp-edslc">${edI(EI.warn, 16)}<span>${esc(t('amp_ed_bed_old', { v: cur.slcOld }))}<code>docker pull ghcr.io/nolimitek/allmyprinters-slicer:latest</code></span></span>`);
   if (chk.overlap) st.push(`<span class="amp-edchip warn">${edI(EI.warn, 16)}${esc(t('amp_ed_overlap'))}</span>`);
-  const nPr = cur.parts.reduce((a, p) => a + p.inst.filter(i => !i.skip).length, 0);
+  const nPr = cur.parts.reduce((a, p) => a + p.inst.filter(i => !i.skip && edHere(cur, i)).length, 0);
   st.push(`<span class="amp-edchip">${esc(nPr === 1 ? t('amp_ed_n_part') : t('amp_ed_n_parts', { n: nPr }))}</span>`);
   $('#edst').innerHTML = st.join('');
   const blocked = !chk.ok || !pr;
-  ['#edgo', '#edgo2'].forEach(s => { const b = $(s); b.disabled = blocked; b.title = !pr ? t('amp_no_printers') : chk.bad.length ? t('amp_ed_fit_bad') : ''; });
+  ['#edgo', '#edgo2'].forEach(s => { const b = $(s); b.disabled = blocked; b.title = !pr ? t('amp_no_printers') : chk.bad.length ? t('amp_ed_fit_bad') : '';
+    if (!b.dataset.busy) b.textContent = edMulti(cur) ? t('amp_ed_pl_print', { n: (cur.pl || 0) + 1 }) : t('amp_ed_print'); });
   const canSave = cur.parts.length && (cur.mode === '3mf' || cur.parts.every(p => p.id));
   ['#edsave', '#edsave2'].forEach(s => { const b = $(s); b.disabled = !canSave; b.title = canSave ? '' : t('amp_plate_lib_only'); });
   $('#edundo').disabled = !cur.undo.length; $('#edredo').disabled = !cur.redo.length;
@@ -10978,7 +11528,7 @@ const edNumIn = v => { const x = parseFloat(String(v).replace(',', '.')); return
 function edSec(k, inner) { return `<section class="amp-edsec" data-sec="${k}">${inner}</section>`; }
 function edProps(cur) {
   const p = edSelPart(cur), it = edSelInst(cur), pr = cur.pr;
-  if (!p || !it) return `<p class="hint">${esc(t('amp_ed_empty_p'))}</p>`;
+  if (!p || !it) return `<p class="hint${edMulti(cur) ? ' amp-edplempty' : ''}">${esc(t(edMulti(cur) ? 'amp_ed_pl_empty' : 'amp_ed_empty_p'))}</p>`;   // leere Platte (#55)
   const nm = p.inst.length > 1 ? `${p.name} (${cur.sel.i + 1})` : p.name, b = it.bb.d, over = it.over > 0.3 ? it.over : 0, tall = it.tall > 0.3 ? it.tall : 0;
   const head = `<div class="amp-edph"><span class="sw" style="background:${esc(edColorOf(cur, p))}"></span><div class="t"><b>${esc(nm)}</b><small>${esc(t('amp_ed_from', { f: p.file && p.file.name ? p.file.name : p.name }))}</small></div>
     <button type="button" class="amp-edib" data-pact="copy" aria-label="${esc(t('amp_ed_copy'))}" title="${esc(t('amp_ed_copy'))}">${edI(EI.copy)}</button>
@@ -11008,7 +11558,37 @@ function edProps(cur) {
       <div class="amp-edg2"><button type="button" class="btn sm" data-pact="center">${esc(t('amp_ed_center'))}</button><button type="button" class="btn sm" data-pact="fit">${esc(t('amp_ed_fit_make'))}</button></div></div>` : ''}`);
   const flat = edSec('flat', `<h3>${esc(t('amp_ed_flat_btn'))}</h3><p class="amp-edsub">${esc(t('amp_ed_flat_p'))}</p>
     <button type="button" class="btn sm" data-pact="autoflat">${edI(EI.flat, 18)}${esc(t('amp_ed_flat_auto'))}</button>`);
-  return head + move + rot + size + flat + (p.kind === '3mf' ? '' : edSec('flat', edSupHtml(p))) + `<section class="amp-edsec amp-ednar" data-sec="color">${edColorHtml(cur, p, true)}</section>`;
+  return head + move + edPlMoveHtml(cur, p) + rot + size + flat + (p.kind === '3mf' ? '' : edSec('flat', edSupHtml(p))) + `<section class="amp-edsec amp-ednar" data-sec="color">${edColorHtml(cur, p, true)}</section>`;
+}
+/** Kopie auf eine andere Platte (oder eine neue) legen — nicht bei 3MF (#55) */
+function edPlMoveHtml(cur, p) {
+  if (cur.mode === '3mf' || p.kind === '3mf') return '';
+  const n = cur.plates || 1, here = cur.pl || 0;
+  return edSec('move', `<h3>${esc(t('amp_ed_pl_move_h'))}</h3><div class="amp-edrowx"><select id="edplmv" class="in amp-edplmv" aria-label="${esc(t('amp_ed_pl_move_h'))}">
+    ${[...Array(n).keys()].map(k => `<option value="${k}"${k === here ? ' selected' : ''}>${esc(t('psd_pl_n', { n: k + 1 }))}</option>`).join('')}
+    ${n < ED_PL_MAX ? `<option value="new">${esc(t('amp_ed_pl_new'))}</option>` : ''}</select></div>`);
+}
+/** Platten-Reiter über dem Bett: Platte 1 · 2 · … (Teile, ✓ übergeben, ! ragt über) und „+“ für eine neue */
+function edPlBar(cur) {
+  const bar = $('#edpls'); if (!bar) return;
+  const n = cur.plates || 1, info = edPlInfo(cur), sent = cur.sent || {};
+  bar.innerHTML = [...Array(n).keys()].map(k => {
+    const on = k === (cur.pl || 0), i = info[k] || { n: 0 };
+    const sub = sent[k] ? t('amp_ed_pl_sent') : i.n === 1 ? t('amp_ed_n_part') : t('amp_ed_n_parts', { n: i.n });
+    return `<button type="button" role="tab" class="amp-edplt${on ? ' on' : ''}${i.bad ? ' bad' : ''}${sent[k] ? ' sent' : ''}" data-pl="${k}" aria-selected="${on}">
+      ${sent[k] ? edI(EI.check, 15) : i.bad ? edI(EI.warn, 15) : ''}<b>${esc(t('psd_pl_n', { n: k + 1 }))}</b><small>${esc(sub)}</small></button>`;
+  }).join('') + (n < ED_PL_MAX ? `<button type="button" class="amp-edplt add" data-pladd aria-label="${esc(t('amp_ed_pl_new'))}" title="${esc(t('amp_ed_pl_new'))}">${edI(EI.plus, 16)}<span>${esc(n > 1 ? '' : t('amp_ed_pl_new'))}</span></button>` : '');
+  // Handy: Auswahlliste statt wischbarer Reiter (Regel „nie Wischleisten“) — nur wenn es mehr als eine Platte gibt, sonst bleibt „+ Neue Platte“
+  if (n > 1) bar.insertAdjacentHTML('beforeend', `<select class="in amp-ednar amp-edplsel" id="edplsel" aria-label="${esc(t('amp_ed_pl_move_h'))}">${[...Array(n).keys()].map(k => { const i = info[k] || { n: 0 };
+    return `<option value="${k}"${k === (cur.pl || 0) ? ' selected' : ''}>${esc(t('psd_pl_n', { n: k + 1 }) + ' · ' + (sent[k] ? '✓ ' + t('amp_ed_pl_sent') : i.n === 1 ? t('amp_ed_n_part') : t('amp_ed_n_parts', { n: i.n })) + (i.bad ? ' · !' : ''))}</option>`; }).join('')}
+    ${n < ED_PL_MAX ? `<option value="new">${esc('+ ' + t('amp_ed_pl_new'))}</option>` : ''}</select>`);
+  bar.classList.toggle('one', n === 1);
+  const newPl = () => { edPlTidy(cur); if ((cur.plates || 1) >= ED_PL_MAX) return; cur.plates = (cur.plates || 1) + 1; edPlGo(cur, cur.plates - 1); };
+  bar.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { if (+b.dataset.pl !== (cur.pl || 0)) edPlGo(cur, +b.dataset.pl); });
+  const add = bar.querySelector('[data-pladd]');
+  if (add) add.onclick = newPl;
+  const sel = bar.querySelector('#edplsel');
+  if (sel) sel.onchange = () => { if (sel.value === 'new') newPl(); else edPlGo(cur, +sel.value); };
 }
 /** Stützen je Teil (am Handy unter „Fläche“) */
 function edSupHtml(p) {
@@ -11044,6 +11624,16 @@ function edPropsBind(cur) {
       else { const S = [1, 1, 1]; S[i] = f; it.L = edMul([S[0], 0, 0, 0, S[1], 0, 0, 0, S[2]], it.L); } });
   }));
   box.querySelectorAll('[data-unit]').forEach(b => b.onclick = () => { cur.unit = b.dataset.unit; edPanel(cur); });
+  const mv = box.querySelector('#edplmv');
+  if (mv) mv.onchange = () => {
+    const to = mv.value === 'new' ? (cur.plates || 1) : +mv.value;
+    if (to === edPl(it) || to >= ED_PL_MAX) return;
+    edPush(cur);
+    if (to >= (cur.plates || 1)) cur.plates = to + 1;
+    it.pl = to; [it.x, it.y] = edSpotOn(cur, it);
+    cur.sel = null; edSelFix(cur); edMeshes(cur); edPanel(cur);
+    toast(t('amp_ed_pl_moved', { n: to + 1 }));
+  };
   box.querySelectorAll('[data-sup]').forEach(b => b.onclick = () => { edPush(cur); p.sup = b.dataset.sup; edPanel(cur); });
   [box, $('#edslotsL')].filter(Boolean).forEach(el => {
     el.querySelectorAll('[data-map3]').forEach(s => s.onchange = () => { edPush(cur); cur.map3[s.dataset.map3] = s.value; edMeshes(cur); edPanel(cur); });
@@ -11054,7 +11644,7 @@ function edPropsBind(cur) {
   box.querySelectorAll('[data-pact]').forEach(b => b.onclick = () => {
     const k = b.dataset.pact, [W, D, H] = edBed(cur);
     if (k === 'copy' || k === 'del' || k === 'mirror') return edAct(cur, k);
-    if (k === 'arrange') { edPush(cur); edArrange(cur); edPose(cur); edPanel(cur); return; }
+    if (k === 'arrange') { edArrangeUi(cur); return; }
     if (k === 'add') { edPick(cur); return; }
     if (k === 'dev') { edFromDevice(cur); return; }
     if (k === 'center') { edPush(cur); it.x = W / 2; it.y = D / 2; edPose(cur); edPanel(cur); return; }
@@ -11085,8 +11675,8 @@ async function edAddFromLib(cur) {
       for (const x of add) {
         const geo = await edReadStl(x.file, budget); budget -= geo.nt;
         const key = 'k' + Object.keys(cur.pool).length, nm = x.file.name.replace(/\.stl$/i, '');
-        const p = { key, id: x.lib, name: nm, file: x.file, geo, slot: String(edDefSlot(cur.pr)), inst: [{ L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0 }] };
-        edFix(p, p.inst[0]); [p.inst[0].x, p.inst[0].y] = cur.parts.length ? edFreeSpot(cur, Object.assign(p.inst[0], { x: edBed(cur)[0] / 2, y: edBed(cur)[1] / 2 })) : [edBed(cur)[0] / 2, edBed(cur)[1] / 2];
+        const p = { key, id: x.lib, name: nm, file: x.file, geo, slot: String(edDefSlot(cur.pr)), inst: [{ L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0, pl: cur.pl || 0 }] };
+        edFix(p, p.inst[0]); [p.inst[0].x, p.inst[0].y] = edSpotOn(cur, p.inst[0]);
         cur.pool[key] = p; cur.parts.push(p); cur.sel = { p: cur.parts.length - 1, i: 0 };
       }
     } catch (e) { toast(e.message === 'too_big' ? t('amp_ed_too_big', { name: e.part, n: ED_TRI_MAX / 1e6 }) : t('amp_ed_bad_file', { name: e.part || '?' })); }
@@ -11120,7 +11710,7 @@ async function edSaveDlg(cur) {
       <label class="fld"><span>${esc(t('lib_name'))}</span><input class="in" id="edsnm" maxlength="120" value="${esc(curF ? curF.name : cur.name)}" autocomplete="off"></label>
       <label class="fld"><span>${esc(t('lib_folder'))}</span><input class="in" id="edsfo" list="edsfl" maxlength="160" value="${esc(curF ? curF.folder || '' : fo.length === 1 ? fo[0] : '')}" placeholder="${esc(t('amp_lib_folder_ph'))}" autocomplete="off"></label>
       <datalist id="edsfl">${lbPaths(files).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-      <p class="hint">${esc(t('amp_plate_parts', { n: cur.parts.length }))} · ${esc(cur.parts.map(p => `${p.inst.length}× ${p.name}`).join(', '))}</p></div>
+      <p class="hint">${esc(t('amp_plate_parts', { n: cur.parts.length }))} · ${esc(cur.parts.map(p => `${p.inst.length}× ${p.name}`).join(', '))}${edMulti(cur) ? ' · ' + esc(t('amp_ed_pl_count', { n: cur.plates })) : ''}</p></div>
     <div class="dlg-f"><button type="button" class="btn" data-x>${esc(t('cancel'))}</button><button type="submit" class="btn pri" id="edsok">${esc(t('save'))}</button></div></form>`;
   const thumb = edThumb(cur);
   if (!dlg.open) dlg.showModal();
@@ -11130,7 +11720,7 @@ async function edSaveDlg(cur) {
     e.preventDefault(); ok.disabled = true;
     try {
       const parts = cur.parts.map(p => ({ id: p.id, n: p.inst.length, slot: edMultiOf(cur.pr) ? p.slot : cur.slot1 || '', sup: p.sup || '',
-        inst: p.inst.map(i => ({ L: i.L.map(v => Math.round(v * 1e6) / 1e6), x: Math.round(i.x * 100) / 100, y: Math.round(i.y * 100) / 100, s: Math.round(i.s * 1e4) / 1e4, skip: !!i.skip })) }));
+        inst: p.inst.map(i => ({ L: i.L.map(v => Math.round(v * 1e6) / 1e6), x: Math.round(i.x * 100) / 100, y: Math.round(i.y * 100) / 100, s: Math.round(i.s * 1e4) / 1e4, skip: !!i.skip, ...(edPl(i) ? { pl: edPl(i) } : {}) })) }));
       const r = await api('amp_lib_plate_save', { id: cur.plateId || null, name: dlg.querySelector('#edsnm').value.trim(), folder: dlg.querySelector('#edsfo').value.trim(), parts, thumb, edp: cur.pr ? cur.pr.key : null });
       if (r.error) throw new Error(r.error);
       cur.plateId = r.file.id; cur.name = r.file.name;
@@ -11146,18 +11736,21 @@ async function edPrint(cur, btn) {
   if (!(await ampFeat('editor'))) { ampPlanDeny('editor'); return; }
   const chk = edCheck(cur); if (!chk.ok || !cur.pr) { edPanel(cur); return; }
   const b0 = btn.textContent;
-  [$('#edgo'), $('#edgo2')].forEach(b => { if (b) b.disabled = true; });
+  [$('#edgo'), $('#edgo2')].forEach(b => { if (b) { b.disabled = true; b.dataset.busy = '1'; } });
   try {
     btn.textContent = t('amp_ed_building');
     if (cur.mode === '3mf') { await ed3Print(cur, btn); return; }
     const r = await edBuild3mf(cur, (i, n) => { btn.textContent = t('amp_ed_building_n', { i, n }); });
-    const nm = (cur.name || 'AllMyPrinters').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'AllMyPrinters';
-    const ids = [...new Set(cur.parts.filter(p => p.id && p.inst.some(i => !i.skip)).map(p => p.id))];
+    const multi = edMulti(cur), k = cur.pl || 0;
+    const nm = ((cur.name || 'AllMyPrinters') + (multi ? ' - ' + t('psd_pl_n', { n: k + 1 }) : '')).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 90) || 'AllMyPrinters';
+    const ids = [...new Set(cur.parts.filter(p => p.id && p.inst.some(i => !i.skip && edHere(cur, i))).map(p => p.id))];
     lb.hand = { printer: cur.pr.key, id: cur.plateId || ids[0] || null, name: cur.name, plate: 1, ed: true, plateId: cur.plateId || null, libIds: ids,
+      edPl: multi ? { n: k + 1, of: cur.plates } : null,
       edSlot: r.map ? null : r.slot1, edMap: r.map, file: new File([r.blob], `${nm}.3mf`, { type: 'application/octet-stream', lastModified: Date.now() }) };
+    if (multi) { cur.sent = Object.assign({}, cur.sent, { [k]: true }); cur.next = true; }   // zurück im Editor: nächste Platte (#55)
     location.hash = 'print';
   } catch (e) {
-    btn.textContent = b0; [$('#edgo'), $('#edgo2')].forEach(b => { if (b) b.disabled = false; });
+    btn.textContent = b0; [$('#edgo'), $('#edgo2')].forEach(b => { if (b) { b.disabled = false; delete b.dataset.busy; } });
     fail(e);
   }
 }
@@ -11166,6 +11759,9 @@ async function ampEdPrintPlate(f, items, printer) {
   const cur = await edBuildCur({ parts: items, plate: f, printer: printer || f.edp || null });
   await edPrinters(cur);
   if (cur.parts.some(p => p.inst.some(i => i.fresh))) edArrange(cur);
+  cur.parts.forEach(p => p.inst.forEach(i => { delete i.fresh; }));
+  // Mehrere Platten (#55): im Editor wählen, welche gedruckt wird
+  if (edMulti(cur)) { edSelFix(cur); ED.cur = cur; if (dlg.open) dlg.close(); location.hash = 'edit'; toast(t('amp_ed_pl_pick', { n: cur.plates })); return; }
   const chk = edCheck(cur);
   if (!chk.ok) { ED.cur = cur; location.hash = 'edit'; toast(t('amp_ed_fit_bad')); return; }   // passt nicht (anderer Drucker?) → im Editor zeigen
   const r = await edBuild3mf(cur);
@@ -11177,7 +11773,7 @@ async function ampEdPrintPlate(f, items, printer) {
 }
 /** Druckansicht: Hinweis über der Datei („mit dem Editor angeordnet“, zurück zum Editor) */
 function ampEdHandTxt(h) {
-  return `${esc(t('amp_ed_hand', { name: h.name || '' }))} <a href="#edit">${esc(t('amp_ed_hand_back'))}</a>`;
+  return `${esc(t('amp_ed_hand', { name: h.name || '' }))}${h.edPl ? ' · ' + esc(t('amp_ed_pl_of', { n: h.edPl.n, m: h.edPl.of })) : ''} <a href="#edit">${esc(t('amp_ed_hand_back'))}</a>`;
 }
 
 // ═══ 3MF im Editor (19.11.2026, User: „können wir das für 3mf erweitern? sonst macht es kaum Sinn“) ═══════════════════════════
@@ -11533,9 +12129,9 @@ async function edAddItems(cur, items) {
     for (const x of items) {
       const geo = await edReadStl(x.file, budget); budget -= geo.nt;
       const key = 'k' + Object.keys(cur.pool).length;
-      const p = { key, kind: 'stl', id: x.id || null, name: x.name || x.file.name.replace(/\.stl$/i, ''), file: x.file, geo, slot: String(edDefSlot(cur.pr)), sup: '', ext3: 1, inst: [{ L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0 }] };
+      const p = { key, kind: 'stl', id: x.id || null, name: x.name || x.file.name.replace(/\.stl$/i, ''), file: x.file, geo, slot: String(edDefSlot(cur.pr)), sup: '', ext3: 1, inst: [{ L: ED_I3.slice(), x: 0, y: 0, s: 1, skip: false, rz: 0, pl: cur.mode === '3mf' ? 0 : cur.pl || 0 }] };
       edFix(p, p.inst[0]);
-      [p.inst[0].x, p.inst[0].y] = edFreeSpot(cur, Object.assign(p.inst[0], { x: edBed(cur)[0] / 2, y: edBed(cur)[1] / 2 }));
+      [p.inst[0].x, p.inst[0].y] = cur.mode === '3mf' ? edFreeSpot(cur, Object.assign(p.inst[0], { x: edBed(cur)[0] / 2, y: edBed(cur)[1] / 2 })) : edSpotOn(cur, p.inst[0]);
       cur.pool[key] = p; cur.parts.push(p); cur.sel = { p: cur.parts.length - 1, i: 0 };
     }
   } catch (e) { toast(e.message === 'too_big' ? t('amp_ed_too_big', { name: e.part, n: ED_TRI_MAX / 1e6 }) : t('amp_ed_bad_file', { name: e.part || '?' })); }

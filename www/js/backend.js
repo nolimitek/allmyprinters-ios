@@ -103,6 +103,19 @@ function pfPrinter(id) {
 const TL_ROOTS = ['timelapse', 'camera'];
 const TL_VIDEO = /\.(mp4|m4v|mov|mkv|webm)$/i;
 const tlUrl = (p, root, path) => mrUrl(p, '/server/files/' + root + '/' + String(path).split('/').map(encodeURIComponent).join('/'));
+/** Datei am Klipper-Drucker löschen (27.11.2026, User: „wie kann ich Daten löschen, irgendwann wird der Speicher eng“) */
+async function mrDel(p, root, path) {
+  const r = await native('http', { url: tlUrl(p, root, path), method: 'DELETE', timeout: 10000, headers: p.key ? { 'X-Api-Key': p.key } : {} });
+  if (r.status === 404) fail('file_missing');
+  if (r.status === 401 || r.status === 403) fail('unauthorized');
+  if (r.status >= 400) fail('http_' + r.status);
+  return true;
+}
+/** Freier/gesamter Platz der Wurzel (Moonraker /server/files/directory → disk_usage), null wenn unbekannt */
+async function mrDisk(p, root) {
+  try { const d = await mrGet(p, '/server/files/directory?' + qs({ path: root, extended: 'false' }), 5000); const u = d && d.disk_usage; return u && +u.total > 0 ? { free: +u.free || 0, total: +u.total } : null; }
+  catch (e) { return null; }
+}
 /** Gramm je Werkzeug aus Moonraker-Metadaten (U1: filament_weight, Orca-Patch: filament_weights, sonst Summe) */
 function pfWeights(md) {
   const fwl = Array.isArray(md.filament_weights) ? md.filament_weights : Array.isArray(md.filament_weight) ? md.filament_weight : null;
@@ -1178,14 +1191,21 @@ async function mrSync(p, force) {
                   cam: true, cam_ok: true };   // Live-Bild bleibt im Heimnetz → keine Freigabe wie auf 3DSEARCH nötig
   let pinfo;
   try { pinfo = await mrGet(p, '/printer/info', 3500); }
-  catch (e) { entry.amp_err = e.message === 'unauthorized' ? 'key' : 'unreach'; entry.agent = null; finish(p, entry, L); return entry; }
+  catch (e) {
+    // Moonraker läuft, Klipper ist aber nicht verbunden (Drucker ohne Strom mit bound_services: klipper, Dienst aus): dann scheitert
+    // /printer/info, /server/info antwortet mit klippy_state (27.11.2026, #64) → „nicht bereit“ statt „nicht erreichbar“, Stromschalter bleibt nutzbar
+    const si = e.message === 'unauthorized' ? null : await mrGet(p, '/server/info', 2500).catch(() => null);
+    if (!si || !('klippy_state' in si)) { entry.amp_err = e.message === 'unauthorized' ? 'key' : 'unreach'; entry.agent = null; finish(p, entry, L); return entry; }
+    pinfo = { state: si.klippy_state || 'disconnected', state_message: '' };
+    L.comps = si.components || L.comps; L.compsAt = Date.now();
+  }
   entry.online = true;
   if (pinfo.hostname && p.mrhost !== pinfo.hostname) { p.mrhost = pinfo.hostname; persist(); }   // Kennung fürs Wiederfinden nach IP-Wechsel
   entry.agent.klippy = pinfo.state || 'unknown';
-  // KX-Bridge meldet sich immer als „kobrax-bridge“, der Druckername steht in cpu_info
-  L.kx = pinfo.hostname === 'kobrax-bridge'; L.kxName = pinfo.cpu_info || '';
+  // KX-Bridge meldet sich immer als „kobrax-bridge“, der Druckername steht in cpu_info (ohne /printer/info, s. o., bleibt der letzte Stand)
+  if ('hostname' in pinfo) { L.kx = pinfo.hostname === 'kobrax-bridge'; L.kxName = pinfo.cpu_info || ''; }
   if (L.kx && !p.model) { p.model = 'Anycubic Kobra X'; entry.model = p.model; persist(); }
-  if (!p.model || p.model === 'Anycubic Kobra') {
+  if (pinfo.hostname && (!p.model || p.model === 'Anycubic Kobra')) {
     const m = modelFrom(pinfo.hostname, null);
     if (m) { p.model = m; entry.model = m; if (p.prof && !p.prof.chosen) p.prof = null; persist(); }
   }
@@ -1193,6 +1213,14 @@ async function mrSync(p, force) {
     entry.agent.klippy_msg = String(pinfo.state_message || '').slice(0, 200);
     // printerCard zeigt den Klipper-Hinweis nur offline — Klipper im Fehler ist für den Nutzer „nicht bereit“
     entry.online = false;
+    // Stromschalter (#64): Moonraker läuft weiter → Schalter + „Einschalten“ in der Karte. Ist das Gerät des Druckers aus, ist das kein
+    // Klipper-Fehler: Klipper-Hinweis weg (amp-views zeigt „Ausgeschaltet“), Home Assistant meldet dann auch keinen Fehler
+    await mrPwrList(p, L);
+    entry.pwr = pwrEntry(p, L);
+    const pm = entry.pwr && entry.pwr.main ? entry.pwr.devs.find(d => d.id === entry.pwr.main) : null;
+    if (pm && pm.on === false) { entry.pwr.off = true; entry.agent.klippy = null; entry.agent.klippy_msg = ''; }
+    // Senden möglich (Druckansicht): aus → mrWake schaltet ein; an und Klipper fährt hoch bzw. eben eingeschaltet → mrWake wartet
+    if (pm) entry.pwr.wake = pm.on === false || pinfo.state === 'startup' || pinfo.state === 'disconnected' || (!!L.pwrOnAt && Date.now() - L.pwrOnAt < PWR_WAIT);
     finish(p, entry, L); return entry;
   }
   if (!L.objects || force) {
@@ -1203,6 +1231,8 @@ async function mrSync(p, force) {
       // Weitere Köpfe (Snapmaker U1: extruder1–3, IDEX) — für die Düsentemperatur des aktiven Kopfs
       .concat(lst.filter(o => /^extruder\d+$/.test(o)));
     L.qidi = qidi;
+    // Snapmaker U1: Filament je Kopf entladen (27.11.2026, u1Unload) — Firmware-Makro AUTO_FEEDING, Stand je Kopf in filament_feed left/right
+    L.unl = lst.includes('gcode_macro AUTO_FEEDING'); L.feedObj = lst.filter(o => /^filament_feed \S+$/.test(o));
     // Lüfter und Licht (12.11.2026): Bauteillüfter, frei schaltbare Lüfter, Licht-Ausgänge und LEDs (Abfrage getrennt, mrCtl)
     L.ctlObj = lst.filter(o => o === 'fan' || /^fan_generic [\w-]+$/.test(o) || /^(led|neopixel|dotstar|pca9533|pca9632) [\w-]+$/.test(o)
                             || (/^output_pin [\w-]+$/.test(o) && LIGHT_RE.test(o.slice(11))));
@@ -1212,6 +1242,7 @@ async function mrSync(p, force) {
     // Nur wenn der Name noch genau der Rechnername ist (selbst vergebene Namen bleiben).
     if (p.model === 'Snapmaker U1' && p.name === 'lava' && pinfo.hostname === 'lava') { p.name = p.model; entry.name = p.name; persist(); }
   }
+  if (L.unl) entry.unload = true;   // ⋯ der Druckerkarte: „Filament entladen“ (amp-views ampUnlDlg)
   const st = (await mrGet(p, '/printer/objects/query?' + qs(Object.fromEntries(L.objects.map(o => [o, MR_ATTRS[o.split(' ')[0]] || (/^extruder\d+$/.test(o) ? 'temperature,target' : null)]))))).status || {};
   const ps = st.print_stats || {}, vs = st.virtual_sdcard || {}, ds = st.display_status || {};
   const pstate = ps.state || '';
@@ -1233,6 +1264,9 @@ async function mrSync(p, force) {
   if (L.totals) entry.stats = { prints: L.totals.total_jobs || 0, hours: Math.round((L.totals.total_print_time || 0) / 3600), fw: pinfo.software_version ? String(pinfo.software_version).replace(/-.*$/, '') : null };
   L.kobra = /^kobra[-_]/i.test(pinfo.hostname || '');   // Rinkhals (GoKlipper) → Lüfter über M106 P2/P3
   entry.ctl = await mrCtl(p, L, entry.busy, st.gcode_move);
+  entry.pwr = pwrEntry(p, L);   // Strom-Geräte (#64), Liste kommt aus mrCtl → mrPwrList
+  await pwrAuto(p, L, entry, L.lastState, pstate, st);   // „Nach dem Druck ausschalten“ — L.lastState ist hier noch der vorige Stand
+  if (entry.pwr) entry.pwr.arm = !!(L.pwrArm && entry.pwr.main && L.pwrArm.dev === entry.pwr.main);
 
   // Fächer: Happy-Hare-Format (Rinkhals meldet die ACE genauso)
   const mmu = st.mmu, mach = st.mmu_machine || {};
@@ -1333,6 +1367,7 @@ async function mrSync(p, force) {
     entry.job.slots = entry.slots.filter(s => s.inuse).map(s => s.index);
   }
 
+  if (badModel(p.model)) { p.model = null; entry.model = null; if (p.prof && !p.prof.chosen) p.prof = null; L.modelTried = false; persist(); }
   // Modell unbekannt (alle außer Anycubic/U1/KX): Orca schreibt „; printer_settings_id = Creality K1 Max (0.4 nozzle)“ ans Dateiende
   if (!p.model && !L.modelTried && (L.lastFile || ps.filename)) { L.modelTried = true; modelFromFile(p, L.lastFile || ps.filename).then(m => { if (m && !p.model) { p.model = m; if (p.prof && !p.prof.chosen) p.prof = null; persist(); } }).catch(() => {}); }
   // Druckverlauf: bei Zustandswechsel sofort, sonst höchstens alle 20 s
@@ -1346,9 +1381,14 @@ async function mrSync(p, force) {
 async function modelFromFile(p, fn) {
   const r = await native('http', { url: mrUrl(p, '/server/files/gcodes/' + String(fn).split('/').map(encodeURIComponent).join('/')), headers: Object.assign({ Range: 'bytes=-131072' }, p.key ? { 'X-Api-Key': p.key } : {}), timeout: 8000, max: 140000 });
   if (r.status !== 206 && r.status !== 200) return null;
-  const m = /^;\s*printer_settings_id\s*=\s*(.+)$/m.exec(r.text || '') || /^;\s*printer_model\s*=\s*(.+)$/m.exec(r.text || '');
-  return m ? modelFrom(null, m[1].replace(/^"|"$/g, '')) : null;
+  // Nur innerhalb der Zeile lesen (27.11.2026): mit „\s*“ nach dem „=“ lief ein LEERES printer_settings_id in die nächste Zeile — Orca schreibt
+  // alphabetisch, also wurde „; printer_structure = undefine“ zum Modellnamen (Druckstart-Meldung 26.11., Elegoo Neptune 4 Plus). Leer → printer_model.
+  const val = k => { const m = new RegExp('^;[ \\t]*' + k + '[ \\t]*=[ \\t]*([^\\r\\n]*)$', 'm').exec(r.text || ''); const v = m ? m[1].trim().replace(/^"|"$/g, '').trim() : ''; return v && !/[=;]/.test(v) ? v : ''; };
+  const v = val('printer_settings_id') || val('printer_model');
+  return v ? modelFrom(null, v) : null;
 }
+/** Modellname aus einer Konfigurationszeile (modelFromFile vor 27.11.2026, z. B. „; printer_structure = undefine“) → einmal neu erkennen */
+const badModel = m => /^\s*;|=|\bprinter_(structure|technology|variant|notes|settings_id|model)\b/.test(String(m || ''));
 
 function finish(p, entry, L) {
   const done = db.jobs.filter(j => j.printer_id === p.id && j.status !== 1 && j.state !== 'before_connect').sort((a, b) => ts(b.end || b.start) - ts(a.end || a.start))[0];
@@ -1744,6 +1784,73 @@ async function u1Prefs(p, o) {
     + ' SHAPER_CALIBRATE=' + (o.vib ? 1 : 0) + ' TIME_LAPSE_CAMERA=' + (o.tl ? 1 : 0);
   try { await mrPost(p, '/printer/gcode/script', { script }, 10000); }
   catch (e) { diag({ a: 'u1_prefs', p: 'moonraker', m: p.model || '', err: String(e.message || 'err').slice(0, 30), d: String(e.msg || '').slice(0, 120) }); }
+}
+/**
+ * Snapmaker U1: Filament je Kopf entladen (27.11.2026, User: „Filament laden und entladen – geht das nur am Drucker?“ → nur Entladen,
+ * „auswählbar pro Kopf muss das sein“). Dieselben Befehle wie das Display (Snapmaker u1-klipper fluidd.cfg SM_PRINT_END_AUTO_UNLOAD_FILAMENT):
+ * AUTO_FEEDING EXTRUDER=<0–3> UNLOAD=1 STAGE=prepare (X/Y referenzieren, Kopf aufnehmen, zur Abfallstelle, auf die Entladetemperatur des
+ * Materials heizen), dann STAGE=doing (zurückziehen, abschneiden, Düse abstreifen, Heizung aus). Laden aus der Ferne bewusst nicht: der U1 zieht
+ * neues Filament selbst ein, sobald es im Einzug steckt — dafür steht man ohnehin am Drucker.
+ * Moonraker antwortet erst, wenn beides fertig ist (Minuten) → nach 6 s nicht mehr warten, Klipper arbeitet weiter. Fortschritt je Kopf aus
+ * filament_feed left/right (get_status: extruderN.channel_state unload_*, channel_error), Heizen zusätzlich an extruderN.target.
+ */
+const U1_UNL_RUN = { unload_prepare: 'prep', unload_homing: 'prep', unload_picking: 'prep', unload_heating: 'heat', unload_heat_finish: 'heat', unload_doing: 'pull' };
+const U1_UNL_ACTIVE = ['start', 'prep', 'heat', 'pull'];
+async function u1Feed(p) {
+  const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+  if (L.unl === undefined || !L.feedObj) {
+    const lst = (await mrGet(p, '/printer/objects/list', 4000)).objects || [];
+    L.unl = lst.includes('gcode_macro AUTO_FEEDING'); L.feedObj = lst.filter(o => /^filament_feed \S+$/.test(o));
+  }
+  if (!L.unl) fail('cmd');
+  const q = { print_stats: 'state', print_task_config: 'filament_type,filament_color_rgba,filament_exist', extruder: 'target', extruder1: 'target', extruder2: 'target', extruder3: 'target' };
+  for (const o of L.feedObj) q[o] = null;
+  const st = (await mrGet(p, '/printer/objects/query?' + qs(q), 4000)).status || {};
+  const fd = {}; for (const o of L.feedObj) Object.assign(fd, st[o] || {});
+  const ptc = st.print_task_config || {}, ps_ = (st.print_stats || {}).state || '', slots = (L.entry || {}).slots || [];
+  const n = Math.min(8, Math.max((ptc.filament_type || []).length, Object.keys(fd).filter(k => /^extruder\d+$/.test(k)).length)) || 4;
+  const c = L.unlCmd && Date.now() - L.unlCmd.at < 900000 ? L.unlCmd : null;
+  const heads = [];
+  for (let i = 0; i < n; i++) {
+    const f = fd['extruder' + i] || {}, sl = slots.find(s => s.index === i) || null, raw = String(f.channel_state || '');
+    const hot = +((st[i ? 'extruder' + i : 'extruder'] || {}).target || 0) > 0;
+    // Ende des Ablaufs: unload_finish/unload_fail; Firmware ohne filament_feed-Stand → Ende = Moonraker hat geantwortet bzw. Heizung wieder aus
+    const fin = raw === 'unload_fail' ? 'fail' : raw === 'unload_finish' || !L.feedObj.length ? 'done' : '';
+    let s = U1_UNL_RUN[raw] || '';
+    if (c && c.head === i) {
+      if (s) c.seen = true;
+      else if (c.err) s = 'fail';
+      // Moonraker hat geantwortet, der Ablauf war zu sehen, oder der Stand ist seit dem Befehl auf „fertig/fehlgeschlagen“ gewechselt
+      else if (c.ok || c.seen || (fin && raw !== c.raw0)) s = fin || (c.ok ? 'done' : '');
+      else if (hot && !c.hot0) { s = 'heat'; c.seen = true; }   // heizt erst seit dem Befehl = läuft
+      else s = Date.now() - c.at < 30000 ? 'start' : 'noresp';
+    }
+    const err = s === 'fail' ? String((c && c.head === i && c.err) || (f.channel_error && f.channel_error !== 'ok' ? f.channel_error : '')).slice(0, 160) : '';
+    heads.push({ i, label: String(i + 1), material: sl ? sl.material : String((ptc.filament_type || [])[i] || '') || null,
+                 color: sl ? sl.color : mrColor((ptc.filament_color_rgba || [])[i]), filled: sl ? sl.filled !== false : !!(ptc.filament_exist || [])[i], state: s, err, raw, hot });
+  }
+  return { busy: ps_ === 'printing' || ps_ === 'paused', heads };
+}
+async function u1Unload(p, inp) {
+  const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+  let f; try { f = await u1Feed(p); } catch (e) { if (e.code) throw e; fail('offline'); }
+  if (f.busy) fail('printer_busy');
+  if (f.heads.some(h => U1_UNL_ACTIVE.includes(h.state))) fail('unload_running');
+  const h = Number(inp.head);
+  if (!Number.isInteger(h) || h < 0 || h >= f.heads.length) fail('cmd');
+  const c = 'AUTO_FEEDING EXTRUDER=' + h + ' UNLOAD=1 STAGE=';
+  L.unlCmd = { head: h, at: Date.now(), err: '', seen: false, ok: false, raw0: f.heads[h].raw, hot0: f.heads[h].hot };
+  try { await mrPost(p, '/printer/gcode/script', { script: c + 'prepare\n' + c + 'doing' }, 6000); L.unlCmd.ok = true; }
+  catch (e) {
+    if (e.message !== 'timeout') {   // Klipper hat abgelehnt (falscher Zustand, Kopf fehlt …) — Meldung der Firmware zeigen
+      L.unlCmd.err = String(e.msg || e.message || 'err').slice(0, 160);
+      diag({ a: 'u1_unload', p: 'moonraker', m: p.model || '', err: String(e.message || 'err').slice(0, 30), d: 'T' + h + ' ' + L.unlCmd.err.slice(0, 120) });
+      return { ok: false, error: 'unload_err', msg: L.unlCmd.err };
+    }
+  }
+  if (!L.unlCmd.ok) await u1Feed(p).catch(() => null);   // läuft er schon? (merkt sich „gesehen“ für die Anzeige)
+  diag({ a: 'u1_unload', p: 'moonraker', m: p.model || '', err: '', d: 'T' + h });
+  return { ok: true };
 }
 async function u1CamWake(p, first) {
   const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
@@ -2581,6 +2688,120 @@ function ctlOverlay(L, ctl) {
   return ctl.fans.length || ctl.lights.length || ctl.speed ? ctl : null;
 }
 
+// ── Moonraker-Stromschalter (27.11.2026, Community #64 Burnie: Drucker an einer Steckdose, die Moonraker als [power …] schaltet) ──
+// Moonraker läuft auf dem Pi weiter, auch wenn der Drucker aus ist. Geräte mit Licht-Namen bleiben Lichtschalter in „Steuern“ (mrCtl),
+// alle anderen sind Strom. Welches Gerät den Drucker versorgt: p.pwr_dev (im Dialog „Stromschalter“ gewählt; '' = keins), sonst das einzige.
+// Senden an einen ausgeschalteten Drucker: einschalten, hochladen, auf Klipper „ready“ warten (PWR_WAIT), dann starten (SEND.moonraker).
+// „Nach dem Druck ausschalten“ (p.pwr_off): nach einem fertigen Druck, sobald jede Düse unter PWR_COOL ist (pwrAuto).
+const PWR_WAIT = 90000, PWR_COOL = 50;
+const pwrWait = () => { let v = 0; try { v = +localStorage.getItem('amp_t_pwr_wait') || 0; } catch (e) {} return v >= 1000 && v < PWR_WAIT ? v : PWR_WAIT; };   // nur kürzer (Test)
+const pwrDevs = L => (L.pwr || []).filter(d => d && /^[\w.-]+$/.test(d.device || '') && !LIGHT_RE.test(d.device));
+function pwrMain(p, L) {
+  if (p.pwr_dev === '') return null;
+  const ds = pwrDevs(L);
+  return ds.find(d => d.device === p.pwr_dev) || (ds.length === 1 ? ds[0] : null);
+}
+/** Geräteliste höchstens alle 5 s (force: jetzt); /server/info nennt die Komponente „power“ nur, wenn [power …] eingerichtet ist. */
+async function mrPwrList(p, L, force) {
+  if (!L.comps || force || Date.now() - (L.compsAt || 0) > 600000) { try { L.comps = (await mrGet(p, '/server/info', 3000)).components || []; L.compsAt = Date.now(); } catch (e) { L.comps = L.comps || []; } }
+  if (!L.comps.includes('power')) { L.pwr = []; return L.pwr; }
+  if (force || !L.pwrAt || Date.now() - L.pwrAt > 5000) {
+    try { L.pwr = (await mrGet(p, '/machine/device_power/devices', 3000)).devices || []; L.pwrAt = Date.now(); } catch (e) { L.pwr = L.pwr || []; }
+  }
+  return L.pwr;
+}
+/** Für die Karte: alle Strom-Geräte, das des Druckers (main), Einstellungen; wake (mrSync) = nicht bereit, Senden schaltet ein bzw. wartet. */
+function pwrEntry(p, L) {
+  const ds = pwrDevs(L);
+  if (!ds.length) return null;
+  const m = pwrMain(p, L);
+  return { devs: ds.map(d => ({ id: d.device, on: d.status === 'on' ? true : d.status === 'off' ? false : null, locked: !!d.locked_while_printing })),
+           main: m ? m.device : null, chosen: p.pwr_dev !== undefined, off_after: !!p.pwr_off, cool: PWR_COOL, wait_s: PWR_WAIT / 1000,
+           wake: false, off: false, arm: !!(L.pwrArm && m && L.pwrArm.dev === m.device) };
+}
+const pwrEv = (p, phase) => { try { document.dispatchEvent(new CustomEvent('amp-pwr', { detail: { printer: p.id, name: p.name, phase } })); } catch (e) {} };
+/** Klipper-Zustand auch ohne verbundenes Klipper (dann scheitert /printer/info, /server/info nennt klippy_state). */
+async function mrKlippy(p) {
+  try { return (await mrGet(p, '/printer/info', 3000)).state || 'unknown'; }
+  catch (e) { if (e.message === 'unauthorized') throw e; return ((await mrGet(p, '/server/info', 3000).catch(() => ({}))).klippy_state) || 'disconnected'; }
+}
+/** Vor dem Senden mit Start: Klipper nicht bereit + Stromschalter bekannt → einschalten (falls aus). null = nichts zu tun. */
+async function mrWake(p) {
+  const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+  const ks = await mrKlippy(p);
+  if (ks === 'ready') return null;
+  await mrPwrList(p, L, true);
+  const m = pwrMain(p, L);
+  if (!m) return null;
+  // Schon an: nur warten, wenn Klipper gerade hochfährt oder wir eben selbst eingeschaltet haben (Karte „Einschalten“) — sonst ist es ein
+  // echter Klipper-Fehler und das Senden scheitert wie bisher am Start
+  const recent = !!L.pwrOnAt && Date.now() - L.pwrOnAt < PWR_WAIT;
+  if (m.status === 'on' && !recent && ks !== 'startup' && ks !== 'disconnected') return null;
+  const w = { at: m.status === 'on' && recent ? L.pwrOnAt : Date.now(), dev: m.device, switched: m.status !== 'on' || recent };
+  if (m.status !== 'on') {
+    await mrPost(p, '/machine/device_power/device?' + qs({ device: m.device, action: 'on' }), {}, 10000);
+    L.pwrAt = 0; L.pwrArm = null; L.pwrOnAt = w.at;
+    diag({ a: 'pwr_on', p: p.id, m: p.model || '', d: m.device });
+  }
+  pwrEv(p, 'on');
+  return w;
+}
+/** Nach dem Hochladen: bis PWR_WAIT ab dem Einschalten auf „ready“ warten. Bleibt Klipper nach dem Einschalten im Fehler (shutdown/error,
+ *  ohne restart_klipper_when_powered), nach 10 s einmal FIRMWARE_RESTART — nur wenn wir selbst eingeschaltet haben. */
+async function mrWakeWait(p, w) {
+  let restarted = false, st = '';
+  pwrEv(p, 'wait');
+  const lim = pwrWait();
+  while (Date.now() - w.at < lim) {
+    st = await mrKlippy(p).catch(e => { if (e.message === 'unauthorized') throw e; return 'unreach'; });
+    if (st === 'ready') { pwrEv(p, 'ready'); diag({ a: 'pwr_ready', p: p.id, m: p.model || '', d: Math.round((Date.now() - w.at) / 1000) + ' s' }); return; }
+    if (w.switched && !restarted && Date.now() - w.at > 10000 && (st === 'shutdown' || st === 'error')) {
+      restarted = true; await mrPost(p, '/printer/firmware_restart', {}, 5000).catch(() => {});
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  diag({ a: 'pwr_timeout', p: p.id, m: p.model || '', err: st, d: w.dev });
+  fail('power_timeout');
+}
+/** „Nach dem Druck ausschalten“: scharf beim Wechsel printing/paused → complete, aus sobald jede Düse < PWR_COOL °C (höchstens 3 h lang). */
+async function pwrAuto(p, L, entry, was, pstate, st) {
+  if (pstate === 'printing' || pstate === 'paused' || !p.pwr_off) { L.pwrArm = null; return; }
+  const m = pwrMain(p, L);
+  if (!m) { L.pwrArm = null; return; }
+  if ((was === 'printing' || was === 'paused') && pstate === 'complete') L.pwrArm = { at: Date.now(), dev: m.device };
+  const a = L.pwrArm;
+  if (!a) return;
+  if (a.dev !== m.device || Date.now() - a.at > 3 * 3600000 || m.status === 'off') { L.pwrArm = null; return; }
+  const temps = Object.keys(st).filter(k => /^extruder\d*$/.test(k) && Number.isFinite(+(st[k] || {}).temperature)).map(k => +st[k].temperature);
+  if (!temps.length || Math.max(...temps) >= PWR_COOL) return;
+  L.pwrArm = null;
+  try {
+    await mrPost(p, '/machine/device_power/device?' + qs({ device: a.dev, action: 'off' }), {}, 10000);
+    L.pwrAt = 0; if (entry.pwr) entry.pwr.arm = false;
+    diag({ a: 'pwr_auto_off', p: p.id, m: p.model || '', d: a.dev + ' ' + Math.round(Math.max(...temps)) + ' °C' });
+  } catch (e) { diag({ a: 'pwr_auto_off', p: p.id, m: p.model || '', err: e.message, d: a.dev }); }
+}
+/** Schalten aus der Oberfläche (printer_cmd power {id, on}). Aus nie während eines Drucks, wenn es das Gerät des Druckers ist (oder keins feststeht). */
+async function mrPwrSet(p, inp) {
+  const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
+  await mrPwrList(p, L, true);
+  const dev = String(inp.id || '').slice(0, 80), d = pwrDevs(L).find(x => x.device === dev) || fail('cmd'), on = !!inp.on;
+  if (!on) {
+    const m = pwrMain(p, L);
+    if (!m || m.device === dev || d.locked_while_printing) {
+      const ps = await mrGet(p, '/printer/objects/query?print_stats', 3000).then(r => ((r.status || {}).print_stats || {}).state, () => null);
+      const busy = ps ? ps === 'printing' || ps === 'paused' : !!(L.entry && L.entry.online && L.entry.busy);
+      if (busy) fail('printer_busy');
+    }
+  }
+  await mrPost(p, '/machine/device_power/device?' + qs({ device: dev, action: on ? 'on' : 'off' }), {}, 10000);
+  L.pwrAt = 0;
+  if (!on) { L.pwrArm = null; if (dev === (pwrMain(p, L) || {}).device) L.pwrOnAt = 0; }
+  else if (dev === (pwrMain(p, L) || {}).device) L.pwrOnAt = Date.now();   // gleich danach senden → mrWake wartet auf Klipper
+  diag({ a: 'pwr_set', p: p.id, m: p.model || '', d: dev + (on ? ' on' : ' off') });
+  return { ok: true };
+}
+
 /** Klipper: eigene Abfrage, damit ein Fehler hier nie den ganzen Druckerstand kostet. Licht auch als Moonraker-Schaltgerät (Rinkhals: chamber_light). */
 async function mrCtl(p, L, busy, gm) {
   const ctl = ctlEmpty(), objs = L.ctlObj || [];
@@ -2601,12 +2822,10 @@ async function mrCtl(p, L, busy, gm) {
     } catch (e) { /* Lüfter/Licht diesmal ohne Stand */ }
   }
   if ((L.comps || []).includes('power')) {
-    try {
-      if (!L.pwrAt || Date.now() - L.pwrAt > 5000) { L.pwr = (await mrGet(p, '/machine/device_power/devices', 3000)).devices || []; L.pwrAt = Date.now(); }
-      // Nur Lichter — ein Schaltgerät, das den ganzen Drucker abschaltet, gehört nicht auf diese Kachel
-      for (const d of L.pwr || []) if (d && /^[\w.-]+$/.test(d.device || '') && LIGHT_RE.test(d.device))
-        ctl.lights.push({ id: 'power:' + d.device, k: lightK(d.device), name: d.device, on: d.status === 'on' ? true : d.status === 'off' ? false : null });
-    } catch (e) { L.pwr = L.pwr || []; }
+    await mrPwrList(p, L);
+    // Hier nur Lichter — Strom-Geräte (Drucker an der Steckdose, #64) zeigt die Karte als eigenen Schalter (entry.pwr, pwrEntry)
+    for (const d of L.pwr || []) if (d && /^[\w.-]+$/.test(d.device || '') && LIGHT_RE.test(d.device))
+      ctl.lights.push({ id: 'power:' + d.device, k: lightK(d.device), name: d.device, on: d.status === 'on' ? true : d.status === 'off' ? false : null });
   }
   return ctlOverlay(L, ctl);
 }
@@ -3265,19 +3484,20 @@ function gcodeMeta(head, tail) {
   const txt = head + '\n' + tail, md = { weights: null, mm: null, types: [], colors: [], time_s: null, thumb: null, slicer: null };
   const nums = s => (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
   let m;
-  if ((m = /^;\s*filament used \[g\]\s*[=:]\s*(.+)$/im.exec(txt))) md.weights = nums(m[1]);
-  if (!md.weights && (m = /^;\s*total filament used \[g\]\s*[=:]\s*([\d.]+)/im.exec(txt))) md.weights = [+m[1]];
-  if ((m = /^;\s*filament used \[mm\]\s*[=:]\s*(.+)$/im.exec(txt))) md.mm = nums(m[1]);
-  if (!md.mm && (m = /^;\s*Filament used:\s*(.+)$/m.exec(txt))) md.mm = (m[1].match(/(\d+(?:\.\d+)?)m/g) || []).map(x => parseFloat(x) * 1000);
-  if ((m = /^;\s*filament_type\s*=\s*(.+)$/im.exec(txt))) md.types = m[1].split(';').map(s => s.trim());
-  if ((m = /^;\s*filament_colou?r\s*=\s*(.+)$/im.exec(txt))) md.colors = m[1].split(';').map(s => s.trim());
-  if ((m = /^;\s*estimated printing time(?: \(normal mode\))?\s*=\s*(.+)$/im.exec(txt)) || (m = /^;\s*model printing time:.*;\s*total estimated time:\s*(.+)$/im.exec(txt))) {   // 2. = Bambu-Format
+  // Werte nur aus derselben Zeile (27.11.2026): „\s*“ nach „=“ lief bei leerem Wert in die nächste Zeile (siehe modelFromFile)
+  if ((m = /^;\s*filament used \[g\]\s*[=:][ \t]*(.+)$/im.exec(txt))) md.weights = nums(m[1]);
+  if (!md.weights && (m = /^;\s*total filament used \[g\]\s*[=:][ \t]*([\d.]+)/im.exec(txt))) md.weights = [+m[1]];
+  if ((m = /^;\s*filament used \[mm\]\s*[=:][ \t]*(.+)$/im.exec(txt))) md.mm = nums(m[1]);
+  if (!md.mm && (m = /^;\s*Filament used:[ \t]*(.+)$/m.exec(txt))) md.mm = (m[1].match(/(\d+(?:\.\d+)?)m/g) || []).map(x => parseFloat(x) * 1000);
+  if ((m = /^;\s*filament_type[ \t]*=[ \t]*(.+)$/im.exec(txt))) md.types = m[1].split(';').map(s => s.trim());
+  if ((m = /^;\s*filament_colou?r[ \t]*=[ \t]*(.+)$/im.exec(txt))) md.colors = m[1].split(';').map(s => s.trim());
+  if ((m = /^;\s*estimated printing time(?: \(normal mode\))?[ \t]*=[ \t]*(.+)$/im.exec(txt)) || (m = /^;\s*model printing time:.*;\s*total estimated time:[ \t]*(.+)$/im.exec(txt))) {   // 2. = Bambu-Format
     const t = m[1]; let s = 0; const d = /(\d+)d/.exec(t), h = /(\d+)h/.exec(t), mi = /(\d+)m(?!m)/.exec(t), se = /(\d+)s/.exec(t);
     s = (d ? +d[1] * 86400 : 0) + (h ? +h[1] * 3600 : 0) + (mi ? +mi[1] * 60 : 0) + (se ? +se[1] : 0); md.time_s = s || null;
   } else if ((m = /^;TIME:(\d+)/m.exec(txt))) md.time_s = +m[1];
-  if ((m = /^;\s*generated by\s+(.+)$/im.exec(txt)) || (m = /^;\s*(OrcaSlicer|PrusaSlicer|BambuStudio|Anycubic Slicer[^\n]*|Cura_SteamEngine[^\n]*)/im.exec(head))) md.slicer = m[1].trim().slice(0, 60);
-  if ((m = /^;\s*nozzle_diameter\s*=\s*([\d.]+)/im.exec(txt))) md.nozzle = +m[1];
-  if ((m = /^;\s*printer_model\s*=\s*(.+)$/im.exec(txt))) md.printer_model = m[1].trim().slice(0, 60);
+  if ((m = /^;\s*generated by[ \t]+(.+)$/im.exec(txt)) || (m = /^;\s*(OrcaSlicer|PrusaSlicer|BambuStudio|Anycubic Slicer[^\n]*|Cura_SteamEngine[^\n]*)/im.exec(head))) md.slicer = m[1].trim().slice(0, 60);
+  if ((m = /^;\s*nozzle_diameter[ \t]*=[ \t]*([\d.]+)/im.exec(txt))) md.nozzle = +m[1];
+  if ((m = /^;\s*printer_model[ \t]*=[ \t]*(.+)$/im.exec(txt))) md.printer_model = m[1].trim().slice(0, 60);
   if (!md.weights && md.mm) md.weights = md.mm.map((x, i) => mmToG(x, 1.75, DENSITY[String(md.types[i] || 'PLA').toUpperCase()] || 1.24));
   // Größtes PNG/JPG-Vorschaubild im Kopf
   const re = /^;\s*(thumbnail(?:_PNG|_JPG)?) begin (\d+)x(\d+) \d+\s*$([\s\S]*?)^;\s*\1 end/gim;
@@ -3472,17 +3692,21 @@ const gchkStr = r => !r ? null : r.skip ? 'skip_' + r.skip + ':1' : Object.entri
 /** Hochladen + Starten je Treiber → Dateiname auf dem Drucker. */
 const SEND = {
   async moonraker(p, file, name, start, plan, opts) {
-    if (start) {
+    const busyChk = async () => {
       const st = await mrGet(p, '/printer/objects/query?print_stats');
       const s = ((st.status || {}).print_stats || {}).state;
       if (s === 'printing' || s === 'paused') fail('printer_busy');
-    }
+    };
+    // Stromschalter (27.11.2026, #64): Drucker aus → jetzt einschalten, während des Hochladens hochfahren lassen, danach auf „ready“ warten
+    const wake = start ? await mrWake(p) : null;
+    if (start && !wake) await busyChk();
     const up = await native('upload', { url: mrUrl(p, '/server/files/upload'), token: file.token, filename: name, fields: { root: 'gcodes' }, timeout: 600000,
                                         headers: p.key ? { 'X-Api-Key': p.key } : {} });
     if (up.status >= 400) fail('upload_' + up.status);
     let fname = name;
     try { const r = JSON.parse(up.text); fname = (r.result || r).item ? (r.result || r).item.path : name; } catch (e) {}
     if (!start) return fname;
+    if (wake) { await mrWakeWait(p, wake); await busyChk(); }
     if (isU1(p)) await u1Prefs(p, opts || {});
     try { await mrPost(p, '/printer/print/start?' + qs({ filename: fname }), {}, 20000); }
     catch (e) {
@@ -4326,7 +4550,9 @@ async function startReport(sj, p, res, plan, via, chkP, det) {
     if (!startInfo) startInfo = await native('info', {}).catch(() => ({}));
     const e = (live[p.id] || {}).good || (live[p.id] || {}).entry || {};
     const used = new Set((plan || []).filter(x => x.g > 0).map(x => +x.slot));
-    const body = { k: sj.rk, n: sj.tries, v: startInfo.version || '', src: startInfo.agent ? 'agent' : 'app', via: via || 'amp', kind: kindOf(p), model: p.model || '',
+    // Plattform (27.11.2026): App android/ios (Android meldet keine → android), Agent docker/windows/ha/linux/mac (agent/src/native.js info)
+    const plat = startInfo.agent ? (['docker', 'windows', 'ha', 'linux', 'mac'].includes(startInfo.platform) ? startInfo.platform : '') : (startInfo.platform === 'ios' ? 'ios' : 'android');
+    const body = { k: sj.rk, n: sj.tries, v: startInfo.version || '', src: startInfo.agent ? 'agent' : 'app', plat, via: via || 'amp', kind: kindOf(p), model: badModel(p.model) ? '' : p.model || '',
                    machine: (p.prof || {}).machine || '', fw: String((e.stats || {}).fw || ''), colors: used.size || 1,
                    // Nur echte Codes (unreach, printer_busy, upload_404 …). Freitext von Node/Android kann eine Adresse enthalten
                    // („connect ECONNREFUSED 192.168.…“) → dann nur „other“
@@ -4447,7 +4673,7 @@ const libOut = f => {
   if (f.loc === 'plate') return libPlateOut(f);
   if (f.want) return { id: f.id, name: f.name, folder: f.folder || '', tags: f.tags || [], notes: f.notes || '', photo: false, book: 0, want: true, remote: f.remote || null,
     ext: '', size: 0, orig: '', created: f.created, printed: null, preview: 'none', mesh: false, thumbs: false, plates: [], v: f.v || 1, print: false, gcode: null, err: null,
-    loc: 'want', printer: null, prints: 0, can3d: false, gone: false };
+    loc: 'want', printer: null, prints: 0, can3d: false, gone: false, parent: null };
   const last = libLast(f), pcols = mp ? mp.map(p => (p.cols || []).length).reduce((a, b) => Math.max(a, b), 0) : 0;
   const multi = pcols > 1 || (f.gcode && (f.gcode.types || []).length > 1) || (last && last.cols.length > 1);
   return { id: f.id, name: f.name, folder: f.folder || '', tags: f.tags || [], notes: f.notes || '', photo: !!f.photo, book: (f.jobs || []).length, remote: f.remote || null,
@@ -4455,8 +4681,21 @@ const libOut = f => {
     preview: busy ? 'busy' : th.length || mp ? 'ok' : 'none', mesh: !!mp, thumbs: th.length > 0,
     plates: mp ? mp.map(p => ({ ...p, thumb: th.includes(p.n) })) : (th.length ? th : [1]).map(n => ({ n, empty: false, thumb: th.includes(n), name: '' })),
     v: f.v || 1, print: true, gcode: f.gcode || null, err: f.err || null, loc: f.loc === 'app' ? 'app' : f.loc === 'dav' ? 'dav' : 'dir',
-    printer: f.printer || null, prints: f.prints || 0, can3d: ['stl', '3mf'].includes(f.ext), gone: !!f.gone };
+    printer: f.printer || null, prints: f.prints || 0, can3d: ['stl', '3mf'].includes(f.ext), gone: !!f.gone, parent: f.parent || null };
 };
+// ── Modell mit mehreren Dateien (27.11.2026, User: „lade ich eine STL hoch, kann ich weitere STL zu dem Modell nicht mehr hinzufügen“ —
+// „oder auch 3MF“). Weitere Dateien sind normale Bibliothekseinträge mit parent = Nummer des Modells (Speicherort, Vorschau, Sicherung
+// unverändert); die Oberfläche zeigt sie nur im Modell. Ordner folgt dem Modell. Teile von Teilen gibt es nicht.
+const libPartsOf = id => libItems().filter(x => x.parent === id);
+/** Darf f ein Modell sein, an das Dateien kommen? (echte Datei, kein Teil, keine Platte, nicht gemerkt) */
+const libCanParent = f => !!f && !f.want && f.loc !== 'plate' && !f.parent;
+/** Koppeln (lib_adopt): Teile, deren Modell (über Dateiname + Größe) jetzt da ist, verknüpfen */
+function libLinkPending() {
+  for (const x of libItems().filter(y => y.pend)) {
+    const par = libItems().find(y => y !== x && libCanParent(y) && y.orig === x.pend.orig && +y.size === +x.pend.size);
+    if (par) { x.parent = par.id; x.folder = par.folder || ''; delete x.pend; }
+  }
+}
 // ── Platten (18.11.2026, User: „Stufe 1 und 2 finde ich super“; Wunsch #45 Tropisch: mehrere Dateien je Modell) ──────────────
 // Eintrag ohne eigene Datei (loc 'plate'): welche STL-Einträge der Bibliothek wie oft (n) und aus welchem Fach (slot, '' = Fach der
 // Druckansicht) zusammen auf eine Platte kommen. Teile mit Nummer + Dateiname + Größe: beim Koppeln mit dem Agenten bekommen Einträge
@@ -4503,7 +4742,9 @@ function libPlateInst(v) {
   const out = [];
   for (const q of v) {
     if (!q || !Array.isArray(q.L) || q.L.length !== 9 || !q.L.every(x => fin(x, 1000)) || !fin(q.x, 100000) || !fin(q.y, 100000)) return null;
-    out.push({ L: q.L.map(Number), x: +q.x, y: +q.y, s: fin(q.s, 1000) && +q.s > 0 ? +q.s : 1, skip: !!q.skip });
+    // pl: Platte im Editor (27.11.2026, #55 mehrere Platten), 0 = erste (nicht gespeichert)
+    const pl = Number.isInteger(+q.pl) && +q.pl > 0 && +q.pl < 20 ? +q.pl : 0;
+    out.push({ L: q.L.map(Number), x: +q.x, y: +q.y, s: fin(q.s, 1000) && +q.s > 0 ? +q.s : 1, skip: !!q.skip, ...(pl ? { pl } : {}) });
   }
   return out;
 }
@@ -4881,8 +5122,9 @@ const A = {
       try { r = await native('lib_put', { token: inp.token, key: id + '-' + orig.replace(/[^\w.\- ()]+/g, '_').slice(0, 160), name: orig, loc }); }
       catch (e) { diag({ a: 'lib', err: e.message || 'put', d: loc === 'app' ? 'app' : 'dir' }); return { error: loc === 'app' ? 'lib_upload' : 'lib_dir' }; }
     }
-    const it = { id, name: orig.replace(/\.[^.]+$/, '').slice(0, 120) || orig, folder: libFolder(inp.folder), tags: [], notes: '', ext, size: +r.size || +inp.size || 0, orig, created: now(),
-                 printed: null, prints: 0, loc, key: r.key || null, doc: r.doc || null, plates: [], v: 1 };
+    const par = inp.parent ? libItems().find(x => x.id === +inp.parent) : null;
+    const it = { id, name: orig.replace(/\.[^.]+$/, '').slice(0, 120) || orig, folder: libCanParent(par) ? par.folder || '' : libFolder(inp.folder), tags: [], notes: '', ext, size: +r.size || +inp.size || 0, orig, created: now(),
+                 printed: null, prints: 0, loc, key: r.key || null, doc: r.doc || null, plates: [], v: 1, ...(libCanParent(par) ? { parent: par.id } : {}) };
     try {
       if (ext === '3mf') it.plates = ((await native('lib_3mf_thumbs', { token: inp.token, id })).plates || []).map(Number).sort((a, b) => a - b);
       else if (ext === 'stl' && inp.thumb) { await native('lib_thumb_put', { id, n: 1, b64: inp.thumb }); it.plates = [1]; }
@@ -4900,7 +5142,7 @@ const A = {
   async lib_update(inp) {
     const f = libItems().find(x => x.id === +inp.id) || fail('not_found');
     if (inp.name !== undefined && str(inp.name, 120)) f.name = str(inp.name, 120);
-    if (inp.folder !== undefined) f.folder = libFolder(inp.folder);
+    if (inp.folder !== undefined) { f.folder = libFolder(inp.folder); libPartsOf(f.id).forEach(x => { x.folder = f.folder; }); }
     if (inp.tags !== undefined) f.tags = libTags(inp.tags);
     if (inp.notes !== undefined) f.notes = libNote(inp.notes);
     persist();
@@ -4908,14 +5150,36 @@ const A = {
   },
   async lib_delete(inp) {
     const f = libItems().find(x => x.id === +inp.id) || fail('not_found');
+    // Modell mit Dateien (27.11.2026): parts 'del' = mit löschen, sonst bleiben sie als eigene Einträge
+    const kids = libPartsOf(f.id);
+    if (inp.parts === 'del') for (const x of kids) await libRemove(x);
+    else kids.forEach(x => { delete x.parent; });
     await libRemove(f);
-    db.library = libItems().filter(x => x !== f);
+    db.library = libItems().filter(x => x !== f && !(inp.parts === 'del' && kids.includes(x)));
     persist();
-    return { ok: true, used: libUsed() };
+    return { ok: true, used: libUsed(), parts: kids.length };
+  },
+  /** Vorhandene Einträge an ein Modell hängen (27.11.2026) — keine Platten, keine gemerkten, nichts mit eigenen Dateien, nicht das Modell selbst.
+   *  (Nicht amp_lib_attach: das hängt eine Datei an einen gemerkten Eintrag.) */
+  async amp_lib_join(inp) {
+    const par = libItems().find(x => x.id === +inp.parent);
+    if (!libCanParent(par)) fail('not_found');
+    const ids = new Set((inp.ids || []).map(Number)), its = libItems().filter(x => ids.has(x.id) && x !== par && libCanParent(x) && !libPartsOf(x.id).length);
+    its.forEach(x => { x.parent = par.id; x.folder = par.folder || ''; });
+    persist();
+    return { ok: true, n: its.length, files: its.map(libOut) };
+  },
+  /** Datei aus dem Modell lösen: wieder ein eigener Eintrag im selben Ordner */
+  async amp_lib_detach(inp) {
+    const f = libItems().find(x => x.id === +inp.id && x.parent) || fail('not_found');
+    delete f.parent; persist();
+    return { ok: true, file: libOut(f) };
   },
   /** Mehrfachauswahl: { ids, folder | tag_add | tag_del | del } */
   async amp_lib_bulk(inp) {
-    const ids = new Set((inp.ids || []).map(Number)), its = libItems().filter(x => ids.has(x.id));
+    const ids = new Set((inp.ids || []).map(Number));
+    if (inp.del) libItems().filter(x => x.parent && ids.has(x.parent)).forEach(x => ids.add(x.id));   // Modell löschen = mit seinen Dateien (27.11.2026)
+    const its = libItems().filter(x => ids.has(x.id));
     if (inp.del) {
       for (const f of its) await libRemove(f);
       db.library = libItems().filter(x => !ids.has(x.id)); persist();
@@ -4923,7 +5187,7 @@ const A = {
     }
     const del = String(inp.tag_del || '').trim().toLowerCase();
     for (const f of its) {
-      if (inp.folder !== undefined) f.folder = libFolder(inp.folder);
+      if (inp.folder !== undefined) { f.folder = libFolder(inp.folder); libPartsOf(f.id).forEach(x => { x.folder = f.folder; }); }
       if (inp.tag_add) f.tags = libTags([...(f.tags || []), inp.tag_add]);
       if (del) f.tags = (f.tags || []).filter(x => x.toLowerCase() !== del);
     }
@@ -5370,6 +5634,8 @@ const A = {
       return { ok: true };
     }
     if (inp.cmd === 'fan' || inp.cmd === 'light' || inp.cmd === 'speed') return ctlSet(p, inp);   // Lüfter und Licht (12.11.2026), Geschwindigkeit (21.11.2026)
+    if (inp.cmd === 'unload') { if (kindOf(p) !== 'moonraker') fail('cmd'); return u1Unload(p, inp); }   // Snapmaker U1: Filament je Kopf entladen (27.11.2026)
+    if (inp.cmd === 'power') { if (kindOf(p) !== 'moonraker') fail('cmd'); return mrPwrSet(p, inp); }   // Moonraker-Stromschalter (27.11.2026, #64)
     if (!['pause', 'resume', 'stop'].includes(inp.cmd)) fail('cmd');
     if (kindOf(p) === 'sdcp') await sdSend(p, { pause: 129, stop: 130, resume: 131 }[inp.cmd]);
     else if (kindOf(p) === 'cc2') await ccSend(p, { pause: 1021, stop: 1022, resume: 1023 }[inp.cmd]);   // Antwort kommt erst nach dem Ablauf
@@ -5391,6 +5657,25 @@ const A = {
     } else await mrPost(p, { pause: '/printer/print/pause', resume: '/printer/print/resume', stop: '/printer/print/cancel' }[inp.cmd], {}, 15000);
     if (live[p.id]) live[p.id].histAt = 0;
     return { ok: true };
+  },
+  /** Stromschalter (#64): welches Moonraker-Gerät den Drucker versorgt (dev: Name, '' = keins, null = automatisch) + „Nach dem Druck ausschalten“ */
+  async printer_pwr(inp) {
+    const p = db.printers.find(x => x.id === inp.printer) || fail('not_found');
+    if (kindOf(p) !== 'moonraker' || p.kind === 'cloud') fail('cmd');
+    if ('dev' in inp) {
+      if (inp.dev === null) delete p.pwr_dev;
+      else { const d = String(inp.dev).slice(0, 80); if (d && !/^[\w.-]+$/.test(d)) fail('cmd'); p.pwr_dev = d; }
+    }
+    if ('off_after' in inp) { if (inp.off_after) p.pwr_off = true; else delete p.pwr_off; }
+    const L = live[p.id]; if (L) { L.pwrArm = null; L.pwrAt = 0; }
+    persist();
+    return { ok: true };
+  },
+  /** Snapmaker U1: Köpfe + Stand des Entladens (amp-views ampUnlDlg fragt alle 2 s, solange der Dialog offen ist) */
+  async printer_feed(inp) {
+    const p = db.printers.find(x => x.id === inp.printer) || fail('not_found');
+    if (kindOf(p) !== 'moonraker') fail('cmd');
+    try { return await u1Feed(p); } catch (e) { if (e.code) throw e; fail(e.message === 'unauthorized' ? 'unauthorized' : 'offline'); }
   },
   // Drucken mit Slicen (Druckansicht von /filament)
   async print_printers() { return slicePrinters(); },
@@ -5439,24 +5724,40 @@ const A = {
     const want = top.filter(f => ((L.meta[f.path] || {}).thumbnails || []).length);
     for (let i = 0; i < 12 && want.some(f => !L.thumbs[f.path]); i++) await new Promise(z => setTimeout(z, 250));
     const s = (((st || {}).status || {}).print_stats || {}).state || '';
-    return { busy: s === 'printing' || s === 'paused', total: all.length,
+    const disk = await mrDisk(p, 'gcodes');
+    return { busy: s === 'printing' || s === 'paused', total: all.length, disk,
              files: files.map(f => { const md = L.meta[f.path] || null, w = md ? pfWeights(md) : null;
                return { path: f.path, name: f.path.split('/').pop(), size: +f.size || 0, modified: Math.round(+f.modified || 0),
                         time: md && +md.estimated_time > 0 ? Math.round(+md.estimated_time) : null, g: w ? Math.round(w.reduce((a, b) => a + b, 0) * 10) / 10 : null,
                         colors: w ? w.filter(x => x > 0).length : null, img: L.thumbs[f.path] || null }; }) };
   },
+  /** G-Code am Drucker löschen (27.11.2026) — nicht die Datei, die gerade gedruckt wird */
+  async print_pfile_del(inp) {
+    const p = pfPrinter(inp.printer), path = String(inp.path || '');
+    if (!path || path.length > 500 || /(^|\/)\.\.(\/|$)/.test(path) || !/\.(gcode|gco|g)$/i.test(path)) fail('not_found');
+    const st = await mrGet(p, '/printer/objects/query?print_stats', 5000).catch(() => null), ps_ = ((st || {}).status || {}).print_stats || {};
+    if (['printing', 'paused'].includes(ps_.state) && String(ps_.filename || '') === path) fail('printer_busy');
+    await mrDel(p, 'gcodes', path);
+    return { ok: true, disk: await mrDisk(p, 'gcodes') };
+  },
   async print_pfile_start(inp) {
     const p = pfPrinter(inp.printer), path = String(inp.path || '');
     if (!path || path.length > 500 || /(^|\/)\.\.(\/|$)/.test(path)) fail('not_found');
-    const st = await mrGet(p, '/printer/objects/query?print_stats', 5000).catch(() => fail('offline'));
-    const s = ((st.status || {}).print_stats || {}).state;
-    if (s === 'printing' || s === 'paused') fail('printer_busy');
+    const busyChk = async () => {
+      const st = await mrGet(p, '/printer/objects/query?print_stats', 5000).catch(() => fail('offline'));
+      const s = ((st.status || {}).print_stats || {}).state;
+      if (s === 'printing' || s === 'paused') fail('printer_busy');
+    };
+    // Stromschalter (#64): Drucker aus → erst nach „Reicht die Spule?“ einschalten und auf Klipper warten
+    const ready = await mrKlippy(p).then(k => k === 'ready', e => { if (e.message === 'unauthorized') throw e; return false; });
+    if (ready) await busyChk();
     if (!inp.force) {
       const L = live[p.id] || (live[p.id] = { meta: {}, thumbs: {}, histAt: 0 });
       const w = pfWeights(await meta(p, L, path));
       const short = w ? shortList(p.id, gcodeItems(p.id, w, null)) : [];
       if (short.length) return { short };
     }
+    if (!ready) { const wk = await mrWake(p).catch(e => { if (e.message === 'unauthorized') throw e; return null; }); if (wk) await mrWakeWait(p, wk); await busyChk(); }
     try { await mrPost(p, '/printer/print/start?' + qs({ filename: path }), {}, 20000); }
     catch (e) {
       if (/^http_404/.test(e.message)) fail('file_missing');
@@ -5485,13 +5786,22 @@ const A = {
       catch (e) { if (e.message === 'unauthorized') fail('unauthorized'); if (!/^http_/.test(e.message)) fail('offline'); }
     }
     if (!root) return { root: '', files: [], total: 0, u1: isU1(p) };
+    const disk = await mrDisk(p, root);
     const items = (Array.isArray(list) ? list : []).filter(f => f && typeof f.path === 'string' && !/(^|\/)\./.test(f.path));
     const imgs = new Map(items.filter(f => /\.(jpe?g|png)$/i.test(f.path)).map(f => [f.path.replace(/\.[^./]+$/, ''), f.path]));
     const all = items.filter(f => TL_VIDEO.test(f.path)).sort((a, b) => (+b.modified || 0) - (+a.modified || 0));
     const url = fp => tlUrl(p, root, fp);
-    return { root, total: all.length, u1: isU1(p),
+    return { root, total: all.length, u1: isU1(p), disk,
              files: all.slice(0, 100).map(f => { const im = imgs.get(f.path.replace(/\.[^./]+$/, ''));
                return { path: f.path, name: f.path.split('/').pop(), size: +f.size || 0, modified: Math.round(+f.modified || 0), src: url(f.path), img: im ? url(im) : null }; }) };
+  },
+  async amp_cam_tl_del(inp) {
+    const p = pfPrinter(inp.printer), root = String(inp.root || ''), path = String(inp.path || '');
+    if (!TL_ROOTS.includes(root) || !TL_VIDEO.test(path) || path.length > 500 || /(^|\/)\.\.(\/|$)/.test(path)) fail('not_found');
+    await mrDel(p, root, path);
+    for (const ext of ['jpg', 'jpeg', 'png']) await mrDel(p, root, path.replace(/\.[^./]+$/, '.' + ext)).catch(() => {});
+    diag({ a: 'tl_del', p: 'moonraker', m: p.model || '', err: '' });
+    return { ok: true, disk: await mrDisk(p, root) };
   },
   async amp_cam_tl_save(inp) {
     const p = pfPrinter(inp.printer), root = String(inp.root || ''), path = String(inp.path || '');
@@ -5895,6 +6205,9 @@ const A = {
       Object.assign(it, { name: str(m.name, 120) || it.name, created: m.created || it.created, printed: m.printed || null, prints: +m.prints || 0, printer: m.printer || null });
     } else fail('no_file');
     Object.assign(it, { tags: libTags(m.tags), notes: libNote(m.notes), jobs: Array.isArray(m.jobs) ? m.jobs.map(Number).filter(Number.isFinite).slice(-200) : [] });
+    // Datei eines Modells (27.11.2026): das Modell hat hier eine neue Nummer → über Dateiname + Größe (loader.js parent_of), sobald es da ist
+    if (m.parent_of && m.parent_of.orig) { it.pend = { orig: String(m.parent_of.orig).slice(0, 200), size: +m.parent_of.size || 0 }; }
+    libLinkPending();
     if (m.remote && m.remote.id) it.remote = { ...m.remote };
     const ph = m.photo && thumbs.find(x => +x.n === 0);
     if (ph) { try { await native('lib_thumb_put', { id: it.id, n: '0', b64: ph.b64 }); it.photo = true; } catch (e) {} }
