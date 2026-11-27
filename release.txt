@@ -1,0 +1,21 @@
+Release-Gerät ok: 6.4M
+AppIcon60x60@2x.png
+AppIcon76x76@2x~ipad.png
+Assets.car
+PrivacyInfo.xcprivacy
+Dict {
+    CFBundlePrimaryIcon = Dict {
+        CFBundleIconFiles = Array {
+            AppIcon60x60
+        }
+        CFBundleIconName = AppIcon
+    }
+}
+false
+Extensions: AllMyPrintersNotify.appex 
+AllMyPrintersNotify.NotificationService
+6
+de: {"NFCReaderUsageDescription":"Zum Lesen und Beschreiben der NFC-Etiketten deiner Spulen.","NSCameraUsageDescription":"Zum Scannen von QR-Codes (Agent koppeln, Spulen-Etiketten).","NSLocalNetworkUsageDescription":"AllMyPrinters spricht direkt mit deinen 3D-Druckern im Heimnetz."}
+en: {"NFCReaderUsageDescription":"To read and write the NFC tags on your filament spools.","NSCameraUsageDescription":"To scan QR codes (pairing with the agent, spool labels).","NSLocalNetworkUsageDescription":"AllMyPrinters talks directly to your 3D printers on your home network."}
+fr: {"NFCReaderUsageDescription":"Pour lire et écrire les étiquettes NFC de tes bobines de filament.","NSCameraUsageDescription":"Pour scanner des codes QR (associer l’agent, étiquettes de bobines).","NSLocalNetworkUsageDescription":"AllMyPrinters communique directement avec tes imprimantes 3D sur ton réseau local."}
+AllMyPrinters talks directly to your 3D printers on your home network.

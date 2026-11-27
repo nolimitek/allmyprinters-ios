@@ -1,0 +1,51 @@
+iPhone 17 com.apple.CoreSimulator.SimRuntime.iOS-26-2
+Test-Kamera: Bild     8477 B, /snap     8477 B, /stream    93951 B
+node 127.0.0.1:11880
+node 127.0.0.1:11883
+node 127.0.0.1:13030
+node 127.0.0.1:13031
+node 127.0.0.1:16000
+node 127.0.0.1:18086
+node 127.0.0.1:18088
+node 127.0.0.1:18095
+node 127.0.0.1:18322
+node 127.0.0.1:18323
+node 127.0.0.1:18883
+node 127.0.0.1:18890
+node 127.0.0.1:18911
+node 127.0.0.1:18990
+node 127.0.0.1:19883
+node 127.0.0.1:19990
+node 127.0.0.1:19999
+node 127.0.0.1:8765
+node 127.0.0.1:8766
+node 127.0.0.1:8767
+iPad Pro 13-inch (M5)
+total 16688
+drwxr-xr-x  27 runner  staff      864 Nov 27 10:24 .
+drwxr-xr-x  17 runner  staff      544 Nov 27 09:55 ..
+-rw-r--r--@  1 runner  staff   261202 Nov 27 10:03 01-start.png
+-rw-r--r--@  1 runner  staff   261279 Nov 27 10:03 02-drucker.png
+-rw-r--r--@  1 runner  staff   249373 Nov 27 10:04 03-spulen.png
+-rw-r--r--@  1 runner  staff   269786 Nov 27 10:04 04-bibliothek.png
+-rw-r--r--@  1 runner  staff  1408918 Nov 27 10:05 04b-modelle.png
+-rw-r--r--@  1 runner  staff   268920 Nov 27 10:05 05-einstellungen.png
+-rw-r--r--@  1 runner  staff   239441 Nov 27 10:05 06-drucker-dunkel.png
+-rw-r--r--@  1 runner  staff   313123 Nov 27 10:06 07-agent.png
+-rw-r--r--@  1 runner  staff  2501205 Nov 27 10:23 08-ipad-models.png
+-rw-r--r--@  1 runner  staff   274969 Nov 27 10:23 08-ipad-printers.png
+-rw-r--r--@  1 runner  staff   250758 Nov 27 10:23 08-ipad-settings.png
+-rw-r--r--   1 runner  staff    13447 Nov 27 10:24 amp.log
+-rw-r--r--   1 runner  staff      644 Nov 27 10:24 diag-agent.json
+-rw-r--r--   1 runner  staff     1789 Nov 27 10:24 diag-library.json
+-rw-r--r--   1 runner  staff     2003 Nov 27 10:24 diag-models.json
+-rw-r--r--   1 runner  staff     1691 Nov 27 10:24 diag-printers.json
+-rw-r--r--   1 runner  staff      212 Nov 27 10:24 diag-push.json
+-rw-r--r--   1 runner  staff     1764 Nov 27 10:24 diag-settings.json
+-rw-r--r--   1 runner  staff     1641 Nov 27 10:24 diag-spools.json
+-rw-r--r--   1 runner  staff    65334 Nov 27 10:24 diag-start.json
+-rw-r--r--   1 runner  staff      858 Nov 27 10:24 ipad-fehler.txt
+-rw-r--r--   1 runner  staff       18 Nov 27 10:00 mocks.log
+-rw-r--r--   1 runner  staff       76 Nov 27 10:06 simulator.txt
+-rw-r--r--   1 runner  staff      560 Nov 27 10:06 smoke.txt
+-rw-r--r--   1 runner  staff  1302016 Nov 27 10:24 system.log

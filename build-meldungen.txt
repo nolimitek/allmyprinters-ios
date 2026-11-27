@@ -1,0 +1,18 @@
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:117:23: warning: 'SSLCreateContext' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:117:62: warning: 'clientSide' was deprecated in iOS 13.0
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:117:75: warning: 'streamType' was deprecated in iOS 13.0
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:118:9: warning: 'SSLSetIOFuncs' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:119:9: warning: 'SSLSetConnection' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:120:38: warning: 'tlsProtocol12' was deprecated in iOS 13.0
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:120:9: warning: 'SSLSetProtocolVersionMin' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:121:38: warning: 'tlsProtocol12' was deprecated in iOS 13.0
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:121:9: warning: 'SSLSetProtocolVersionMax' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:122:33: warning: 'breakOnServerAuth' was deprecated in iOS 13.0
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:122:9: warning: 'SSLSetSessionOption' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:124:9: warning: 'SSLSetPeerID' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:126:23: warning: 'SSLHandshake' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:136:51: warning: 'SSLWrite' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:156:56: warning: 'SSLRead' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+/Users/runner/work/allmyprinters-ios/allmyprinters-ios/App/Ftps.swift:184:26: warning: 'SSLClose' was deprecated in iOS 13.0: No longer supported. Use Network.framework.
+2026-11-27 09:54:48.526 appintentsmetadataprocessor[2647:10764] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+2026-11-27 09:55:14.499 appintentsmetadataprocessor[2986:11691] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
