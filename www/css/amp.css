@@ -947,7 +947,7 @@ a.amp-msall { display: inline-flex; }
 .amp-seg { display: inline-flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--panel-2); box-sizing: border-box; }
 .amp-seg button { min-height: 38px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 .amp-seg button.on { background: var(--panel); color: var(--text); font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-.amp-mfseg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.amp-mfseg { display: grid; grid-template-columns: repeat(3, auto); width: 100%; }   /* 27.11.2026: Breite nach Text — „Kostenpflichtig“ war am Handy abgeschnitten */
 .amp-mfs .subdd.amp-mfdd { display: block; margin: 0; }
 .amp-mfdd > summary > span { flex: 1; min-width: 0; font-weight: 700; }
 .amp-mfdd .subdd-list { position: static; margin-top: 6px; box-shadow: none; }
@@ -1035,7 +1035,7 @@ body .pcam-bar .btn.amp-camon:hover { filter: brightness(1.12); }
 .pcam-bar .amp-camon svg { width: 20px; height: 20px; vertical-align: 0; }
 .amp-camdot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #ff4d55; box-shadow: 0 0 0 3px rgba(255,77,85,.28); }
 @media (max-width: 640px) { body .pcam-bar .btn.amp-camon { width: 100%; justify-content: center; } }
-@media (min-width: 900px) { .pcam { max-width: 640px; } .pcam.amp-full { max-width: none; } }
+@media (min-width: 900px) { .pcam { max-width: 640px; margin-left: auto; margin-right: auto; } .pcam.amp-full { max-width: none; } }   /* 27.11.2026: mittig in der breiten Karte (Vollbild: margin 0 aus .pcam.amp-full) */
 
 /* ═══ Platte bearbeiten – Editor (19.11.2026, Entwürfe claude.ai/artifact/4sJWDcta4FEHSSRCZC5sQy): Desktop drei Spalten, Handy Bühne + Werkzeugleiste + Blatt ═══ */
 .amp-ed { display: flex; flex-direction: column; gap: 12px; }
@@ -1553,6 +1553,16 @@ html[data-theme="dark"] .amp-hrow > .amp-hdot { border-color: rgba(255, 255, 255
 .amp-pf-r .btn { min-height: 40px; }
 .amp-pf-msg { grid-column: 1 / -1; font-size: 14px; }
 .amp-pf-short { margin: 4px 0 0; padding-left: 18px; }
+/* Zeitraffer vom Drucker (27.11.2026, Community #62): Liste wie „Dateien am Drucker“, Player oben im Dialog */
+.amp-tl-img { border: 0; padding: 0; cursor: pointer; font: inherit; }
+.amp-tl-b { display: flex; gap: 6px; }
+.amp-tl-r.on .amp-pf-t b { color: var(--accent-ink, var(--accent)); }
+.amp-tl-v { margin: 0 0 12px; }
+.amp-tl-v video { display: block; width: 100%; max-height: 56vh; background: #000; border-radius: 12px; }
+.amp-tl-cap { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.amp-tl-cap b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amp-tl-v .hint { margin: 8px 0 0; }
+@media (max-width: 520px) { .amp-tl-b { flex-direction: column-reverse; } .amp-tl-b .btn { min-height: 36px; } }
 /* Zweite Farbe (Community #56) */
 .amp-c2w { display: flex; align-items: center; gap: 10px; }
 .amp-c2w input[type=checkbox] { width: 22px; height: 22px; flex: none; }
@@ -1572,3 +1582,18 @@ dialog.dlg { top: env(safe-area-inset-top, 0px); max-height: calc(100dvh - 24px 
 
 .amp-scan0 p { margin: 0 0 8px; }
 .amp-scan0 p:last-of-type { margin-bottom: 0; }
+
+/* Handy: Blatt „Modelle“ (27.11.2026) — zwei große Kacheln Bibliothek / Suche; Reiter „Modelle“ auch in Bibliothek und Wettbewerben markiert */
+.amp-modgrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.fmx-ms-grid.amp-modgrid a { min-height: 112px; gap: 6px; font-size: 15px; font-weight: 800; }
+.fmx-ms-grid.amp-modgrid a small { font-size: 12px; font-weight: 600; color: var(--muted, #5b6661); }
+.fmx-bn .amp-on { color: var(--fx-acc); }
+.fmx-bn .amp-on svg { stroke-width: 2.2; }
+html:not(.fm-ha) body.cm-fm .fmx-bn .amp-on { background: #ffffff; color: #17201e; }
+/* Handy-Filter Modelle: Plattformen aufklappbar, zu (27.11.2026) */
+.amp-mfsrc > summary { list-style: none; cursor: pointer; }
+.amp-mfsrc > summary::-webkit-details-marker { display: none; }
+.amp-mfsrc > summary h3 { margin-bottom: 0; min-height: 44px; }
+.amp-mfsrc > summary h3 > svg:last-child { flex: none; color: var(--muted); transition: transform .2s; }
+.amp-mfsrc[open] > summary h3 { margin-bottom: 10px; }
+.amp-mfsrc[open] > summary h3 > svg:last-child { transform: rotate(180deg); }

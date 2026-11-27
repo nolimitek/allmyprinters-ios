@@ -227,6 +227,89 @@
       m.col[t] = col;
     }
   }
+  /** Vorschaubild einer Platte selbst zeichnen (27.11.2026): 3MF mit Farbwechsel nach Höhe — Bambu Studio legt plate_N.png aus der
+   *  Vorbereiten-Ansicht ab, dort fehlen die Wechsel (Kitten-Kugel: ganz schwarz). Kleiner Software-Zeichner mit Tiefenpuffer → PNG,
+   *  ohne Canvas/WebGL (läuft auch im Agenten unter Node). Flache Teile (HueForge) fast von oben, sonst schräg wie Bambu. */
+  async function thumbPng(m, pal) {
+    const n = m.n, P = m.pos;
+    if (!n) return null;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < n * 9; i += 3) {
+      const x = P[i], y = P[i + 1], z = P[i + 2];
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    const flat = (z1 - z0) < 0.2 * Math.max(x1 - x0, y1 - y0);
+    const az = flat ? 0 : -Math.PI / 6, el = flat ? 1.15 : 0.6;            // Blick: Drehung um Z, Höhe über dem Bett
+    const ca = Math.cos(az), sa = Math.sin(az), ce = Math.cos(el), se = Math.sin(el);
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, mz = (z0 + z1) / 2;
+    const S = 2, W = 480, H = 480, SW = W * S, SH = H * S;   // Bambu legt 512 px ab; Kachel bis ~3-fache Pixeldichte
+    const Q = new Float32Array(n * 9);                                       // Bild-x, Bild-y (oben), Tiefe (fern = groß)
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (let i = 0; i < n * 3; i++) {
+      const x = P[i * 3] - mx, y = P[i * 3 + 1] - my, z = P[i * 3 + 2] - mz;
+      const xr = x * ca - y * sa, yr = x * sa + y * ca;
+      const u = xr, v = yr * se + z * ce, d = yr * ce - z * se;
+      Q[i * 3] = u; Q[i * 3 + 1] = v; Q[i * 3 + 2] = d;
+      if (u < u0) u0 = u; if (u > u1) u1 = u; if (v < v0) v0 = v; if (v > v1) v1 = v;
+    }
+    const sc = 0.88 * Math.min(SW / Math.max(1e-6, u1 - u0), SH / Math.max(1e-6, v1 - v0));
+    const ox = SW / 2 - (u0 + u1) / 2 * sc, oy = SH / 2 + (v0 + v1) / 2 * sc;
+    const rgb = (pal || []).map(c => { const h = /^#([0-9a-f]{6})/i.exec(String(c || '')); const v = parseInt(h ? h[1] : 'ff6a14', 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; });
+    const zb = new Float32Array(SW * SH).fill(Infinity), px = new Uint8Array(SW * SH * 4);
+    const L = [-0.35, 0.55, -0.76], ll = Math.hypot(L[0], L[1], L[2]);
+    for (let t = 0; t < n; t++) {
+      const o = t * 9;
+      const ax = ox + Q[o] * sc, ay = oy - Q[o + 1] * sc, bx = ox + Q[o + 3] * sc, by = oy - Q[o + 4] * sc, cx = ox + Q[o + 6] * sc, cy = oy - Q[o + 7] * sc;
+      const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+      if (Math.abs(area) < 1e-9) continue;
+      // Licht von oben links vorn, beidseitig (Wicklung der Dreiecke nicht vertrauen)
+      const ux = Q[o + 3] - Q[o], uy = Q[o + 4] - Q[o + 1], uz = Q[o + 5] - Q[o + 2], vx = Q[o + 6] - Q[o], vy = Q[o + 7] - Q[o + 1], vz = Q[o + 8] - Q[o + 2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, nl = Math.hypot(nx, ny, nz) || 1;
+      const sh = 0.4 + 0.6 * Math.abs((nx * L[0] + ny * L[1] + nz * L[2]) / (nl * ll));
+      const c = rgb[m.col[t]] || rgb[0] || [255, 106, 20];
+      const r = Math.min(255, (26 + c[0] * 0.9) * sh), g = Math.min(255, (26 + c[1] * 0.9) * sh), b = Math.min(255, (26 + c[2] * 0.9) * sh);
+      const minx = Math.max(0, Math.floor(Math.min(ax, bx, cx))), maxx = Math.min(SW - 1, Math.ceil(Math.max(ax, bx, cx)));
+      const miny = Math.max(0, Math.floor(Math.min(ay, by, cy))), maxy = Math.min(SH - 1, Math.ceil(Math.max(ay, by, cy)));
+      const da = Q[o + 2], db = Q[o + 5], dc = Q[o + 8], ia = 1 / area;
+      for (let yy = miny; yy <= maxy; yy++) {
+        const py = yy + 0.5;
+        for (let xx = minx; xx <= maxx; xx++) {
+          const pxx = xx + 0.5;
+          const w0 = ((bx - pxx) * (cy - py) - (by - py) * (cx - pxx)) * ia, w1 = ((cx - pxx) * (ay - py) - (cy - py) * (ax - pxx)) * ia, w2 = 1 - w0 - w1;
+          if (w0 < -1e-4 || w1 < -1e-4 || w2 < -1e-4) continue;
+          const d = w0 * da + w1 * db + w2 * dc, k = yy * SW + xx;
+          if (d >= zb[k]) continue;
+          zb[k] = d; const q = k * 4; px[q] = r; px[q + 1] = g; px[q + 2] = b; px[q + 3] = 255;
+        }
+      }
+    }
+    // 2 × 2 zusammenfassen (Kantenglättung), Hintergrund durchsichtig
+    const out = new Uint8Array(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const q = ((y * S + j) * SW + x * S + i) * 4, al = px[q + 3]; r += px[q] * al; g += px[q + 1] * al; b += px[q + 2] * al; a += al; }
+      const q = (y * W + x) * 4;
+      if (a) { out[q] = Math.round(r / a); out[q + 1] = Math.round(g / a); out[q + 2] = Math.round(b / a); out[q + 3] = Math.round(a / (S * S)); }
+    }
+    return pngData(out, W, H);
+  }
+  const CRC_T = (() => { const t = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[i] = c >>> 0; } return t; })();
+  /** RGBA → data:image/png;base64 (zlib über CompressionStream('deflate'), gibt es im Browser und in Node ≥ 18) */
+  async function pngData(rgba, w, h) {
+    const raw = new Uint8Array((w * 4 + 1) * h);
+    for (let y = 0; y < h; y++) { raw[y * (w * 4 + 1)] = 0; raw.set(rgba.subarray(y * w * 4, (y + 1) * w * 4), y * (w * 4 + 1) + 1); }
+    const z = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+    const chunk = (type, data) => {
+      const b = new Uint8Array(12 + data.length), dv = new DataView(b.buffer);
+      dv.setUint32(0, data.length); for (let i = 0; i < 4; i++) b[4 + i] = type.charCodeAt(i); b.set(data, 8);
+      let c = 0xFFFFFFFF; for (let i = 4; i < 8 + data.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8);
+      dv.setUint32(8 + data.length, (c ^ 0xFFFFFFFF) >>> 0); return b;
+    };
+    const ih = new Uint8Array(13), dv = new DataView(ih.buffer); dv.setUint32(0, w); dv.setUint32(4, h); ih[8] = 8; ih[9] = 6;
+    const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', z), chunk('IEND', new Uint8Array(0))];
+    let bin = ''; for (const p of parts) for (let i = 0; i < p.length; i += 0x8000) bin += String.fromCharCode.apply(null, p.subarray(i, i + 0x8000));
+    return 'data:image/png;base64,' + btoa(bin);
+  }
   /** Spalten des Plattenrasters wie Bambu Studio (lib_plate_cols). */
   const plateCols = n => { const v = Math.sqrt(n), r = Math.round(v); return Math.max(1, v > r ? r + 1 : r); };
 
@@ -328,7 +411,7 @@
       // Bambu-Raster: Platte i liegt bei (Spalte × Breite × 1,2, −Zeile × Tiefe × 1,2) — nur mit Platten aus model_settings
       let origin = bmin.slice();
       if (bed && pl.ins) origin = [bmin[0] + (pi % cols) * bed[0] * 1.2, bmin[1] - Math.floor(pi / cols) * bed[1] * 1.2];
-      out.push({ name: pl.name, objs: nobj, mesh: m, origin });
+      out.push({ name: pl.name, objs: nobj, mesh: m, origin, ...(ch && m.n ? { lc: true } : {}) });
     }
     return { bed, plates: out, pal };
   }
@@ -414,8 +497,10 @@
       for (let i = 0; i < src.plates.length; i++) {
         const p = src.plates[i], n = i + 1;
         if (!p.mesh.n) { plates.push({ n, name: p.name, objs: p.objs, tris: 0, empty: true }); continue; }
+        // Farbwechsel nach Höhe: eigenes farbiges Vorschaubild (thumb, data-URL) statt des einfarbigen aus Bambu Studio (27.11.2026)
+        const thumb = p.lc ? await thumbPng(p.mesh, src.pal).catch(() => null) : null;
         const r = await pack(p.mesh, src.pal, src.bed, p.origin);
-        plates.push({ n, name: p.name, objs: p.objs, ...r.info, gz: r.gz });
+        plates.push({ n, name: p.name, objs: p.objs, ...r.info, ...(p.lc ? { lc: true } : {}), gz: r.gz, ...(thumb ? { thumb } : {}) });
         src.plates[i].mesh = null;   // Speicher frei, bevor die nächste Platte gepackt wird
       }
       if (!plates.some(p => !p.empty)) throw new Error('empty');

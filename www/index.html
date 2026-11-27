@@ -49,6 +49,12 @@
   <a href="https://allmyprinters.com/en/community/" data-amp-site="community" target="_blank" rel="noopener" class="amp-cm-lnk"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z"/><path d="M8 11h8M8 14.5h5"/></svg><span data-t="amp_cm_link"></span></a>
   <a href="#guide"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h6M8 11h6"/></svg><span data-t="amp_guide_link"></span></a>
 </div></div>
+<!-- Handy: Reiter „Modelle“ fragt Bibliothek oder Suche (27.11.2026, User: „damit wir die Bibliothek auf die Startseite bekommen“) -->
+<div class="fmx-ms-scrim" id="fmModScrim"></div>
+<div class="fmx-ms amp-modsheet" id="fmModSheet" aria-hidden="true"><div class="fmx-ms-handle"></div><div class="fmx-ms-grid amp-modgrid">
+  <a href="#library"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg><span data-t="amp_nav_mylib"></span><small data-t="amp_nav_mylib_s"></small></a>
+  <a href="#models"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-t="amp_nav_find"></span><small data-t="amp_nav_find_s"></small></a>
+</div></div>
 <main id="view"><div class="loading">…</div></main>
 <div class="scrim" id="scrim"></div>
 <aside class="sheet" id="sheet" aria-hidden="true"></aside>
@@ -58,9 +64,17 @@
 (function(){var b=document.getElementById('fmMore'),m=document.getElementById('fmMoreSheet'),s=document.getElementById('fmMoreScrim');
 function set(o){m.classList.toggle('on',o);s.classList.toggle('on',o);b.setAttribute('aria-expanded',o?'true':'false');m.setAttribute('aria-hidden',o?'false':'true');}
 window.AMP_moreClose=function(){var o=m.classList.contains('on');set(false);return o;};
-b.addEventListener('click',function(){set(!m.classList.contains('on'));});s.addEventListener('click',function(){set(false);});m.addEventListener('click',function(e){if(e.target.closest('a'))set(false);});
+b.addEventListener('click',function(){if(window.AMP_modClose)window.AMP_modClose();set(!m.classList.contains('on'));});s.addEventListener('click',function(){set(false);});m.addEventListener('click',function(e){if(e.target.closest('a'))set(false);});
 window.addEventListener('hashchange',function(){set(false);});
 document.getElementById('fmTheme').addEventListener('click',function(){window.AMP_THEME.set(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');});})();
+(function(){var b=document.querySelector('#fmBottom a[data-v="models"]'),m=document.getElementById('fmModSheet'),s=document.getElementById('fmModScrim');if(!b||!m||!s)return;
+b.id='fmMod';b.setAttribute('aria-controls','fmModSheet');b.setAttribute('aria-expanded','false');
+function set(o){m.classList.toggle('on',o);s.classList.toggle('on',o);b.setAttribute('aria-expanded',o?'true':'false');m.setAttribute('aria-hidden',o?'false':'true');}
+window.AMP_modClose=function(){var o=m.classList.contains('on');set(false);return o;};
+b.addEventListener('click',function(e){e.preventDefault();if(window.AMP_moreClose)window.AMP_moreClose();set(!m.classList.contains('on'));});
+s.addEventListener('click',function(){set(false);});m.addEventListener('click',function(e){if(e.target.closest('a'))set(false);});
+function mark(){b.classList.toggle('amp-on',/^#(library|contests)/.test(location.hash));}
+window.addEventListener('hashchange',function(){set(false);setTimeout(mark,0);});mark();})();
 </script>
 <script src="vendor/flv.min.js"></script>
 <script src="js/viewer.js"></script>

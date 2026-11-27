@@ -99,6 +99,10 @@ function pfPrinter(id) {
   if (kindOf(p) !== 'moonraker') fail('unsupported');
   return p;
 }
+/** Zeitraffer am Drucker (27.11.2026, amp_cam_tl): Moonraker-Wurzeln in dieser Reihenfolge, Videoformate, Adresse einer Datei */
+const TL_ROOTS = ['timelapse', 'camera'];
+const TL_VIDEO = /\.(mp4|m4v|mov|mkv|webm)$/i;
+const tlUrl = (p, root, path) => mrUrl(p, '/server/files/' + root + '/' + String(path).split('/').map(encodeURIComponent).join('/'));
 /** Gramm je Werkzeug aus Moonraker-Metadaten (U1: filament_weight, Orca-Patch: filament_weights, sonst Summe) */
 function pfWeights(md) {
   const fwl = Array.isArray(md.filament_weights) ? md.filament_weights : Array.isArray(md.filament_weight) ? md.filament_weight : null;
@@ -3571,10 +3575,21 @@ const SEND = {
     // Start abwarten: Drucker meldet PREPARE/RUNNING. Antwort auf project_file (Live.kt bb_ack) zuerst: „failed“ mit Grund,
     // „mqtt message verify failed“ = kein Entwicklermodus (P1/A1 melden das sonst nirgends; Bambuddy) — Prüfung 11.11.2026
     let other = false;
-    for (let i = 0; i < 25; i++) {
+    // 27.11.2026 (Druckstart 133: P1S direkt aus der App → start_timeout, über den Agenten lief es): nach 25 s ohne Zustandswechsel
+    // einmal den vollen Stand anfordern (pushall — die P1-Reihe schickt sonst nur Änderungen) und 20 s weiter warten; der Grund
+    // (gesehene Zustände, Antwort, Verbindung, Alter der letzten Meldung) geht mit der Druckstart-Meldung mit (det)
+    const seen = [], dt = { ack: 'none', conn: '?', age: -1, push: 0 };
+    for (let i = 0; i < 45; i++) {
       await new Promise(z => setTimeout(z, 1000));
+      if (i === 25) {
+        dt.push = 1;
+        await native('live_send', { key: 'bb_' + p.id, payload: JSON.stringify({ pushing: { sequence_id: String(Math.floor(Math.random() * 2e9)), command: 'pushall', version: 1, push_target: 1 } }) }).catch(() => { dt.push = 2; });
+      }
       const s2 = await native('live_state', { key: 'bb_' + p.id }).catch(() => ({}));
       const S2 = s2.state || {}, pr2 = S2.print || {}, g2 = String(pr2.gcode_state || '').toUpperCase();
+      dt.conn = s2.connected ? 1 : 0; dt.age = typeof s2.age === 'number' ? Math.round(s2.age / 1000) : -1;
+      if (g2 && seen[seen.length - 1] !== g2 && seen.length < 6) seen.push(g2);
+      if (S2.bb_ack && +S2.bb_ack.at >= sentAt) dt.ack = String(S2.bb_ack.result || 'x').slice(0, 12);
       if (['PREPARE', 'RUNNING', 'SLICING'].includes(g2)) {
         if (p.bb_rej || (devBit === false && !p.bb_bitbad)) { p.bb_rej = 0; if (devBit === false) p.bb_bitbad = true; persist(); }   // Merkmal „aus“ war falsch
         return remote;
@@ -3587,8 +3602,12 @@ const SEND = {
       if (g2 && g2 !== 'FAILED') other = true;
       const err = +pr2.print_error || 0;
       if ((g2 === 'FAILED' && (g0 !== 'FAILED' || other)) || (err && err !== e0 && i > 3)) { const e = new Error('start_failed'); e.code = 'start_failed'; e.detail = `state=${g2} err=${err}`; throw e; }
+      dt.err = err;
     }
-    fail('start_timeout');
+    const e = new Error('start_timeout'); e.code = 'start_timeout';
+    e.detail = `seen=${seen.join('>') || '-'} ack=${dt.ack} conn=${dt.conn} age=${dt.age}s push=${dt.push} err=${dt.err || 0} was=${g0 || '-'}`;
+    diag({ a: 'bb_start_timeout', p: 'bambu', m: p.model || '', err: 'start_timeout', d: e.detail });
+    throw e;
   },
   async sdcp(p, file, name, start, plan) {
     const st = await native('live_state', { key: 'sd_' + p.id }).catch(() => ({}));
@@ -4283,7 +4302,22 @@ const START_URL = (() => { try { return localStorage.getItem('amp_start_url') ||
 const startOff = () => !!(db.settings.amp_start_report_off || (window.FM && FM.no_report));
 let startInfo = null;
 /** sj: Eintrag des Slicer-Auftrags (merkt Kennung + Versuche) oder null bei einer fertigen Datei (je Start eine neue Kennung). */
-async function startReport(sj, p, res, plan, via, chkP) {
+/** Technischer Grund für die Druckstart-Meldung (27.11.2026, User: „bau Sachen ein, damit wir mehr sehen, warum was nicht funktioniert“):
+ *  eigene Angaben (e.detail: Zustände, Codes) bzw. die Fehlermeldung — Adressen, Rechner-, Datei- und Seriennamen werden ersetzt. */
+function startDet(e) {
+  if (!e) return '';
+  // eigene Angaben (state=… ack=… seen=…): bereinigt übernehmen
+  if (e.detail) return String(e.detail).replace(/\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b/g, 'ip').replace(/\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\b/gi, 'ip')
+    .replace(/\S+\.(gcode|gco|g|3mf|stl|bgcode|ufp)\b/gi, 'file')
+    .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(local|lan|home|box|internal|intranet|com|net|de|org|io|at|ch)\b/gi, 'host')
+    .replace(/\b(?=[0-9A-Z]*\d)[0-9A-Z]{10,}\b/g, 'id').replace(/[^\w .:=,+\/>()-]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  // Fehlermeldung von Node/Android/iOS: nur erkennbare technische Begriffe — Freitext kann Datei- oder Rechnernamen enthalten
+  if (!e.message || e.message === e.code) return '';
+  const m = String(e.message).replace(/\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b/g, ' ').replace(/\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\b/gi, ' ');
+  const toks = m.match(/\b(E[A-Z]{3,}|[1-5]\d\d|http_\d{3}|timeout|timed out|refused|reset|closed|hang up|handshake|certificate|tls|ssl|mqtt|ftps?|socket|unreachable|denied|not found|verify failed|no route)\b/gi) || [];
+  return [...new Set(toks.map(x => x.toLowerCase()))].join(' ').slice(0, 120);
+}
+async function startReport(sj, p, res, plan, via, chkP, det) {
   try {
     if (startOff() || !p) return;
     sj = sj || {};
@@ -4297,6 +4331,7 @@ async function startReport(sj, p, res, plan, via, chkP) {
                    // Nur echte Codes (unreach, printer_busy, upload_404 …). Freitext von Node/Android kann eine Adresse enthalten
                    // („connect ECONNREFUSED 192.168.…“) → dann nur „other“
                    r: /^[A-Za-z0-9_]{1,40}$/.test(String(res || '')) ? String(res).toLowerCase() : 'other' };
+    if (det && body.r !== 'ok') body.det = String(det).slice(0, 120);   // 27.11.2026: technischer Grund (startDet, schon bereinigt)
     // G-Code-Prüfung (ab 0.24.0): nur Regelname + Anzahl („tc_heat:48“), leer = unauffällig — nie etwas aus der Datei
     if (chkP) { const c = gchkStr(await Promise.race([chkP, new Promise(z => setTimeout(() => z({ skip: 'time' }), GCHK_MS + 5000))]).catch(() => null)); if (c !== null) body.chk = c; }
     // Nebenbei, ohne Warten und ohne Fehlermeldung: Drucken darf daran nie hängen
@@ -4340,7 +4375,7 @@ async function sliceSend(inp) {
     return { ok: true, pending: false, kept: null, started: r.started };
   } catch (e) {
     if (e.message === 'plate_check') return { error: 'plate_check', img: e.img || null };   // Platte nicht leer? → Oberfläche fragt nach
-    if (inp.start && e.message !== 'plate_check') startReport(sj[inp.job], p, e.code || e.message, j.plan, via, pin._chk);
+    if (inp.start && e.message !== 'plate_check') startReport(sj[inp.job], p, e.code || e.message, j.plan, via, pin._chk, startDet(e));
     // „unreach“ roh im Satz verstand niemand (09.11.2026) → vorhandener Text „Nicht erreichbar unter <Adresse> …“
     // (app.js ist eine eigene Funktion — dessen t() gibt es hier nicht; die Texte liegen in window.FM.S)
     const ur = window.FM && FM.S && FM.S.amp_unreach;
@@ -4528,18 +4563,39 @@ async function libMeshBuild(f) {
     const blob = await (await libFetch(f.id)).blob();
     const res = await window.AMPMesh.build(blob, f.ext);
     for (const p of res.plates) {
+      // Farbwechsel nach Höhe (27.11.2026): eigenes farbiges Vorschaubild ersetzt das einfarbige plate_N.png aus Bambu Studio
+      if (p.thumb) {
+        try { await native('lib_thumb_put', { id: f.id, n: String(p.n), b64: p.thumb }); f.plates = [...new Set([...(f.plates || []).map(Number), p.n])].sort((a, b) => a - b); }
+        catch (e) { diag({ a: 'lib_lc_thumb', err: String(e && e.message || 'thumb').slice(0, 40) }); }
+      }
       if (!p.gz) continue;
       let bin = ''; for (let i = 0; i < p.gz.length; i += 0x8000) bin += String.fromCharCode.apply(null, p.gz.subarray(i, i + 0x8000));
       await native('lib_mesh_put', { id: f.id, n: p.n, b64: btoa(bin) });
     }
-    f.mplates = res.plates.map(({ gz, ...p }) => p);
-    f.mesh = true; f.v = (f.v || 1) + 1;
+    f.mplates = res.plates.map(({ gz, thumb, ...p }) => p);
+    f.mesh = true; f.lcv = 1; f.v = (f.v || 1) + 1;
   } catch (e) {
     f.mesh = false; f.err = String(e && e.message || 'mesh').slice(0, 40);
     diag({ a: 'lib_mesh', err: f.err, d: f.ext + ' ' + Math.round((f.size || 0) / 1048576) + ' MB' });
   }
   f.preview = 'done'; delete f.busy_at;
   persist();
+}
+// Farbwechsel nach Höhe (27.11.2026): mehrfarbige 3MF, deren 3D-Ansicht vor dem farbigen Vorschaubild gebaut wurde (ohne lcv), einmal
+// neu bauen — nacheinander im Hintergrund, angestoßen beim Öffnen der Bibliothek. Bemalte Dateien behalten ihr Bild (thumb nur bei lc).
+let libLcRun = null;
+function libLcMig() {
+  if (libLcRun) return;
+  const todo = libItems().filter(f => f.ext === '3mf' && f.mesh && !f.lcv && !f.want && f.preview !== 'busy' && (f.mplates || []).some(p => (p.cols || []).length > 1));
+  if (!todo.length) return;
+  libLcRun = (async () => {
+    for (const f of todo) {
+      if (!libItems().includes(f) || f.lcv || f.preview === 'busy') continue;
+      f.preview = 'busy'; f.busy_at = now();
+      await libMeshBuild(f).catch(() => {});
+      f.lcv = 1; persist();
+    }
+  })().finally(() => { libLcRun = null; });
 }
 // Bibliotheksdatei zum Drucken holen → { token, size }. #23 (17.11.2026, Denny, WebDAV am Agenten): „Drucken“ blieb bei
 // „Datei wird geladen …“ stehen. Der Abruf wartete bis zu 5 Min. auf ein stummes NAS und stand nirgends im Protokoll.
@@ -4797,6 +4853,7 @@ const A = {
   },
   // Bibliothek (Schnittstelle wie library_api.php)
   async lib_list() {
+    libLcMig();
     const sp = await native('lib_space').catch(() => ({ free: 0 }));
     const used = libUsed();
     return { files: libItems().slice().sort((a, b) => b.id - a.id).map(libOut), used, quota: used + Math.max(+sp.free || 0, LIB_MAX), max: LIB_MAX, exts: LIB_EXTS, sup_quota: 0,
@@ -5412,6 +5469,38 @@ const A = {
     diag({ a: 'pfile_start', p: 'moonraker', m: p.model || '', err: '', d: path.split('/').pop().slice(0, 60) });
     return { ok: true };
   },
+  // ── Zeitraffer am Drucker (27.11.2026, Community #62 Donnie K., Snapmaker U1: „access the time-lapse videos“). Videos, die der Klipper-
+  // Drucker aufgenommen hat, auflisten, abspielen und speichern. Moonraker: Wurzel „timelapse“ (moonraker-timelapse, U1 Extended-Firmware),
+  // die U1-Originalfirmware legt sie in „camera“ ab (dort liegt auch monitor.jpg). Abspielen in amp-views ampTlDlg: App direkt vom Drucker,
+  // Agent über /cam/file (Range durchgereicht, auch von unterwegs). Speichern wie „Speichern unter“ der Bibliothek (download → lib_save_as).
+  async amp_cam_tl(inp) {
+    const p = pfPrinter(inp.printer);
+    let roots = null;
+    try { const r = await mrGet(p, '/server/files/roots', 5000); roots = (Array.isArray(r) ? r : []).map(x => x && x.name).filter(Boolean); }
+    catch (e) { if (e.message === 'unauthorized') fail('unauthorized'); if (!/^http_/.test(e.message)) fail('offline'); }
+    const cand = TL_ROOTS.filter(r => !roots || roots.includes(r));
+    let root = '', list = null;
+    for (const r of cand) {
+      try { list = await mrGet(p, '/server/files/list?' + qs({ root: r }), 8000); root = r; break; }
+      catch (e) { if (e.message === 'unauthorized') fail('unauthorized'); if (!/^http_/.test(e.message)) fail('offline'); }
+    }
+    if (!root) return { root: '', files: [], total: 0, u1: isU1(p) };
+    const items = (Array.isArray(list) ? list : []).filter(f => f && typeof f.path === 'string' && !/(^|\/)\./.test(f.path));
+    const imgs = new Map(items.filter(f => /\.(jpe?g|png)$/i.test(f.path)).map(f => [f.path.replace(/\.[^./]+$/, ''), f.path]));
+    const all = items.filter(f => TL_VIDEO.test(f.path)).sort((a, b) => (+b.modified || 0) - (+a.modified || 0));
+    const url = fp => tlUrl(p, root, fp);
+    return { root, total: all.length, u1: isU1(p),
+             files: all.slice(0, 100).map(f => { const im = imgs.get(f.path.replace(/\.[^./]+$/, ''));
+               return { path: f.path, name: f.path.split('/').pop(), size: +f.size || 0, modified: Math.round(+f.modified || 0), src: url(f.path), img: im ? url(im) : null }; }) };
+  },
+  async amp_cam_tl_save(inp) {
+    const p = pfPrinter(inp.printer), root = String(inp.root || ''), path = String(inp.path || '');
+    if (!TL_ROOTS.includes(root) || !TL_VIDEO.test(path) || path.length > 500 || /(^|\/)\.\.(\/|$)/.test(path)) fail('not_found');
+    const name = path.split('/').pop();
+    const r = await native('download', { url: tlUrl(p, root, path), headers: p.key ? { 'X-Api-Key': p.key } : {}, name });
+    if (!r || r.status !== 200 || !r.token) fail(r && r.status === 404 ? 'file_missing' : r && (r.status === 401 || r.status === 403) ? 'unauthorized' : 'offline');
+    try { return (await native('lib_save_as', { token: r.token, name })) || { ok: false }; } finally { native('fileDrop', { token: r.token }).catch(() => {}); }
+  },
   async print_short(inp) {
     const p = db.printers.find(x => x.id === inp.printer);
     return { short: p ? shortList(p.id, gcodeItems(p.id, inp.weights, inp.map)) : [] };
@@ -5749,7 +5838,7 @@ const A = {
     const plan = inp.plan || (inp.meta && inp.meta.weights ? inp.meta.weights.map((g, t) => ({ slot: inp.map && inp.map[t] != null ? +inp.map[t] : t, tool: t, g })) : []);
     let r;
     try { r = await printSend(inp, inp._progress); }
-    catch (e) { if (inp.start && e.message !== 'plate_check') startReport(null, p, e.code || e.message, plan, 'file', inp._chk); throw e; }
+    catch (e) { if (inp.start && e.message !== 'plate_check') startReport(null, p, e.code || e.message, plan, 'file', inp._chk, startDet(e)); throw e; }
     if (inp.start) startReport(null, p, r && r.started ? 'ok' : 'not_started', plan, 'file', inp._chk);
     if (inp.lib && r && r.started) { libLink(inp.lib, r.job, (db.printers.find(x => x.id === inp.printer) || {}).name); persist(); }
     return r;

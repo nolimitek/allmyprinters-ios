@@ -3524,6 +3524,23 @@ async function viewPrint() {
         plates.push({ n: i + 1, name: meta(pl, 'plater_name') || '', parts: ids.size, ids, insts, used: usedOf(ids, i + 1), thumb: (meta(pl, 'thumbnail_file') || '').replace(/^\//, '') });
       });
       if (!plates.length) plates.push({ n: 1, name: '', parts: 0, ids: new Set(), insts: [], used: usedOf(new Set(), 1), thumb: '' });
+      // Im Platten-Editor gelöscht bzw. ausgeblendet (27.11.2026): Teile mit printable="0" im Build stehen weiter in model_settings →
+      // nicht anzeigen, nicht mitzählen (Teile, Farben) und beim Slicen ausdrücklich überspringen (p.off → #pskip). k-ter <item> eines
+      // Objekts = instance_id k (wie unten bei den Lagen).
+      const mm0 = await read('3D/3dmodel.model'), offs = {};
+      if (mm0) {
+        const b0 = mm0.indexOf('<build');
+        for (const m of mm0.slice(b0 < 0 ? 0 : b0).matchAll(/<item\b[^>]*>/g)) { const oid = (m[0].match(/\bobjectid="(\d+)"/) || [])[1]; if (oid) (offs[oid] = offs[oid] || []).push(/\bprintable="0"/.test(m[0])); }
+      }
+      for (const p of plates) {
+        const isOff = x => !!(offs[x.obj] || [])[x.inst], off = p.insts.filter(isOff);
+        if (!off.length) continue;
+        p.off = off.map(x => x.id);
+        p.insts = p.insts.filter(x => !isOff(x));
+        const keep = new Set(p.insts.map(x => x.obj));
+        off.forEach(x => { if (!keep.has(x.obj)) p.ids.delete(x.obj); });
+        if (p.ids.size) { p.parts = p.ids.size; p.used = usedOf(p.ids, p.n); }
+      }
       // Lage der Teile für die kleine Draufsicht: Position = Build-Eintrag im 3D/3dmodel.model (k-ter Eintrag eines Objekts
       // = instance_id k), Umriss aus Metadata/plate_N.json. Dessen Koordinaten zählen je Platte, die Build-Einträge im ganzen
       // Projekt → über den gemeinsamen Mittelpunkt angleichen und je Teil den nächsten Umriss nehmen.
@@ -3592,7 +3609,8 @@ async function viewPrint() {
     if (!box) return;
     const n = +((view.querySelector('input[name=plate]:checked') || {}).value || 1);
     const p = pk && (pk.plates.find(x => x.n === n) || pk.plates[0]);
-    ps.skip = new Set(); $('#pskip').value = '';
+    // im Platten-Editor gelöschte Teile (printable="0", 27.11.2026) immer überspringen, auch wenn nur noch eins übrig ist
+    ps.skip = new Set((p && p.off) || []); $('#pskip').value = [...ps.skip].join(',');
     if (!p || p.insts.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
     let svg = '';
     if (p.map) {
@@ -3608,7 +3626,7 @@ async function viewPrint() {
       <label class="chk row parr"><input type="checkbox" name="arrange" value="1"${ps.arrange ? ' checked' : ''}> <span>${esc(t('psd_arrange'))}</span></label><p class="hint">${esc(t('psd_arrange_hint'))}</p>`;
     box.hidden = false;
     const sync = () => {
-      ps.skip = new Set([...box.querySelectorAll('input[data-skip]')].filter(c => !c.checked).map(c => c.dataset.skip));
+      ps.skip = new Set([...(p.off || []), ...[...box.querySelectorAll('input[data-skip]')].filter(c => !c.checked).map(c => c.dataset.skip)]);
       $('#pskip').value = [...ps.skip].join(',');
       box.querySelectorAll('input[data-skip]').forEach(c => { const g = box.querySelector(`.pobj-map g[data-i="${c.dataset.i}"]`); if (g) g.classList.toggle('off', !c.checked); });
       ps.mf = mfOf(ps.pk, n, ps.skip); renderMulti();
@@ -6437,6 +6455,7 @@ window.AMP_back = () => {
   if (dlg.open) { dlg.close(); return true; }
   if (cam.full) { const b = view.querySelector('.pcam.amp-full'); if (b) b.classList.remove('amp-full'); cam.full = null; return true; }
   if (window.AMP_moreClose && window.AMP_moreClose()) return true;
+  if (window.AMP_modClose && window.AMP_modClose()) return true;   // Handy: Blatt „Modelle“ (27.11.2026)
   if (sheet.classList.contains('on')) { history.replaceState(null, '', '#' + (lastView === 'overview' ? 'printers' : lastView || 'spools')); closeSheet(); return true; }
   const h = location.hash.slice(1);
   if (h && h !== 'printers') { if (history.length > 1) history.back(); else location.hash = 'printers'; return true; }
@@ -8817,14 +8836,14 @@ function msSave() { pref('ms_f', JSON.stringify(msF)); }
 /** Filterblatt am Handy (gleiche Reihenfolge wie die Seitenleiste): Auswahl erst mit „Anzeigen“ übernehmen, Schließen verwirft sie */
 function msFilter() {
   const d = { src: msF.src.slice(), price: msF.price, group: msF.group, sort: msF.sort };
-  let ddOpen = false;
+  let ddOpen = false, srcOpen = false;   // Plattformen am Handy zugeklappt wie am PC (27.11.2026, User: „ausblenden wie auf der PC-Seite“)
   const draw = () => {
     const nOn = d.src.length || MS_SBSRC.length, cn = ms.cont && ms.cont.active;
     openSheet(`<div class="sheet-h"><b>${esc(t('amp_mf_h'))}</b><button type="button" class="x-btn" id="mfx" aria-label="${esc(t('close'))}">×</button></div>
       <div class="sheet-b amp-mfs">
-        <section><h3>${I_GLOBE}<span>${esc(t('amp_mf_src'))}</span><small>${esc(t('amp_sb_of', { n: nOn, t: MS_SBSRC.length }))}</small></h3>
+        <section><details class="amp-mfsrc" id="mfsrc"${srcOpen ? ' open' : ''}><summary><h3>${I_GLOBE}<span>${esc(t('amp_mf_src'))}</span><small>${esc(t('amp_sb_of', { n: nOn, t: MS_SBSRC.length }))}</small>${I_CHEV}</h3></summary>
           <div class="amp-mflist">${MS_SBSRC.map(k => { const on = msSrcOn(d.src, k); return `<button type="button" class="amp-mfrow" data-mfs="${k}" aria-pressed="${on}"><i class="amp-dot" style="background:${MS_COL[k]}"></i><span>${esc(s3dName(k))}</span><span class="amp-chkbox${on ? ' on' : ''}" aria-hidden="true">${on ? I_CHECK : ''}</span></button>`; }).join('')}</div>
-          <button type="button" class="amp-mflink" id="mfall"${d.src.length ? '' : ' disabled'}>${esc(t('amp_sb_all'))}</button></section>
+          <button type="button" class="amp-mflink" id="mfall"${d.src.length ? '' : ' disabled'}>${esc(t('amp_sb_all'))}</button></details></section>
         <a class="amp-mfcont" href="#contests" id="mfcont">${I_TROPHY}<span>${esc(t('amp_ct_h'))}</span>${cn ? `<b>${esc(t('amp_ct_run_n', { n: cn }))}</b>` : ''}${I_CHEVR}</a>
         <section><h3>${I_SORT}<span>${esc(t('amp_mf_sort'))}</span></h3><div class="amp-mflist" role="radiogroup" aria-label="${esc(t('amp_mf_sort'))}">${MS_SORT.map(k => `<button type="button" class="amp-mfrow" role="radio" aria-checked="${d.sort === k}" data-mf="sort" data-v="${k}"><span>${esc(t('amp_mf_s_' + k))}</span><span class="amp-radio${d.sort === k ? ' on' : ''}" aria-hidden="true"></span></button>`).join('')}</div></section>
         <section><h3>${I_PRICE}<span>${esc(t('amp_mf_price'))}</span></h3><div class="amp-seg amp-mfseg" role="group" aria-label="${esc(t('amp_mf_price'))}">${[['', 'amp_mf_p_all'], ['free', 'amp_models_free'], ['paid', 'amp_mf_p_paid']].map(([v, k]) => `<button type="button" class="${d.price === v ? 'on' : ''}" data-mf="price" data-v="${v}" aria-pressed="${d.price === v}">${esc(t(k))}</button>`).join('')}</div></section>
@@ -8835,6 +8854,7 @@ function msFilter() {
     sheet.querySelectorAll('[data-mf]').forEach(x => x.onclick = () => { d[x.dataset.mf] = x.dataset.v; if (x.dataset.mf === 'group') ddOpen = false; redraw(); });
     sheet.querySelectorAll('[data-mfs]').forEach(x => x.onclick = () => { d.src = msSrcToggle(d.src, x.dataset.mfs); redraw(); });
     $('#mfdd').addEventListener('toggle', () => { ddOpen = $('#mfdd').open; });
+    $('#mfsrc').addEventListener('toggle', () => { srcOpen = $('#mfsrc').open; });
     $('#mfall').onclick = () => { d.src = []; redraw(); };
     $('#mfcont').onclick = e => { e.preventDefault(); closeSheet(); location.hash = 'contests'; };
     $('#mfx').onclick = () => closeSheet();
@@ -9742,7 +9762,9 @@ function ampPrMenu(card, pid) {
   const pr = ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid));
   if (pr && pr.files) {
     const f = document.createElement('button'); f.type = 'button'; f.dataset.amppf = pid; f.textContent = t('amp_dpf_menu');
-    const rm = l.querySelector('.bad'); if (rm) rm.before(f); else l.append(f);
+    // Zeitraffer vom Drucker (27.11.2026, Community #62) — gleiche Drucker (Klipper/Moonraker)
+    const v = document.createElement('button'); v.type = 'button'; v.dataset.amptl = pid; v.textContent = t('amp_tl_menu');
+    const rm = l.querySelector('.bad'); if (rm) { rm.before(f); rm.before(v); } else l.append(f, v);
   }
   top.append(d);
 }
@@ -10020,6 +10042,69 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-amppf]'); if (!b) return;
   const d = b.closest('details'); if (d) d.open = false;
   ampPfDlg(b.dataset.amppf);
+});
+
+// ── Zeitraffer vom Drucker (27.11.2026, Community #62 Donnie K., Snapmaker U1): Videos, die der Klipper-Drucker aufgenommen hat, ansehen
+// und speichern. backend amp_cam_tl / amp_cam_tl_save; Menüpunkt im ⋯ der Druckerkarte (ampPrMenu). Abspielen: in der App direkt vom
+// Drucker (Heimnetz, wie die Kamera), im Agenten über /cam/file (reicht Range durch, auch von unterwegs durch den Tunnel).
+const I_TL = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg>';
+const ampTlSrc = u => AMP.agent ? (window.AMP_BASE || '') + '/cam/file?u=' + encodeURIComponent(u) : u;
+const ampTlTitle = n => String(n || '').replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+const ampTlSize = b => b >= 1048576 ? nf.format(Math.round(b / 104857.6) / 10) + ' MB' : b > 0 ? nf.format(Math.max(1, Math.round(b / 1024))) + ' KB' : '';
+async function ampTlDlg(pid) {
+  const pr = ((pv.data && pv.data.connections) || []).flatMap(c => c.printers || []).find(x => String(x.id) === String(pid)) || {};
+  dlg.innerHTML = `<form method="dialog" class="amp-pf amp-tl"><div class="dlg-h"><b>${esc(t('amp_tl_h'))}${pr.name ? `<small class="amp-pf-sub">${esc(pr.name)}</small>` : ''}</b><button type="button" class="x-btn" data-x aria-label="${esc(t('close'))}">×</button></div>
+    <div class="dlg-b"><div id="amptlv" class="amp-tl-v" hidden></div><div id="amptll">${spin(t('amp_tl_load'))}</div></div></form>`;
+  // Schließen hält auch das Video an (sonst spielt der Ton im Hintergrund weiter)
+  const stop = () => { const v = dlg.querySelector('#amptlv video'); if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} } };
+  dlg.querySelector('[data-x]').onclick = () => { stop(); dlg.close(); };
+  dlg.addEventListener('close', stop, { once: true });
+  if (!dlg.open) dlg.showModal();
+  const box = document.getElementById('amptll'), pl = document.getElementById('amptlv');
+  let r;
+  try { r = await api('amp_cam_tl', { printer: pid }); }
+  catch (er) { box.innerHTML = `<p class="hint bad">${esc(er.message === 'offline' ? t('amp_dpf_offline') : t('amp_tl_err'))}</p>`; return; }
+  if (!r.root) { box.innerHTML = `<p class="hint">${esc(t('amp_tl_none'))}</p>`; return; }
+  if (!r.files.length) { box.innerHTML = `<p class="hint">${esc(t('amp_tl_empty'))}</p>` + (r.u1 ? `<p class="hint">${esc(t('amp_tl_u1hint'))}</p>` : ''); return; }
+  box.innerHTML = `<ul class="amp-pf-l">${r.files.map((f, i) => `<li class="amp-pf-r amp-tl-r" data-i="${i}">
+      <button type="button" class="amp-pf-img amp-tl-img" data-tlplay="${i}" aria-label="${esc(t('amp_tl_play'))}">${f.img ? `<img src="${esc(ampTlSrc(f.img))}" alt="" loading="lazy">` : I_TL}</button>
+      <span class="amp-pf-t"><b>${esc(ampTlTitle(f.name))}</b><small>${[f.modified ? ago(ampPfDate(f.modified)) : '', ampTlSize(f.size)].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <span class="amp-tl-b"><button type="button" class="btn sm" data-tlsave="${i}">${esc(t('amp_tl_save'))}</button><button type="button" class="btn sm pri" data-tlplay="${i}">${esc(t('amp_tl_play'))}</button></span>
+      <div class="amp-pf-msg" hidden></div></li>`).join('')}</ul>` + (r.total > r.files.length ? `<p class="hint">${esc(t('amp_tl_more', { n: r.files.length }))}</p>` : '');
+  const play = i => {
+    const f = r.files[i]; stop();
+    pl.hidden = false;
+    pl.innerHTML = `<video controls autoplay playsinline preload="metadata"${f.img ? ` poster="${esc(ampTlSrc(f.img))}"` : ''} src="${esc(ampTlSrc(f.src))}"></video>
+      <div class="amp-tl-cap"><b>${esc(ampTlTitle(f.name))}</b><button type="button" class="btn sm" data-tlsave="${i}">${esc(t('amp_tl_save'))}</button></div><p class="hint bad" hidden></p>`;
+    const v = pl.querySelector('video');
+    // Kaputte Aufnahme (Strom weg, abgebrochener Druck) oder Format, das dieses Gerät nicht kann → Hinweis statt schwarzem Bild
+    v.addEventListener('error', () => { if (!v.getAttribute('src')) return; const h = pl.querySelector('.hint.bad'); h.hidden = false; h.textContent = t('amp_tl_bad'); });
+    box.querySelectorAll('.amp-tl-r').forEach(x => x.classList.toggle('on', x.dataset.i === String(i)));
+    pl.scrollIntoView({ block: 'nearest' });
+  };
+  const save = async (i, b) => {
+    const f = r.files[i], row = box.querySelector(`.amp-tl-r[data-i="${i}"]`), msg = row && row.querySelector('.amp-pf-msg');
+    const all = dlg.querySelectorAll(`[data-tlsave="${i}"]`); all.forEach(x => { x.disabled = true; });
+    if (msg) { msg.hidden = false; msg.innerHTML = spin(t('amp_tl_saving')); }
+    try {
+      const x = await api('amp_cam_tl_save', { printer: pid, root: r.root, path: f.path });
+      if (msg) msg.hidden = true;
+      if (x && x.ok) toast(t('saved'));
+    } catch (er) {
+      const m = er.message || '';
+      if (msg) msg.innerHTML = `<span class="bad">${esc(m === 'offline' ? t('amp_dpf_offline') : t('amp_tl_save_err', { e: m }))}</span>`;
+    }
+    all.forEach(x => { x.disabled = false; });
+  };
+  dlg.querySelector('.amp-tl').onclick = e => {
+    const p = e.target.closest('[data-tlplay]'); if (p) { play(+p.dataset.tlplay); return; }
+    const s = e.target.closest('[data-tlsave]'); if (s) save(+s.dataset.tlsave, s);
+  };
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-amptl]'); if (!b) return;
+  const d = b.closest('details'); if (d) d.open = false;
+  ampTlDlg(b.dataset.amptl);
 });
 // Zweite Farbe beim manuellen Anlegen einer Spule (Community #56): Feld im Formular (build_web.py, Spulen-Dialog), Häkchen schaltet die Farbe frei
 window.ampColor2 = s => {
