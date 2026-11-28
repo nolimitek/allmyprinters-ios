@@ -10,16 +10,20 @@ concurrency:
   cancel-in-progress: true
 jobs:
   simulator:
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Xcode 26 wählen (App Store verlangt das iOS-26-SDK)
+      # Xcode 27.1 (iOS-27.1-SDK): erst damit nutzt die App den ganzen Bildschirm des iPhone Duo (iPhone19,4, faltbar) — mit dem
+      # iOS-26-SDK läuft sie dort nur in einem kleinen Fenster (Meldung #36, 28.11.2026). 27.2 meldete beim Hochladen teils
+      # „Unsupported SDK or Xcode version“ → bewusst 27.1.x.
+      - name: Xcode 27.1 wählen (iOS-27.1-SDK, iPhone Duo)
         run: |
-          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
-          [ -n "$X" ] || { ls -d /Applications/Xcode*.app; echo "kein Xcode 26 auf dem Runner"; exit 1; }
+          X=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$X" ] || { ls -d /Applications/Xcode*.app; echo "kein Xcode 27.1 auf dem Runner"; exit 1; }
           sudo xcode-select -s "$X/Contents/Developer"
           xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
       - name: Werkzeuge
         run: |
           xcodebuild -version
