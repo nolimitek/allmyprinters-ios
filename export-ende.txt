@@ -1,0 +1,4 @@
+2026-11-28 15:50:40.927 xcodebuild[2435:10901] [MT] IDEDistribution: -[IDEDistributionLogging _createLoggingBundleAtPath:]: Created bundle at path "/var/folders/5n/5t77mfb93jd7q8v9s6f0dn0m0000gn/T/AllMyPrinters_2026-11-28_15-50-40.925.xcdistributionlogs".
+Exported AllMyPrinters to: /Users/runner/work/allmyprinters-ios/allmyprinters-ios/build/export
+** EXPORT SUCCEEDED **
+

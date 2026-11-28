@@ -1,0 +1,32 @@
+Xcode 27.1
+Build version 27A9275
+	iOS 27.1                      	-sdk iphoneos27.1
+Bundle-ID vorhanden: com.allmyprinters.app
+Team-ID: VVWTX2F9BH
+Push-Berechtigung: an
+NFC-Berechtigung: an
+Bundle-ID vorhanden: com.allmyprinters.app.notify
+App in App Store Connect: AllMyPrinters (id 6838309171)
+Zertifikat aus dem Cache weiterverwendet (noch 359 Tage)
+Profil: AMP CI AppStore 271590c1-af3f-455e-85fc-75b3dcb5923e bis 2027-11-23T14:28:19.000+00:00
+Profil: AMP CI Notify 9022b7da-1ee3-425a-b872-bb0d5829bcfc bis 2027-11-23T14:28:19.000+00:00
+  1) 11D05B4CBCBDCABFCDC8CB309E0062C449982D9D "Apple Distribution: Christian Hietzker (VVWTX2F9BH)"
+     1 valid identities found
+Archiv ok, Build 16
+total 4752
+drwxr-xr-x  6 runner  staff      192 Nov 28 15:50 .
+drwxr-xr-x  4 runner  staff      128 Nov 28 15:50 ..
+-rw-r--r--  1 runner  staff  2383133 Nov 28 15:50 AllMyPrinters.ipa
+-rw-r--r--  1 runner  staff     3265 Nov 28 15:50 DistributionSummary.plist
+-rw-r--r--  1 runner  staff      882 Nov 28 15:50 ExportOptions.plist
+-rw-r--r--  1 runner  staff    37958 Nov 28 15:50 Packaging.log
+Running altool at path '/Applications/Xcode_27.1.app/Contents/SharedFrameworks/ContentDelivery.framework/Resources/altool'...
+
+2026-11-28 15:52:08.222  INFO: [ContentDelivery.Uploader.787D0912C0] 
+==========================================
+UPLOAD SUCCEEDED with no errors
+Delivery UUID: c9dba234-7cca-48ba-bde1-4eeb2939f10c
+Transferred 2383133 bytes in 3.352 seconds (710.88KB/s, 5.687Mbps)
+==========================================
+No errors uploading archive at 'build/export/AllMyPrinters.ipa'.
+HOCHGELADEN: 0.24.11 (16)
